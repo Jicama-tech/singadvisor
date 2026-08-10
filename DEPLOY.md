@@ -62,26 +62,33 @@ rapid connects — wait and retry.
 
 ## 1. Get the code onto the server
 
-singAdvisor is **not a git repository yet**, so it cannot use docaiq's
-`git fetch && git reset --hard origin/main` runbook. Two options:
+Repo: **<https://github.com/rbgoda/singadvisor>** (private).
 
-**A — rsync (no repo needed):**
+The live server was originally seeded by rsync. To switch it to the same
+git-based flow docaiq uses:
 
 ```bash
-ssh root@168.231.121.20 'mkdir -p /opt/singadvisor /opt/singadvisor-backups'
+cd /opt && mv singadvisor singadvisor.rsync-backup
+git clone https://github.com/rbgoda/singadvisor.git /opt/singadvisor
+cp /opt/singadvisor.rsync-backup/.env /opt/singadvisor/.env
+cp /opt/singadvisor.rsync-backup/prisma/prod.db /opt/singadvisor/prisma/prod.db
+cp -r /opt/singadvisor.rsync-backup/var /opt/singadvisor/var
+cd /opt/singadvisor && npm ci && npm run build && pm2 restart singadvisor
+```
 
-rsync -av --delete \
-  -e 'sshpass -p "$(cat ~/.docaiq-prod-pass)" ssh -o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
+Updates then become `git fetch origin && git reset --hard origin/main`, exactly
+like every other product on this host.
+
+**Until then, updates go by rsync:**
+
+```bash
+rsync -az --delete \
+  -e 'sshpass -p "$(cat ~/.docaiq-prod-pass)" ssh -o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1' \
   --exclude node_modules --exclude .next --exclude .git \
   --exclude legacy --exclude 'prisma/*.db*' --exclude var --exclude .env \
   ~/Downloads/projects/singAdvisor/ \
   root@168.231.121.20:/opt/singadvisor/
 ```
-
-**B — match docaiq (recommended if this will be updated often):** `git init`
-locally, push to `github.com/rbgoda/singadvisor`, clone to `/opt/singadvisor`,
-and updates become `git fetch && git reset --hard origin/main` like every other
-product here.
 
 ## 2. Configure
 
