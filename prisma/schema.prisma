@@ -1,0 +1,280 @@
+// SingAdvisor data model.
+//
+// Provider is SQLite for local development. To move to Postgres, change the
+// provider to "postgresql" and point DATABASE_URL at the server — every model
+// below is written to be portable (no SQLite-only types, enums modelled as
+// strings with values constrained in src/lib/constants.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Use case 1: Trainings
+// ---------------------------------------------------------------------------
+
+model Training {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  title       String
+  summary     String
+  description String
+  image       String
+  category    String // Student | Corporate | Professional
+  level       String  @default("All levels")
+  durationHrs Float   @default(2)
+  format      String  @default("In-person") // In-person | Online | Hybrid
+  priceCents  Int     @default(0) // 0 renders as "Free"
+  currency    String  @default("SGD")
+  outcomes    String // JSON-encoded string[]
+  modules     String // JSON-encoded string[]
+  published   Boolean @default(true)
+  featured    Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  trainerId String?
+  trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+
+  registrations Registration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category, published])
+}
+
+model Trainer {
+  id       String  @id @default(cuid())
+  name     String
+  title    String
+  bio      String
+  photo    String
+  linkedin String?
+
+  trainings Training[]
+  posts     BlogPost[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Blog
+// ---------------------------------------------------------------------------
+
+model BlogPost {
+  id       String @id @default(cuid())
+  slug     String @unique
+  title    String
+  excerpt  String
+  /// Markdown. Rendered to React elements (never raw HTML) by ArticleBody.
+  content  String
+  coverImage String
+  /// One of BLOG_CATEGORIES — mirrors the four practice areas.
+  category String  @default("Trainings")
+  /// JSON-encoded string[]
+  tags     String  @default("[]")
+  published Boolean @default(true)
+  featured  Boolean @default(false)
+  /// Null until first published; drives ordering and the visible date.
+  publishedAt DateTime?
+
+  authorId String?
+  author   Trainer? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published, publishedAt])
+  @@index([category])
+}
+
+// ---------------------------------------------------------------------------
+// Use case 2: Events
+// ---------------------------------------------------------------------------
+
+model Event {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  summary     String
+  description String
+  image       String
+  venue       String
+  address     String
+  startsAt    DateTime
+  endsAt      DateTime
+  capacity    Int      @default(100)
+  speakers    String // JSON-encoded string[]
+  agenda      String // JSON-encoded {time,title}[]
+  priceCents  Int      @default(0)
+  currency    String   @default("SGD")
+  published   Boolean  @default(true)
+  featured    Boolean  @default(false)
+
+  registrations Registration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startsAt, published])
+}
+
+// A single table backs both training enrollments and event RSVPs. Exactly one
+// of trainingId / eventId is set; the API layer enforces that invariant.
+model Registration {
+  id        String  @id @default(cuid())
+  name      String
+  email     String
+  phone     String
+  company   String?
+  seats     Int     @default(1)
+  message   String?
+  status    String  @default("pending") // pending | confirmed | cancelled
+  createdAt DateTime @default(now())
+
+  trainingId String?
+  training   Training? @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([trainingId])
+  @@index([eventId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Use case 3: Consultancy
+// ---------------------------------------------------------------------------
+
+model ConsultancyService {
+  id           String  @id @default(cuid())
+  slug         String  @unique
+  title        String
+  summary      String
+  description  String
+  image        String
+  icon         String  @default("compass")
+  engagement   String  @default("Project-based") // Retainer | Project-based | Advisory
+  deliverables String // JSON-encoded string[]
+  idealFor     String // JSON-encoded string[]
+  published    Boolean @default(true)
+  sortOrder    Int     @default(0)
+
+  enquiries ConsultancyEnquiry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ConsultancyEnquiry {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  phone       String
+  company     String
+  companySize String? // 1-10 | 11-50 | 51-200 | 200+
+  budget      String?
+  timeline    String?
+  message     String
+  status      String   @default("new") // new | contacted | won | lost
+  createdAt   DateTime @default(now())
+
+  serviceId String?
+  service   ConsultancyService? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Use case 4: Careers
+// ---------------------------------------------------------------------------
+
+model JobPosting {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  title        String
+  department   String
+  location     String    @default("Singapore")
+  employment   String    @default("Full-time") // Full-time | Part-time | Contract | Internship
+  workMode     String    @default("On-site") // On-site | Remote | Hybrid
+  experience   String    @default("2-4 years")
+  salaryMin    Int?
+  salaryMax    Int?
+  currency     String    @default("SGD")
+  summary      String
+  description  String
+  requirements String // JSON-encoded string[]
+  benefits     String // JSON-encoded string[]
+  published    Boolean   @default(true)
+  closesAt     DateTime?
+
+  applications JobApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([department, published])
+}
+
+model JobApplication {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  phone       String
+  linkedin    String?
+  portfolio   String?
+  coverLetter String
+  resumePath  String? // relative path under public/uploads
+  resumeName  String?
+  status      String   @default("received") // received | screening | interview | offer | rejected
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  jobId String
+  job   JobPosting @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, status])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Shared
+// ---------------------------------------------------------------------------
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("editor") // owner | editor
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Subscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
