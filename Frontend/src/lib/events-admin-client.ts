@@ -356,9 +356,77 @@ export type TicketRow = {
   isUsed: boolean;
 };
 
-export function fetchTicketsAdmin(eventId?: string): Promise<TicketRow[]> {
-  const qs = eventId ? `?eventId=${eventId}` : "";
-  return authedFetch(`/tickets/admin${qs}`) as Promise<TicketRow[]>;
+// ---------------------------------------------------------------------------
+// Tickets — cut over to eventsh (same as Events; unlike Sponsors below,
+// which are still on this app's own Backend). Ticket *creation* moved in
+// Backend/src/modules/tickets/tickets.service.ts (after Razorpay
+// verification, which stays exactly as-is there) — this is the admin-read/
+// action half, same eventshFetch pattern as Events above.
+// ---------------------------------------------------------------------------
+
+interface EventshTicketDoc {
+  _id: string;
+  ticketId: string;
+  eventId: string;
+  eventTitle: string;
+  customerName: string;
+  customerEmail: string;
+  customerWhatsapp?: string;
+  ticketDetails: { ticketType: string; quantity: number; price: number; tierId?: string }[];
+  totalAmount: number;
+  status: "pending" | "confirmed" | "cancelled" | "used";
+  purchaseDate: string;
+  isUsed: boolean;
+}
+
+function fromEventshTicket(raw: EventshTicketDoc): TicketRow {
+  return {
+    _id: raw._id,
+    ticketId: raw.ticketId,
+    eventId: String(raw.eventId),
+    eventTitle: raw.eventTitle,
+    customerName: raw.customerName,
+    customerEmail: raw.customerEmail,
+    // eventsh tracks one "customerWhatsapp" field, not a separate phone —
+    // closest available mapping.
+    customerPhone: raw.customerWhatsapp || "",
+    ticketDetails: raw.ticketDetails.map((d) => ({
+      ticketType: d.ticketType,
+      quantity: d.quantity,
+      price: d.price,
+      tierId: d.tierId || "",
+    })),
+    totalAmount: raw.totalAmount,
+    // eventsh has no per-ticket currency field — same fixed-per-Organizer
+    // assumption as Events (see events-eventsh-adapter.ts).
+    currency: process.env.EVENTSH_DEFAULT_CURRENCY || "SGD",
+    status: raw.status,
+    purchaseDate: raw.purchaseDate,
+    isUsed: raw.isUsed,
+  };
+}
+
+export async function fetchTicketsAdmin(): Promise<TicketRow[]> {
+  const { organizerId } = eventshConfig();
+  const raw = (await eventshFetch(
+    `/tickets/organizer/${organizerId}`,
+  )) as EventshTicketDoc[];
+  return (raw || []).map(fromEventshTicket);
+}
+
+export async function setTicketStatusAdmin(
+  id: string,
+  status: TicketRow["status"],
+): Promise<TicketRow> {
+  const raw = await eventshFetch(`/tickets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+  return fromEventshTicket(raw as EventshTicketDoc);
+}
+
+export async function resendTicketEmailAdmin(id: string): Promise<void> {
+  await eventshFetch(`/tickets/${id}/resend-email`, { method: "POST" });
 }
 
 export type SponsorRequestRow = {

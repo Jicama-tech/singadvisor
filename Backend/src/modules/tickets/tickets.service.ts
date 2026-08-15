@@ -1,19 +1,20 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { Model } from 'mongoose';
-import * as QRCode from 'qrcode';
-import { Event, EventDocument } from '../events/entities/event.entity';
 import { Ticket, TicketDocument } from './entities/ticket.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ConfirmTicketDto } from './dto/confirm-ticket.dto';
 import { ClaimFreeTicketDto } from './dto/claim-free-ticket.dto';
 import { RazorpayService } from './razorpay.service';
 import { MailService } from '../mail/mail.service';
-
-const TICKETS_UPLOAD_DIR = join(process.cwd(), 'uploads', 'tickets');
 
 type ConfirmInput = {
   eventId: string;
@@ -28,22 +29,102 @@ type ConfirmInput = {
   method?: string;
 };
 
+/** Loosely-typed shape of what eventsh's GET /events/:id actually returns —
+ * only the fields this service reads. See EventshVisitorType/fetchEventshEvent
+ * below for why this Backend fetches events from eventsh now instead of its
+ * own (no longer authoritative — Events moved to eventsh, see the Frontend's
+ * events-client.ts) local `events` collection. */
+interface EventshVisitorType {
+  id: string;
+  name: string;
+  price: number;
+  maxCount: number;
+  soldCount: number;
+  isActive: boolean;
+}
+interface EventshEvent {
+  _id: string;
+  title: string;
+  location?: string;
+  startDate: string;
+  time?: string;
+  currency?: string;
+  image?: string;
+  visitorTypes?: EventshVisitorType[];
+  organizer?: { organizationName?: string; name?: string };
+}
+
 @Injectable()
 export class TicketsService {
   private readonly logger = new Logger(TicketsService.name);
 
   constructor(
     @InjectModel(Ticket.name) private readonly ticketModel: Model<TicketDocument>,
-    @InjectModel(Event.name) private readonly eventModel: Model<EventDocument>,
     private readonly razorpay: RazorpayService,
     private readonly mail: MailService,
   ) {}
 
-  async createOrder(dto: CreateOrderDto) {
-    const event = await this.eventModel.findById(dto.eventId).exec();
-    if (!event) throw new NotFoundException('Event not found');
-    const tier = event.visitorTypes.find((v) => v.id === dto.tierId);
+  private eventshUrl(): string {
+    const url = process.env.EVENTSH_BACKEND_URL;
+    if (!url) {
+      throw new ServiceUnavailableException(
+        'EVENTSH_BACKEND_URL is not set in Backend/.env',
+      );
+    }
+    return url;
+  }
+
+  private eventshOrganizerId(): string {
+    const id = process.env.EVENTSH_ORGANIZER_ID;
+    if (!id) {
+      throw new ServiceUnavailableException(
+        'EVENTSH_ORGANIZER_ID is not set in Backend/.env',
+      );
+    }
+    return id;
+  }
+
+  /** Events now live on eventsh (see Frontend's events-client.ts) — this
+   * app's own `events` collection is no longer kept in sync, so ticket
+   * purchase (order creation and the final confirm/free-claim) must read
+   * live tier price/capacity from eventsh, not the local copy. Public,
+   * unauthenticated read — matches how eventsh's own GET /events/:id
+   * already works, no API key needed. */
+  private async fetchEventshEvent(eventId: string): Promise<EventshEvent> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.eventshUrl()}/events/${eventId}`, {
+        cache: 'no-store',
+      });
+    } catch (cause) {
+      throw new ServiceUnavailableException('eventsh is unreachable', { cause });
+    }
+    if (!response.ok) throw new NotFoundException('Event not found');
+    const body = (await response.json()) as { data?: EventshEvent } | EventshEvent;
+    const event = (body as { data?: EventshEvent }).data ?? (body as EventshEvent);
+    if (!event?._id) throw new NotFoundException('Event not found');
+    return event;
+  }
+
+  private async fetchEventshTier(
+    eventId: string,
+    tierId: string,
+  ): Promise<{ event: EventshEvent; tier: EventshVisitorType }> {
+    const event = await this.fetchEventshEvent(eventId);
+    const tier = (event.visitorTypes || []).find((v) => v.id === tierId);
     if (!tier || !tier.isActive) throw new BadRequestException('Ticket tier not found');
+    return { event, tier };
+  }
+
+  async createOrder(dto: CreateOrderDto) {
+    const { event, tier } = await this.fetchEventshTier(dto.eventId, dto.tierId);
+    // Best-effort, not atomic — eventsh computes soldCount live from real
+    // tickets rather than exposing an atomic "reserve N" primitive the way
+    // this app's own (now-unused) local Event model did. Two buyers racing
+    // for the last remaining unit could both pass this check; the accepted
+    // trade-off for eventsh becoming the record store, not a regression
+    // introduced here — eventsh's own native ticket-purchase flow has no
+    // server-side capacity enforcement at all today.
     if (tier.maxCount - tier.soldCount < dto.quantity) {
       throw new BadRequestException('Not enough tickets available');
     }
@@ -52,7 +133,7 @@ export class TicketsService {
     const order = await this.razorpay.createOrder({
       amountMinorUnits,
       currency: event.currency || 'SGD',
-      receipt: `evt_${event.id}_${Date.now()}`,
+      receipt: `evt_${event._id}_${Date.now()}`,
       notes: {
         eventId: String(event._id),
         tierId: tier.id,
@@ -102,10 +183,7 @@ export class TicketsService {
    * genuinely free server-side rather than trusting the client's route
    * choice — a paid tier can never be claimed through this path. */
   async claimFreeTicket(dto: ClaimFreeTicketDto) {
-    const event = await this.eventModel.findById(dto.eventId).exec();
-    if (!event) throw new NotFoundException('Event not found');
-    const tier = event.visitorTypes.find((v) => v.id === dto.tierId);
-    if (!tier || !tier.isActive) throw new BadRequestException('Ticket tier not found');
+    const { tier } = await this.fetchEventshTier(dto.eventId, dto.tierId);
     if (tier.price > 0) throw new BadRequestException('This tier requires payment');
 
     return this.confirmPurchase({
@@ -141,68 +219,124 @@ export class TicketsService {
     });
   }
 
+  /** Splits a single "First Last" name field into eventsh's required
+   * firstName/lastName pair — this app's own buyer form only ever collected
+   * one combined name field. Best-effort: everything after the first space
+   * becomes the last name; a single-word name repeats as both (eventsh
+   * requires both non-empty). */
+  private splitName(fullName: string): { firstName: string; lastName: string } {
+    const trimmed = (fullName || '').trim();
+    const spaceIdx = trimmed.indexOf(' ');
+    if (spaceIdx === -1) return { firstName: trimmed || 'Guest', lastName: trimmed || 'Guest' };
+    return { firstName: trimmed.slice(0, spaceIdx), lastName: trimmed.slice(spaceIdx + 1) };
+  }
+
+  /** Creates the ticket in eventsh — the actual system of record now (QR
+   * code, confirmation email/WhatsApp, admin views, door-scanning all
+   * happen there, automatically, as part of this call). Public,
+   * unauthenticated — matches eventsh's own buyer-purchase trust model;
+   * this Backend calls it the same way a buyer's browser would, the only
+   * difference being it only ever does so after Razorpay's signature has
+   * already been independently verified above. */
+  private async createEventshTicket(
+    input: ConfirmInput,
+    ticketId: string,
+    event: EventshEvent,
+    tier: EventshVisitorType,
+  ): Promise<{ ticketId: string; qrCode?: string }> {
+    const { firstName, lastName } = this.splitName(input.customerName);
+    const body = {
+      ticketId,
+      eventId: input.eventId,
+      organizerId: this.eventshOrganizerId(),
+      tickets: [
+        { type: tier.name, quantity: input.quantity, price: tier.price, tierId: tier.id },
+      ],
+      customerDetails: {
+        firstName,
+        lastName,
+        email: input.customerEmail,
+        // eventsh requires whatsapp (non-empty check is NOT enforced
+        // server-side, only @IsString) — this app's buyer form only
+        // collects an optional phone number, so an empty string is the
+        // honest value when the buyer didn't give one.
+        whatsapp: input.customerPhone || '',
+      },
+      total: tier.price * input.quantity, // major units — eventsh's own convention, NOT Razorpay's minor-unit amount
+      paymentConfirmed: true, // Razorpay signature already verified above (or this is the free-tier path)
+      purchaseDate: new Date().toISOString(),
+      eventInfo: {
+        id: String(event._id),
+        title: event.title,
+        organizationName: event.organizer?.organizationName || event.organizer?.name || 'SingAdvisor',
+        venue: event.location || '',
+        date: event.startDate,
+        time: event.time || '',
+        image: event.image || '',
+        organizerId: this.eventshOrganizerId(),
+      },
+    };
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.eventshUrl()}/tickets/create-ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (cause) {
+      throw new ServiceUnavailableException('eventsh is unreachable', { cause });
+    }
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => null);
+      const message =
+        errBody && typeof errBody === 'object' && 'message' in errBody
+          ? String((errBody as { message: unknown }).message)
+          : `eventsh rejected the ticket (${response.status})`;
+      throw new BadRequestException(message);
+    }
+    return (await response.json()) as { ticketId: string; qrCode?: string };
+  }
+
   private async confirmPurchase(input: ConfirmInput): Promise<TicketDocument> {
     const existing = await this.ticketModel
       .findOne({ 'payment.razorpayOrderId': input.razorpayOrderId })
       .exec();
     if (existing) return existing; // idempotent — client + webhook can both land here
 
-    const event = await this.eventModel.findById(input.eventId).exec();
-    if (!event) throw new NotFoundException('Event not found');
-    const tier = event.visitorTypes.find((v) => v.id === input.tierId);
-    if (!tier || !tier.isActive) throw new BadRequestException('Ticket tier not found');
+    const { event, tier } = await this.fetchEventshTier(input.eventId, input.tierId);
+    // Best-effort, not atomic — see the matching comment in createOrder()
+    // for why (eventsh has no atomic "reserve N" primitive to check against
+    // here the way this app's own local Event model used to).
     if (tier.maxCount - tier.soldCount < input.quantity) {
       throw new BadRequestException('Not enough tickets available');
     }
 
     const amountMinorUnits = Math.round(tier.price * input.quantity * 100);
-
-    // Atomic, race-safe inventory decrement: only succeeds if the tier still
-    // has enough headroom at write time, re-checked inside the same $expr
-    // the update runs against (not just the pre-check read above).
-    const updatedEvent = await this.eventModel
-      .findOneAndUpdate(
-        {
-          _id: input.eventId,
-          $expr: {
-            $gt: [
-              {
-                $size: {
-                  $filter: {
-                    input: '$visitorTypes',
-                    as: 'vt',
-                    cond: {
-                      $and: [
-                        { $eq: ['$$vt.id', input.tierId] },
-                        { $eq: ['$$vt.isActive', true] },
-                        { $lte: [{ $add: ['$$vt.soldCount', input.quantity] }, '$$vt.maxCount'] },
-                      ],
-                    },
-                  },
-                },
-              },
-              0,
-            ],
-          },
-        },
-        { $inc: { 'visitorTypes.$[elem].soldCount': input.quantity } },
-        { new: true, arrayFilters: [{ 'elem.id': input.tierId }] },
-      )
-      .exec();
-    if (!updatedEvent) throw new BadRequestException('Not enough tickets available');
-
     const ticketId = `TKT-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
-    const qrCodeUrl = await this.generateQrCode(ticketId, input.eventId);
+
+    // Create in eventsh FIRST — it's the actual system of record now (and
+    // sends the confirmation email/WhatsApp itself). Only once that
+    // succeeds do we write the local audit/idempotency record below, so a
+    // failed eventsh call never leaves an orphaned local "confirmed" ticket
+    // with no real ticket behind it.
+    await this.createEventshTicket(input, ticketId, event, tier);
 
     let ticket: TicketDocument;
     try {
+      // Kept locally as this app's own payment audit trail and the
+      // idempotency guard above (payment.razorpayOrderId is uniquely
+      // indexed) — eventsh has no razorpayOrderId concept to check against,
+      // so there's nowhere else this race-guard could live. Not shown to
+      // buyers or organizers directly anymore; eventsh is what the admin
+      // UI and door-scanning actually read from now.
       ticket = await this.ticketModel.create({
         ticketId,
         eventId: input.eventId,
         eventTitle: event.title,
         eventDate: event.startDate,
-        eventTime: event.time,
-        eventVenue: event.venue,
+        eventTime: event.time || '',
+        eventVenue: event.location || '',
         customerName: input.customerName,
         customerEmail: input.customerEmail,
         customerPhone: input.customerPhone ?? '',
@@ -210,10 +344,10 @@ export class TicketsService {
           { ticketType: tier.name, quantity: input.quantity, price: tier.price, tierId: tier.id, seatIds: [] },
         ],
         totalAmount: amountMinorUnits,
-        currency: event.currency,
+        currency: event.currency || 'SGD',
         status: 'confirmed',
         purchaseDate: new Date(),
-        qrCodeUrl,
+        qrCodeUrl: '', // the real QR lives in eventsh now (email/WhatsApp/admin) — nothing local to link to
         payment: {
           razorpayOrderId: input.razorpayOrderId,
           razorpayPaymentId: input.razorpayPaymentId,
@@ -225,9 +359,15 @@ export class TicketsService {
       });
     } catch (err) {
       // Duplicate razorpayOrderId — the client call and the webhook raced
-      // past the idempotency check above; the inventory was already
-      // decremented once by whichever of them lost this race, so just
-      // return the ticket the winner created rather than double-booking.
+      // past the idempotency check above. The eventsh ticket was already
+      // created once by whichever of them lost this race (createEventshTicket
+      // uses this same generated ticketId, deterministic per call — but two
+      // racing calls generate DIFFERENT ticketIds, so this can create two
+      // eventsh tickets for one payment in the rare double-race case; that
+      // tracks eventsh's own lack of an idempotency key on create-ticket,
+      // not something this Backend can close on its own). Return the local
+      // record either way rather than surfacing an error for a payment that
+      // did succeed.
       if ((err as { code?: number }).code === 11000) {
         const winner = await this.ticketModel
           .findOne({ 'payment.razorpayOrderId': input.razorpayOrderId })
@@ -237,39 +377,7 @@ export class TicketsService {
       throw err;
     }
 
-    await this.sendConfirmationEmail(ticket);
     return ticket;
-  }
-
-  private async generateQrCode(ticketId: string, eventId: string): Promise<string> {
-    mkdirSync(TICKETS_UPLOAD_DIR, { recursive: true });
-    const filename = `${randomUUID()}.png`;
-    const payload = JSON.stringify({
-      type: 'singadvisor-ticket',
-      ticketId,
-      eventId,
-      issuedAt: new Date().toISOString(),
-    });
-    await QRCode.toFile(join(TICKETS_UPLOAD_DIR, filename), payload, { width: 480 });
-    return `/uploads/tickets/${filename}`;
-  }
-
-  private async sendConfirmationEmail(ticket: TicketDocument): Promise<void> {
-    const qrAbsolutePath = join(process.cwd(), ticket.qrCodeUrl.replace(/^\//, ''));
-    const sent = await this.mail.sendBestEffort({
-      to: ticket.customerEmail,
-      subject: `Your ticket for ${ticket.eventTitle}`,
-      html: `
-        <p>Hi ${ticket.customerName},</p>
-        <p>Your ticket for <strong>${ticket.eventTitle}</strong> is confirmed.</p>
-        <p><strong>Ticket ID:</strong> ${ticket.ticketId}</p>
-        <p>Show the attached QR code at the door.</p>
-      `,
-      attachments: [{ filename: 'ticket-qr.png', path: qrAbsolutePath }],
-    });
-    if (!sent) {
-      this.logger.warn(`Confirmation email not sent for ticket ${ticket.ticketId} — see prior warning for why`);
-    }
   }
 
   async findById(id: string) {
@@ -302,9 +410,35 @@ export class TicketsService {
     return doc;
   }
 
+  /** Legacy path — only meaningful for tickets created before the eventsh
+   * cutover (real local qrCodeUrl on disk). New tickets are created in
+   * eventsh directly (see createEventshTicket) and have qrCodeUrl: '' —
+   * for those, resend-email is eventsh's own admin action now
+   * (POST /tickets/:id/resend-email on eventsh, via the Frontend's
+   * events-admin-client.ts, not this route), matching how ticket admin
+   * reads/actions moved off this Backend the same way Events' did. */
   async resendEmail(id: string) {
     const ticket = await this.findById(id);
-    await this.sendConfirmationEmail(ticket);
-    return { sent: true };
+    if (!ticket.qrCodeUrl) {
+      throw new BadRequestException(
+        'This ticket lives in eventsh now — resend its email from there, not this Backend.',
+      );
+    }
+    const qrAbsolutePath = join(process.cwd(), ticket.qrCodeUrl.replace(/^\//, ''));
+    const sent = await this.mail.sendBestEffort({
+      to: ticket.customerEmail,
+      subject: `Your ticket for ${ticket.eventTitle}`,
+      html: `
+        <p>Hi ${ticket.customerName},</p>
+        <p>Your ticket for <strong>${ticket.eventTitle}</strong> is confirmed.</p>
+        <p><strong>Ticket ID:</strong> ${ticket.ticketId}</p>
+        <p>Show the attached QR code at the door.</p>
+      `,
+      attachments: [{ filename: 'ticket-qr.png', path: qrAbsolutePath }],
+    });
+    if (!sent) {
+      this.logger.warn(`Confirmation email not sent for ticket ${ticket.ticketId} — see prior warning for why`);
+    }
+    return { sent };
   }
 }

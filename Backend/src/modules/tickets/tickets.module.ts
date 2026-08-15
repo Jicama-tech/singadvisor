@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { EventsModule } from '../events/events.module';
 import { MailModule } from '../mail/mail.module';
 import { Ticket, TicketSchema } from './entities/ticket.entity';
 import { TicketsController } from './tickets.controller';
@@ -11,7 +10,10 @@ import { RazorpayService } from './razorpay.service';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Ticket.name, schema: TicketSchema }]),
-    EventsModule, // re-exports its Event model registration for inventory decrement
+    // EventsModule is no longer imported here — Events moved to eventsh
+    // (see Frontend's events-client.ts), so this module doesn't need the
+    // local Event model anymore; tickets.service.ts now fetches event/tier
+    // data from eventsh directly (fetchEventshEvent/fetchEventshTier).
     MailModule,
   ],
   controllers: [TicketsController, RazorpayWebhookController],
