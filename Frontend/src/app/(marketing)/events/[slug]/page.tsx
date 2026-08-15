@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { fetchEventBySlug, fetchPublishedEvents, remainingCapacity } from "@/lib/events-client";
-import { withBackendUrl } from "@/lib/media-url";
+import { withEventshUrl } from "@/lib/media-url";
 import { formatDateTime, formatPrice, formatTimeRange, isUpcoming } from "@/lib/utils";
 
 export const revalidate = 60;
@@ -37,7 +37,7 @@ export async function generateMetadata({
     openGraph: {
       title: event.title,
       description: event.summary,
-      images: event.image ? [withBackendUrl(event.image)] : [],
+      images: event.image ? [withEventshUrl(event.image)] : [],
     },
   };
 }
@@ -69,7 +69,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
         <div className="absolute inset-x-0 top-0 h-64 overflow-hidden md:h-96">
           {event.image && (
             <Image
-              src={withBackendUrl(event.image)}
+              src={withEventshUrl(event.image)}
               alt=""
               fill
               priority
@@ -160,7 +160,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                       <div className="flex items-start gap-3">
                         {sp.photo ? (
                           <Image
-                            src={withBackendUrl(sp.photo)}
+                            src={withEventshUrl(sp.photo)}
                             alt=""
                             width={56}
                             height={56}

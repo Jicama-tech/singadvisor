@@ -1,5 +1,6 @@
 import "server-only";
-import { withBackendUrl } from "@/lib/media-url";
+import { withEventshUrl } from "@/lib/media-url";
+import { fromEventshEvent, type EventshEventDoc } from "@/lib/events-eventsh-adapter";
 
 export type VisitorType = {
   id: string;
@@ -114,7 +115,7 @@ export function toEventCardData(event: EventRow) {
     slug: event.slug,
     title: event.title,
     summary: event.summary,
-    image: withBackendUrl(event.image),
+    image: withEventshUrl(event.image),
     venue: event.venue,
     startDate: event.startDate,
     endDate: event.endDate,
@@ -124,37 +125,65 @@ export function toEventCardData(event: EventRow) {
   };
 }
 
-/**
- * Public reads only — never throws, returns [] / null on any failure (Backend
- * down, network error) so pages degrade instead of 500ing. Mirrors
- * `fetchLandingSections` in `landing-client.ts`.
- */
+// ---------------------------------------------------------------------------
+// Public reads — moved to eventsh (Phase 4 API-client integration). These
+// functions never run in a visitor's browser (this whole file is
+// "server-only"), so they can carry the x-organizer-id header on every call
+// without needing a real logged-in user — see events-admin-client.ts's
+// eventshConfig() for the same pattern on the write side.
+//
+// Deliberately organizer-scoped: eventsh has no bare "/events" list or
+// "/events/slug/:slug" lookup (a slug is only unique per organizer there,
+// not globally) — this app's own old Backend had both because it was
+// single-tenant. See docs/API_CLIENT_INTEGRATION.md (eventsh repo) for the
+// full rationale.
+//
+// Never throws — returns [] / null on any failure (Backend down, network
+// error, missing env config) so pages degrade instead of 500ing. Mirrors
+// `fetchLandingSections` in `landing-client.ts`.
+// ---------------------------------------------------------------------------
+
 export async function fetchPublishedEvents(opts: { includePast?: boolean } = {}): Promise<EventRow[]> {
-  const backendUrl = process.env.BACKEND_URL;
-  if (!backendUrl) {
-    console.error("BACKEND_URL is missing; events pages will render empty.");
+  const backendUrl = process.env.EVENTSH_BACKEND_URL;
+  const organizerId = process.env.EVENTSH_ORGANIZER_ID;
+  if (!backendUrl || !organizerId) {
+    console.error(
+      "EVENTSH_BACKEND_URL/EVENTSH_ORGANIZER_ID are missing; events pages will render empty.",
+    );
     return [];
   }
   try {
-    const qs = opts.includePast ? "?includePast=true" : "";
-    const response = await fetch(`${backendUrl}/events${qs}`, { next: { revalidate: 60 } });
+    const response = await fetch(
+      `${backendUrl}/events/organizer/${organizerId}?publicOnly=true`,
+      { next: { revalidate: 60 } },
+    );
     if (!response.ok) return [];
-    const data: unknown = await response.json();
-    return Array.isArray(data) ? (data as EventRow[]) : [];
+    const body = (await response.json()) as { data?: EventshEventDoc[] };
+    const events = (body.data || []).map(fromEventshEvent);
+    // includePast used to be a query param on this app's own single-tenant
+    // Backend; eventsh's organizer-scoped list doesn't filter by date, so
+    // apply the same "past events excluded by default" behavior here.
+    if (opts.includePast) return events;
+    const now = Date.now();
+    return events.filter((e) => new Date(e.endDate || e.startDate).getTime() >= now);
   } catch {
     return [];
   }
 }
 
 export async function fetchEventBySlug(slug: string): Promise<EventRow | null> {
-  const backendUrl = process.env.BACKEND_URL;
-  if (!backendUrl) return null;
+  const backendUrl = process.env.EVENTSH_BACKEND_URL;
+  const organizerId = process.env.EVENTSH_ORGANIZER_ID;
+  if (!backendUrl || !organizerId) return null;
   try {
-    const response = await fetch(`${backendUrl}/events/slug/${encodeURIComponent(slug)}`, {
-      next: { revalidate: 60 },
-    });
+    const response = await fetch(
+      `${backendUrl}/events/organizer/${organizerId}/slug/${encodeURIComponent(slug)}`,
+      { next: { revalidate: 60 } },
+    );
     if (!response.ok) return null;
-    return (await response.json()) as EventRow;
+    const body = (await response.json()) as { data?: EventshEventDoc };
+    if (!body?.data) return null;
+    return fromEventshEvent(body.data);
   } catch {
     return null;
   }

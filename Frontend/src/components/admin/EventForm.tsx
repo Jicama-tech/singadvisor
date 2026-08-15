@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { withBackendUrl } from "@/lib/media-url";
+import { withEventshUrl } from "@/lib/media-url";
 import type { EventRow, SpeakerProfile, SponsorType } from "@/lib/events-client";
 
 /** `datetime-local` needs `YYYY-MM-DDTHH:mm` in local time, not an ISO string. */
@@ -622,7 +622,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                     {imagePreview && (
                       // eslint-disable-next-line @next/next/no-img-element -- a blob: preview URL can't go through next/image
                       <img
-                        src={imagePreview.startsWith("blob:") ? imagePreview : withBackendUrl(imagePreview)}
+                        src={imagePreview.startsWith("blob:") ? imagePreview : withEventshUrl(imagePreview)}
                         alt=""
                         className="h-40 w-full rounded-[var(--radius-card)] object-cover"
                       />
@@ -703,7 +703,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                               {s.photoPreview || s.photo ? (
                                 // eslint-disable-next-line @next/next/no-img-element -- blob: preview URLs can't go through next/image
                                 <img
-                                  src={s.photoPreview || withBackendUrl(s.photo)}
+                                  src={s.photoPreview || withEventshUrl(s.photo)}
                                   alt=""
                                   className="h-full w-full object-cover"
                                 />

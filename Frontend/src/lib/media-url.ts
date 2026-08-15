@@ -1,4 +1,5 @@
 const BACKEND_PUBLIC_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "";
+const EVENTSH_PUBLIC_URL = process.env.NEXT_PUBLIC_EVENTSH_URL ?? "";
 
 /**
  * Resolves a path returned by the Backend's uploads endpoint (e.g.
@@ -16,4 +17,16 @@ export function withBackendUrl(path: string | null | undefined): string {
   if (!path) return "";
   if (!path.startsWith("/uploads/")) return path;
   return `${BACKEND_PUBLIC_URL}${path}`;
+}
+
+/**
+ * Same idea as withBackendUrl, but for event images — those now come from
+ * eventsh (Phase 4 API-client integration, see events-client.ts), a
+ * different origin from this app's own Backend, so they need their own
+ * public base URL rather than being resolved against BACKEND_URL.
+ */
+export function withEventshUrl(path: string | null | undefined): string {
+  if (!path) return "";
+  if (!path.startsWith("/uploads/")) return path;
+  return `${EVENTSH_PUBLIC_URL}${path}`;
 }

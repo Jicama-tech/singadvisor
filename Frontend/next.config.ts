@@ -19,6 +19,18 @@ const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
   ? new URL(process.env.NEXT_PUBLIC_BACKEND_URL)
   : null;
 
+/**
+ * Same idea, for event images — those now come from eventsh (Phase 4
+ * API-client integration, see events-client.ts's withEventshUrl()), a
+ * different origin from the Backend above. Found the hard way: without
+ * this, every event listing/detail page 500s on the first <Image> the
+ * moment a real event has an image (next/image throws rather than
+ * rendering a broken image for an unconfigured host).
+ */
+const eventshUrl = process.env.NEXT_PUBLIC_EVENTSH_URL
+  ? new URL(process.env.NEXT_PUBLIC_EVENTSH_URL)
+  : null;
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   eslint: {
@@ -31,16 +43,28 @@ const nextConfig: NextConfig = {
   devIndicators: false,
 
   images: {
-    remotePatterns: backendUrl
-      ? [
-          {
-            protocol: backendUrl.protocol.replace(":", "") as "http" | "https",
-            hostname: backendUrl.hostname,
-            port: backendUrl.port,
-            pathname: "/uploads/**",
-          },
-        ]
-      : [],
+    remotePatterns: [
+      ...(backendUrl
+        ? [
+            {
+              protocol: backendUrl.protocol.replace(":", "") as "http" | "https",
+              hostname: backendUrl.hostname,
+              port: backendUrl.port,
+              pathname: "/uploads/**",
+            },
+          ]
+        : []),
+      ...(eventshUrl
+        ? [
+            {
+              protocol: eventshUrl.protocol.replace(":", "") as "http" | "https",
+              hostname: eventshUrl.hostname,
+              port: eventshUrl.port,
+              pathname: "/uploads/**",
+            },
+          ]
+        : []),
+    ],
   },
 
   // basePath alone is correct here. Do NOT also set `assetPrefix` to the same
