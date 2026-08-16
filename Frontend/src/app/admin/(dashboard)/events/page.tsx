@@ -8,17 +8,19 @@ import {
   Td,
   Th,
 } from "@/components/admin/AdminUI";
+import { CouponsPanel } from "@/components/admin/CouponsPanel";
 import { DeleteButton } from "@/components/admin/DeleteButton";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { fetchEventsAdmin } from "@/lib/events-admin-client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { fetchCouponsAdmin, fetchEventsAdmin } from "@/lib/events-admin-client";
 import { formatDateTime, formatPrice, isUpcoming } from "@/lib/utils";
 
 export const metadata = { title: "Events" };
 
 export default async function AdminEventsPage() {
-  const events = await fetchEventsAdmin();
+  const [events, coupons] = await Promise.all([fetchEventsAdmin(), fetchCouponsAdmin()]);
 
   return (
     <>
@@ -33,6 +35,29 @@ export default async function AdminEventsPage() {
         }
       />
 
+      <Tabs defaultValue="events">
+        <TabsList className="mb-6">
+          <TabsTrigger value="events">Events</TabsTrigger>
+          <TabsTrigger value="coupons">Coupons</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="events">
+          <EventsListPanel events={events} />
+        </TabsContent>
+        <TabsContent value="coupons">
+          <CouponsPanel
+            coupons={coupons}
+            events={events.map((e) => ({ _id: e._id, title: e.title }))}
+          />
+        </TabsContent>
+      </Tabs>
+    </>
+  );
+}
+
+function EventsListPanel({ events }: { events: Awaited<ReturnType<typeof fetchEventsAdmin>> }) {
+  return (
+    <>
       <Panel>
         {events.length === 0 ? (
           <AdminEmpty message="No events yet. Create your first one." />

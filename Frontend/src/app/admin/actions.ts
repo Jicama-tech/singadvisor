@@ -32,6 +32,12 @@ import {
   uploadEventImage,
   setSponsorRequestStatus,
   verifySponsorPayment,
+  createCoupon as createCouponBackend,
+  updateCoupon as updateCouponBackend,
+  deleteCoupon as deleteCouponBackend,
+  setCouponActive as setCouponActiveBackend,
+  resendTicketEmailAdmin,
+  markTicketAttendanceAdmin,
 } from "@/lib/events-admin-client";
 
 /**
@@ -449,6 +455,116 @@ export async function confirmSponsorPayment(formData: FormData) {
   const eventId = str(formData, "eventId");
   if (id) await verifySponsorPayment(id);
   revalidatePath(`/admin/events/${eventId}/sponsors`);
+}
+
+// ---------------------------------------------------------------------------
+// Coupons (Events/Coupons tab — Phase 6c)
+// ---------------------------------------------------------------------------
+
+function couponsErrorState(err: unknown, formData: FormData): FormState {
+  if (err instanceof EventsServiceError) {
+    return {
+      ok: false,
+      message: err.fieldErrors?.length ? err.fieldErrors.join(" ") : err.message,
+      values: collectValues(formData),
+    };
+  }
+  throw err;
+}
+
+/** Unlike saveEvent, this never redirects — CouponsPanel.tsx renders the
+ * form inline on the same page and closes it itself once `ok` comes back
+ * true, so the only job here is validate -> call eventsh -> revalidate. */
+export async function saveCoupon(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await requireSession();
+
+  const id = str(formData, "id");
+  const code = str(formData, "code");
+  if (!id && !code) {
+    return {
+      ok: false,
+      errors: { code: "Code is required." },
+      values: collectValues(formData),
+    };
+  }
+
+  const discountType: "PERCENTAGE" | "FLAT" =
+    str(formData, "discountType") === "FLAT" ? "FLAT" : "PERCENTAGE";
+
+  const expiryDateRaw = str(formData, "expiryDate");
+  const expiryDate = expiryDateRaw ? new Date(expiryDateRaw) : null;
+  if (!expiryDate || Number.isNaN(expiryDate.getTime())) {
+    return {
+      ok: false,
+      errors: { expiryDate: "Enter a valid expiry date." },
+      values: collectValues(formData),
+    };
+  }
+
+  const eventIds = formData.getAll("eventIds").map(String).filter(Boolean);
+
+  // Code is a disabled input once editing (CouponsPanel.tsx), so it never
+  // submits on update — `code` above is "" in that case. Omit it from the
+  // update payload entirely rather than sending an empty string, which
+  // would otherwise blank out the coupon's code (eventsh's PATCH replaces
+  // whatever fields are present in the body).
+  const fields = {
+    discountType,
+    discountPercentage:
+      discountType === "PERCENTAGE" ? num(formData, "discountPercentage") : undefined,
+    flatDiscountAmount: discountType === "FLAT" ? num(formData, "flatDiscountAmount") : undefined,
+    minOrderAmount: str(formData, "minOrderAmount") ? num(formData, "minOrderAmount") : undefined,
+    maxUsage: str(formData, "maxUsage") ? num(formData, "maxUsage") : undefined,
+    expiryDate: expiryDate.toISOString(),
+    isActive: true,
+    eventIds,
+  };
+
+  try {
+    if (id) await updateCouponBackend(id, fields);
+    else await createCouponBackend({ ...fields, code });
+  } catch (err) {
+    return couponsErrorState(err, formData);
+  }
+
+  revalidatePath("/admin/events");
+  return { ok: true };
+}
+
+export async function deleteCouponAction(formData: FormData) {
+  await requireSession();
+  const id = str(formData, "id");
+  if (id) await deleteCouponBackend(id);
+  revalidatePath("/admin/events");
+}
+
+export async function toggleCouponActive(formData: FormData) {
+  await requireSession();
+  const id = str(formData, "id");
+  const isActive = str(formData, "isActive") === "true";
+  if (id) await setCouponActiveBackend(id, isActive);
+  revalidatePath("/admin/events");
+}
+
+// ---------------------------------------------------------------------------
+// Participants tab (Phase 6d) — ticket admin actions
+// ---------------------------------------------------------------------------
+
+export async function resendTicketEmailAction(formData: FormData) {
+  await requireSession();
+  const id = str(formData, "id");
+  if (id) await resendTicketEmailAdmin(id);
+  revalidatePath("/admin/events/participants");
+}
+
+export async function markTicketAttendanceAction(formData: FormData) {
+  await requireSession();
+  const ticketId = str(formData, "ticketId");
+  if (ticketId) await markTicketAttendanceAdmin(ticketId);
+  revalidatePath("/admin/events/participants");
 }
 
 // ---------------------------------------------------------------------------

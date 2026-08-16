@@ -462,6 +462,132 @@ export async function resendTicketEmailAdmin(id: string): Promise<void> {
   await eventshFetch(`/tickets/${id}/resend-email`, { method: "POST" });
 }
 
+/** Check-in. Deliberately NOT setTicketStatusAdmin (`PATCH /tickets/:id`,
+ * a generic field patch by Mongo _id) — eventsh's real door-scan action is
+ * this dedicated endpoint, looked up by the human-readable `ticketId`, which
+ * sets both `attendance` and `isUsed` server-side (see
+ * tickets.service.ts's markAttendance). Confirmed by reading eventsh's own
+ * QR scanner (ORCodeScanner.tsx) and service code, not assumed from the
+ * similar-looking generic endpoint. */
+export async function markTicketAttendanceAdmin(ticketId: string): Promise<void> {
+  await eventshFetch(`/tickets/mark-attendance/${ticketId}`, { method: "PATCH" });
+}
+
+// ---------------------------------------------------------------------------
+// Coupons — cut over to eventsh alongside Events (same eventshFetch, same
+// organizer). coupon.controller.ts's writes were unauthenticated until the
+// Phase 6a guard fix; every call below now relies on eventshFetch's
+// x-organizer-id/x-api-key headers to satisfy that guard.
+// ---------------------------------------------------------------------------
+
+export type CouponRow = {
+  _id: string;
+  code: string;
+  discountType: "PERCENTAGE" | "FLAT";
+  discountPercentage?: number;
+  flatDiscountAmount?: number;
+  minOrderAmount?: number;
+  maxUsage?: number;
+  usedCount: number;
+  expiryDate: string;
+  isActive: boolean;
+  eventIds: string[];
+};
+
+export type CouponInput = {
+  code: string;
+  discountType: "PERCENTAGE" | "FLAT";
+  discountPercentage?: number;
+  flatDiscountAmount?: number;
+  minOrderAmount?: number;
+  maxUsage?: number;
+  expiryDate: string; // ISO
+  isActive?: boolean;
+  eventIds?: string[];
+};
+
+interface EventshCouponDoc {
+  _id: string;
+  code: string;
+  discountType: "PERCENTAGE" | "FLAT";
+  discountPercentage?: number;
+  flatDiscountAmount?: number;
+  minOrderAmount?: number;
+  maxUsage?: number;
+  usedCount: number;
+  expiryDate: string;
+  isActive: boolean;
+  eventIds?: string[];
+  eventId?: string; // legacy single-event field
+}
+
+function fromEventshCoupon(raw: EventshCouponDoc): CouponRow {
+  return {
+    _id: raw._id,
+    code: raw.code,
+    discountType: raw.discountType,
+    discountPercentage: raw.discountPercentage,
+    flatDiscountAmount: raw.flatDiscountAmount,
+    minOrderAmount: raw.minOrderAmount,
+    maxUsage: raw.maxUsage,
+    usedCount: raw.usedCount ?? 0,
+    expiryDate: raw.expiryDate,
+    isActive: raw.isActive,
+    // Migrate legacy single-event coupons the same way eventsh's own
+    // CouponsManager.tsx does when reading them back.
+    eventIds:
+      raw.eventIds && raw.eventIds.length > 0
+        ? raw.eventIds
+        : raw.eventId
+          ? [raw.eventId]
+          : [],
+  };
+}
+
+export async function fetchCouponsAdmin(): Promise<CouponRow[]> {
+  const { organizerId } = eventshConfig();
+  try {
+    const result = (await eventshFetch(`/coupons/organizer/${organizerId}`)) as {
+      data: EventshCouponDoc[];
+    };
+    return (result.data || []).map(fromEventshCoupon);
+  } catch (err) {
+    // findByOrganizer throws a 404 ("No coupons found") when the list is
+    // empty rather than returning an empty array — treat that specific case
+    // as "no coupons yet", not an error.
+    if (err instanceof EventsServiceError && err.status === 404) return [];
+    throw err;
+  }
+}
+
+export async function createCoupon(input: CouponInput): Promise<CouponRow> {
+  const { organizerId } = eventshConfig();
+  const raw = await eventshFetch("/coupons/create-coupon", {
+    method: "POST",
+    body: JSON.stringify({ ...input, organizerId, appliesTo: "ORGANIZER" }),
+  });
+  return fromEventshCoupon(raw as EventshCouponDoc);
+}
+
+export async function updateCoupon(
+  id: string,
+  input: Partial<CouponInput>,
+): Promise<CouponRow> {
+  const raw = (await eventshFetch(`/coupons/update-coupon/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })) as { data: EventshCouponDoc };
+  return fromEventshCoupon(raw.data);
+}
+
+export async function setCouponActive(id: string, isActive: boolean): Promise<CouponRow> {
+  return updateCoupon(id, { isActive });
+}
+
+export async function deleteCoupon(id: string): Promise<void> {
+  await eventshFetch(`/coupons/delete-coupon/${id}`, { method: "DELETE" });
+}
+
 export type SponsorRequestRow = {
   _id: string;
   eventId: string;
