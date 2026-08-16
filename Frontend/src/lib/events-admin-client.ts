@@ -209,6 +209,8 @@ function toEventshPayload(input: EventInput): Record<string, unknown> {
     agenda,
     startDate,
     endDate,
+    eventType, // see the reassignment below — not eventsh-compatible as-is
+    category,
     speakers: _bareSpeakers, // superseded by speakerProfiles below
     speakerProfiles,
     visitorTypes,
@@ -241,6 +243,25 @@ function toEventshPayload(input: EventInput): Record<string, unknown> {
     time: start.time,
     endDate: end.date,
     endTime: end.time,
+    // eventType is NOT the same field on both sides despite the identical
+    // name — this app's own "Event type" input is free text ("Workshop",
+    // "Conference", defaulting to the literal string "general" when left
+    // untouched — EventForm.tsx's `?? "general"` fallback). eventsh's
+    // `eventType` is a strict schema enum, "commercial" | "personal" only —
+    // sending "general" straight through failed with a real Mongoose
+    // validation error ("`general` is not a valid enum value for path
+    // `eventType`"), confirmed by actually submitting the form, not
+    // assumed. This app has no "commercial vs personal" concept of its own
+    // (it never asks), and every event it creates is a business/public one
+    // (trainings, consultancy, career workshops) — never a private family
+    // function — so eventsh's "commercial" is always correct here.
+    // Category is the field that actually carries the free-text
+    // Workshop/Conference-style value on eventsh; if this app's own
+    // Category field was left blank, fall back to whatever was typed into
+    // Event type (as long as it isn't just the untouched "general" default)
+    // rather than losing that value entirely.
+    eventType: "commercial",
+    category: category || (eventType && eventType !== "general" ? eventType : undefined),
     visitorTypes: visitorTypes?.map(({ soldCount: _soldCount, ...tier }) => tier),
     speakers: (speakerProfiles || []).map((s, i) => speakerProfileToEventshSpeaker(s, i)),
   };
