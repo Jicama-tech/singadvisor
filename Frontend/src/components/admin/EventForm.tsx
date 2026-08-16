@@ -9,7 +9,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { withEventshUrl } from "@/lib/media-url";
-import type { EventRow, SpeakerProfile, SponsorType } from "@/lib/events-client";
+import type { EventRow, SpeakerProfile, SponsorType, VisitorFeatureAccess } from "@/lib/events-client";
 
 /** `datetime-local` needs `YYYY-MM-DDTHH:mm` in local time, not an ISO string. */
 function toLocalInput(iso: string | undefined): string {
@@ -23,6 +23,15 @@ function toLocalInput(iso: string | undefined): string {
 let rowCounter = 0;
 const nextKey = () => `row-${++rowCounter}`;
 
+const BLANK_FEATURE_ACCESS: VisitorFeatureAccess = {
+  food: false,
+  parking: false,
+  wifi: false,
+  photography: false,
+  security: false,
+  accessibility: false,
+};
+
 type TierRow = {
   key: string;
   id: string;
@@ -30,7 +39,7 @@ type TierRow = {
   price: string;
   maxCount: string;
   description: string;
-  featureAccess: string;
+  featureAccess: VisitorFeatureAccess;
   isActive: boolean;
 };
 
@@ -168,7 +177,7 @@ export function EventForm({ event }: { event?: EventRow }) {
           price: String(t.price),
           maxCount: String(t.maxCount),
           description: t.description,
-          featureAccess: t.featureAccess.join(", "),
+          featureAccess: { ...BLANK_FEATURE_ACCESS, ...t.featureAccess },
           isActive: t.isActive,
         }))
       : [
@@ -179,7 +188,7 @@ export function EventForm({ event }: { event?: EventRow }) {
             price: "0",
             maxCount: "100",
             description: "",
-            featureAccess: "",
+            featureAccess: { ...BLANK_FEATURE_ACCESS },
             isActive: true,
           },
         ];
@@ -230,7 +239,7 @@ export function EventForm({ event }: { event?: EventRow }) {
   function addTier() {
     setTiers((rows) => [
       ...rows,
-      { key: nextKey(), id: "", name: "", price: "0", maxCount: "50", description: "", featureAccess: "", isActive: true },
+      { key: nextKey(), id: "", name: "", price: "0", maxCount: "50", description: "", featureAccess: { ...BLANK_FEATURE_ACCESS }, isActive: true },
     ]);
   }
   function removeTier(key: string) {
@@ -517,16 +526,36 @@ export function EventForm({ event }: { event?: EventRow }) {
                               onChange={(e) => updateTier(tier.key, { maxCount: e.target.value })}
                             />
                           </Field>
-                          <Field label="Extra features" htmlFor={`tier${i}-features`} hint="Comma-separated.">
-                            <Input
-                              id={`tier${i}-features`}
-                              name={`tier${i}FeatureAccess`}
-                              placeholder="Lounge, Front row"
-                              value={tier.featureAccess}
-                              onChange={(e) => updateTier(tier.key, { featureAccess: e.target.value })}
-                            />
-                          </Field>
                         </div>
+                        <Field label="Included with this tier" htmlFor={`tier${i}-features`} className="mt-3">
+                          <div id={`tier${i}-features`} className="flex flex-wrap gap-x-5 gap-y-2">
+                            {(
+                              [
+                                ["food", "Food"],
+                                ["parking", "Parking"],
+                                ["wifi", "Wi-Fi"],
+                                ["photography", "Photography"],
+                                ["security", "Security"],
+                                ["accessibility", "Accessibility"],
+                              ] as const
+                            ).map(([key, label]) => (
+                              <label key={key} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  name={`tier${i}Feature_${key}`}
+                                  checked={tier.featureAccess[key]}
+                                  onChange={(e) =>
+                                    updateTier(tier.key, {
+                                      featureAccess: { ...tier.featureAccess, [key]: e.target.checked },
+                                    })
+                                  }
+                                  className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                        </Field>
                         <Field label="Description" htmlFor={`tier${i}-description`} className="mt-3" hint="Optional — shown to buyers picking a tier.">
                           <Input
                             id={`tier${i}-description`}

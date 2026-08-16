@@ -306,10 +306,14 @@ export async function saveEvent(
       maxCount: num(formData, `tier${i}MaxCount`, 0),
       soldCount: existingTiersById.get(tierId) ?? 0,
       description: str(formData, `tier${i}Description`),
-      featureAccess: str(formData, `tier${i}FeatureAccess`)
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      featureAccess: {
+        food: bool(formData, `tier${i}Feature_food`),
+        parking: bool(formData, `tier${i}Feature_parking`),
+        wifi: bool(formData, `tier${i}Feature_wifi`),
+        photography: bool(formData, `tier${i}Feature_photography`),
+        security: bool(formData, `tier${i}Feature_security`),
+        accessibility: bool(formData, `tier${i}Feature_accessibility`),
+      },
       isActive: bool(formData, `tier${i}Active`),
     };
   });

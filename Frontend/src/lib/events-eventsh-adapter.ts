@@ -1,5 +1,26 @@
 import "server-only";
-import type { EventRow, SpeakerProfile } from "@/lib/events-client";
+import type {
+  EventRow,
+  SpeakerProfile,
+  VisitorFeatureAccess,
+  Volunteer,
+  SeatRowTemplate,
+  PositionedSeat,
+  TableTemplate,
+  PositionedTable,
+  AddOnItem,
+  RoundTableTemplate,
+  PositionedRoundTable,
+  WorkshopSession,
+  WorkshopPackage,
+  ScheduledSpaceTemplate,
+  PositionedScheduledSpace,
+  VenueConfig,
+  SpeakerSlotTemplate,
+  PositionedSpeakerZone,
+  VenueDoor,
+  VenueAnnotation,
+} from "@/lib/events-client";
 
 // Shared by events-client.ts (public reads) and events-admin-client.ts
 // (authenticated writes + admin reads) — both need to turn a raw eventsh
@@ -61,6 +82,30 @@ export interface EventshEventDoc {
     collectPayment?: boolean;
     customOptions?: string[];
   }[];
+  // Phase 8 additions — field names match eventsh's createEvent.dto.ts
+  // exactly, deliberately, so this stays a thin "trust the wire shape,
+  // default what's missing" read, same convention as everything above.
+  volunteers?: Volunteer[];
+  seatRowTemplates?: SeatRowTemplate[];
+  venueSeats?: PositionedSeat[];
+  tableTemplates?: TableTemplate[];
+  venueTables?: PositionedTable[];
+  addOnItems?: AddOnItem[];
+  maxSpacesPerVendor?: number;
+  autoGenerateVendorCoupon?: boolean;
+  showSpacePricesOnEventfront?: boolean;
+  roundTableTemplates?: RoundTableTemplate[];
+  venueRoundTables?: PositionedRoundTable[];
+  workshopSessions?: WorkshopSession[];
+  workshopPackages?: WorkshopPackage[];
+  workshopHostingOpen?: boolean;
+  scheduledSpaceTemplates?: ScheduledSpaceTemplate[];
+  venueScheduledSpaces?: PositionedScheduledSpace[];
+  venueConfig?: VenueConfig[];
+  venueDoors?: VenueDoor[];
+  venueAnnotations?: VenueAnnotation[];
+  speakerSlotTemplates?: SpeakerSlotTemplate[];
+  venueSpeakerZones?: PositionedSpeakerZone[];
   createdAt: string;
   updatedAt: string;
 }
@@ -77,13 +122,22 @@ interface EventshSpeakerDoc {
   slots?: { topic?: string; startTime?: string; endTime?: string; description?: string }[];
 }
 
+const EMPTY_FEATURE_ACCESS: VisitorFeatureAccess = {
+  food: false,
+  parking: false,
+  wifi: false,
+  photography: false,
+  security: false,
+  accessibility: false,
+};
+
 interface EventshVisitorTypeDoc {
   id: string;
   name: string;
   price: number;
   maxCount?: number;
   description?: string;
-  featureAccess?: string[];
+  featureAccess?: Partial<VisitorFeatureAccess>;
   isActive?: boolean;
   // Present on public/slug/list reads (EventsService.attachSoldCounts()),
   // absent on the admin GET /events/:id path — always normalized to a
@@ -238,7 +292,7 @@ export function fromEventshEvent(raw: EventshEventDoc): EventRow {
       maxCount: vt.maxCount ?? 0,
       soldCount: vt.soldCount ?? 0,
       description: vt.description || "",
-      featureAccess: vt.featureAccess || [],
+      featureAccess: { ...EMPTY_FEATURE_ACCESS, ...vt.featureAccess },
       isActive: vt.isActive ?? true,
     })),
     sponsorTypes: (raw.sponsorTypes || []).map((st) => ({
@@ -249,6 +303,31 @@ export function fromEventshEvent(raw: EventshEventDoc): EventRow {
       customOptions: st.customOptions || [],
       description: st.description || "",
     })),
+    // Phase 8 additions — straight passthrough with `|| []`/`?? default`,
+    // same convention as every other array/flag field above. Types already
+    // match eventsh's wire shape field-for-field (see EventshEventDoc), so
+    // no per-field transformation is needed here beyond defaulting.
+    volunteers: raw.volunteers || [],
+    seatRowTemplates: raw.seatRowTemplates || [],
+    venueSeats: raw.venueSeats || [],
+    tableTemplates: raw.tableTemplates || [],
+    venueTables: raw.venueTables || [],
+    addOnItems: raw.addOnItems || [],
+    maxSpacesPerVendor: raw.maxSpacesPerVendor ?? 1,
+    autoGenerateVendorCoupon: raw.autoGenerateVendorCoupon ?? false,
+    showSpacePricesOnEventfront: raw.showSpacePricesOnEventfront ?? true,
+    roundTableTemplates: raw.roundTableTemplates || [],
+    venueRoundTables: raw.venueRoundTables || [],
+    workshopSessions: raw.workshopSessions || [],
+    workshopPackages: raw.workshopPackages || [],
+    workshopHostingOpen: raw.workshopHostingOpen ?? false,
+    scheduledSpaceTemplates: raw.scheduledSpaceTemplates || [],
+    venueScheduledSpaces: raw.venueScheduledSpaces || [],
+    venueConfig: raw.venueConfig || [],
+    venueDoors: raw.venueDoors || [],
+    venueAnnotations: raw.venueAnnotations || [],
+    speakerSlotTemplates: raw.speakerSlotTemplates || [],
+    venueSpeakerZones: raw.venueSpeakerZones || [],
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };

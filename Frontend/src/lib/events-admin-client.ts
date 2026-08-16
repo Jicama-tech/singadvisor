@@ -8,6 +8,23 @@ import type {
   SpeakerProfile,
   SponsorType,
   VisitorType,
+  Volunteer,
+  SeatRowTemplate,
+  PositionedSeat,
+  TableTemplate,
+  PositionedTable,
+  AddOnItem,
+  RoundTableTemplate,
+  PositionedRoundTable,
+  WorkshopSession,
+  WorkshopPackage,
+  ScheduledSpaceTemplate,
+  PositionedScheduledSpace,
+  VenueConfig,
+  SpeakerSlotTemplate,
+  PositionedSpeakerZone,
+  VenueDoor,
+  VenueAnnotation,
 } from "@/lib/events-client";
 
 /** Thrown by every function below — network, auth, or a rejected Backend
@@ -127,6 +144,31 @@ export type EventInput = {
   visitorTypes: (Pick<VisitorType, "id" | "name" | "price" | "maxCount"> &
     Partial<Pick<VisitorType, "soldCount" | "featureAccess" | "isActive" | "description">>)[];
   sponsorTypes?: (Partial<Pick<SponsorType, "id">> & Omit<SponsorType, "id">)[];
+  // Phase 8 additions — all optional (an event with none of these is still
+  // perfectly valid, same as today). Field names match eventsh's
+  // createEvent.dto.ts exactly so toEventshPayload()'s `...rest` needs no
+  // per-field handling for any of them.
+  volunteers?: Volunteer[];
+  seatRowTemplates?: SeatRowTemplate[];
+  venueSeats?: PositionedSeat[];
+  tableTemplates?: TableTemplate[];
+  venueTables?: PositionedTable[];
+  addOnItems?: AddOnItem[];
+  maxSpacesPerVendor?: number;
+  autoGenerateVendorCoupon?: boolean;
+  showSpacePricesOnEventfront?: boolean;
+  roundTableTemplates?: RoundTableTemplate[];
+  venueRoundTables?: PositionedRoundTable[];
+  workshopSessions?: WorkshopSession[];
+  workshopPackages?: WorkshopPackage[];
+  workshopHostingOpen?: boolean;
+  scheduledSpaceTemplates?: ScheduledSpaceTemplate[];
+  venueScheduledSpaces?: PositionedScheduledSpace[];
+  venueConfig?: VenueConfig[];
+  venueDoors?: VenueDoor[];
+  venueAnnotations?: VenueAnnotation[];
+  speakerSlotTemplates?: SpeakerSlotTemplate[];
+  venueSpeakerZones?: PositionedSpeakerZone[];
 };
 
 type SpeakerProfileInput = NonNullable<EventInput["speakerProfiles"]>[number];

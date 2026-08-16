@@ -2,6 +2,18 @@ import "server-only";
 import { withEventshUrl } from "@/lib/media-url";
 import { fromEventshEvent, type EventshEventDoc } from "@/lib/events-eventsh-adapter";
 
+/** Fixed 6-flag set — matches eventsh's VisitorFeatureAccessDto exactly (not
+ * an arbitrary custom list; the older `string[]` shape here didn't match
+ * what eventsh actually accepts). */
+export type VisitorFeatureAccess = {
+  food: boolean;
+  parking: boolean;
+  wifi: boolean;
+  photography: boolean;
+  security: boolean;
+  accessibility: boolean;
+};
+
 export type VisitorType = {
   id: string;
   name: string;
@@ -9,7 +21,7 @@ export type VisitorType = {
   maxCount: number;
   soldCount: number;
   description: string;
-  featureAccess: string[];
+  featureAccess: VisitorFeatureAccess;
   isActive: boolean;
 };
 
@@ -47,6 +59,210 @@ export type SponsorType = {
   customOptions: string[];
   description: string;
 };
+
+// ---------------------------------------------------------------------------
+// Phase 8 — venue/space types. Field names/shapes match eventsh's
+// createEvent.dto.ts exactly (TableTemplateDto, RoundTableTemplateDto, etc.)
+// so toEventshPayload()'s `...rest` pass-through needs no per-field mapping
+// for any of these — only fromEventshEvent() (events-eventsh-adapter.ts)
+// needs explicit read-side wiring, done alongside these types.
+// ---------------------------------------------------------------------------
+
+export type Volunteer = { name: string; email: string; phoneNumber: string };
+
+export type SeatRowTemplate = { id: string; name: string; price: number; color: string };
+export type PositionedSeat = {
+  id: string;
+  rowId: string;
+  seatNumber: number;
+  color: string;
+  name: string;
+  x: number;
+  y: number;
+  rotation: number;
+  venueConfigId: string;
+};
+
+export type TableTemplate = {
+  id: string;
+  name: string;
+  type: "Straight";
+  width: number;
+  height: number;
+  rowNumber: number;
+  tablePrice: number;
+  bookingPrice: number;
+  depositPrice: number;
+  isBooked: boolean;
+  bookedBy: string;
+  customDimensions: boolean;
+};
+export type PositionedTable = TableTemplate & {
+  positionId: string;
+  tableName: string;
+  x: number;
+  y: number;
+  rotation: number;
+  isPlaced: boolean;
+  venueConfigId: string;
+};
+
+export type AddOnItem = {
+  id: string;
+  name: string;
+  price: number;
+  addOnImage: string;
+  description: string;
+  maxPerSpace: number;
+  maxPerTemplate: Record<string, number>;
+};
+
+export type RoundTableTemplate = {
+  id: string;
+  name: string;
+  numberOfChairs: number;
+  sellingMode: "table" | "chair";
+  tablePrice: number;
+  chairPrice: number;
+  bookingPrice: number;
+  depositPrice: number;
+  memberTablePrice: number;
+  memberChairPrice: number;
+  memberBookingPrice: number;
+  memberDepositPrice: number;
+  category: string;
+  color: string;
+  tableDiameter: number;
+  forSale: boolean;
+};
+export type PositionedRoundTable = RoundTableTemplate & {
+  positionId: string;
+  templateId: string;
+  x: number;
+  y: number;
+  rotation: number;
+  isPlaced: boolean;
+  venueConfigId: string;
+  bookedChairs: number[];
+  isFullyBooked: boolean;
+};
+
+export type WorkshopSession = {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  price: number;
+  facilitator: string;
+  startTime: string;
+  endTime: string;
+  maxSeats: number;
+  order: number;
+};
+export type WorkshopPackage = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  sessionIds: string[];
+  order: number;
+};
+
+export type ScheduleSlot = { id: string; label: string; date: string; startTime: string; endTime: string };
+export type ScheduledSpaceTemplate = {
+  id: string;
+  facilityType: string;
+  name: string;
+  shape: "Rectangle" | "Circle";
+  width: number;
+  height: number;
+  diameter: number;
+  price: number;
+  color: string;
+  slots: ScheduleSlot[];
+  // Operator this space is assigned to — SingAdvisor has no Operator
+  // concept today; kept as a bare id string (eventsh's own shape) until
+  // Phase 8f's scoping check decides whether this applies at all.
+  operatorId: string;
+};
+export type PositionedScheduledSpace = ScheduledSpaceTemplate & {
+  positionId: string;
+  templateId: string;
+  displayWidth: number;
+  displayHeight: number;
+  x: number;
+  y: number;
+  rotation: number;
+  isPlaced: boolean;
+  venueConfigId: string;
+};
+
+export type VenueConfig = {
+  venueConfigId: string;
+  width: number;
+  height: number;
+  scale: number;
+  gridSize: number;
+  showGrid: boolean;
+  hasMainStage: boolean;
+  mainStageLabel: string;
+  mainStageShape: string;
+  mainStageWidth: number;
+  mainStageHeight: number;
+  mainStageX: number;
+  mainStageY: number;
+  totalRows: number;
+  hasEntrance: boolean;
+  hasExit: boolean;
+  entranceShape: string;
+  exitShape: string;
+  customDoorTypes: unknown[];
+  cropped: boolean;
+  cropWidth: number;
+  cropHeight: number;
+  published: boolean;
+};
+
+export type SpeakerSlotTemplate = {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  isMainStage: boolean;
+  width: number;
+  height: number;
+  slotPrice: number;
+  maxSpeakers: number;
+  maxVisitors: number;
+  description: string;
+  assignedSpeakerId: string;
+  assignedSpeakerName: string;
+  openForApplications: boolean;
+};
+export type PositionedSpeakerZone = {
+  positionId: string;
+  templateId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  isMainStage: boolean;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  rotation: number;
+  isPlaced: boolean;
+  venueConfigId: string;
+  assignedSpeakerId: string;
+  assignedSpeakerName: string;
+};
+
+/** Placed door / CAD annotation — eventsh itself keeps both as loose `any[]`
+ * (createEvent.dto.ts's own comment: "small and stable enough... skip a
+ * typed sub-DTO"). Matched here rather than over-typing what the source of
+ * truth deliberately doesn't. */
+export type VenueDoor = Record<string, unknown>;
+export type VenueAnnotation = Record<string, unknown>;
 
 export type EventRow = {
   _id: string;
@@ -89,6 +305,28 @@ export type EventRow = {
   currency: string;
   visitorTypes: VisitorType[];
   sponsorTypes: SponsorType[];
+  // Phase 8 additions.
+  volunteers: Volunteer[];
+  seatRowTemplates: SeatRowTemplate[];
+  venueSeats: PositionedSeat[];
+  tableTemplates: TableTemplate[];
+  venueTables: PositionedTable[];
+  addOnItems: AddOnItem[];
+  maxSpacesPerVendor: number;
+  autoGenerateVendorCoupon: boolean;
+  showSpacePricesOnEventfront: boolean;
+  roundTableTemplates: RoundTableTemplate[];
+  venueRoundTables: PositionedRoundTable[];
+  workshopSessions: WorkshopSession[];
+  workshopPackages: WorkshopPackage[];
+  workshopHostingOpen: boolean;
+  scheduledSpaceTemplates: ScheduledSpaceTemplate[];
+  venueScheduledSpaces: PositionedScheduledSpace[];
+  venueConfig: VenueConfig[];
+  venueDoors: VenueDoor[];
+  venueAnnotations: VenueAnnotation[];
+  speakerSlotTemplates: SpeakerSlotTemplate[];
+  venueSpeakerZones: PositionedSpeakerZone[];
   createdAt: string;
   updatedAt: string;
 };
