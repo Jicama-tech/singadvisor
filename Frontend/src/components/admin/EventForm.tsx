@@ -265,6 +265,46 @@ function emptyWorkshopPackageRow(): WorkshopPackageRow {
   return { key: nextKey(), id: "", name: "", description: "", price: "0", sessionIds: [] };
 }
 
+type TableTemplateRow = {
+  key: string;
+  id: string;
+  name: string;
+  width: string;
+  height: string;
+  rowNumber: string;
+  tablePrice: string;
+  bookingPrice: string;
+  depositPrice: string;
+  customDimensions: boolean;
+};
+function emptyTableTemplateRow(): TableTemplateRow {
+  return {
+    key: nextKey(),
+    id: "",
+    name: "",
+    width: "100",
+    height: "80",
+    rowNumber: "",
+    tablePrice: "0",
+    bookingPrice: "0",
+    depositPrice: "0",
+    customDimensions: false,
+  };
+}
+
+type AddOnItemRow = {
+  key: string;
+  id: string;
+  name: string;
+  price: string;
+  description: string;
+  maxPerSpace: string;
+  addOnImage: string;
+};
+function emptyAddOnItemRow(): AddOnItemRow {
+  return { key: nextKey(), id: "", name: "", price: "0", description: "", maxPerSpace: "", addOnImage: "" };
+}
+
 const AGE_OPTIONS = ["All Ages", "13+", "16+", "18+", "21+"];
 
 const FEATURE_FLAGS: { key: string; label: string }[] = [
@@ -391,6 +431,29 @@ export function EventForm({ event }: { event?: EventRow }) {
     sessionIds: p.sessionIds,
   }));
 
+  const initialTableTemplates: TableTemplateRow[] = (event?.tableTemplates ?? []).map((t) => ({
+    key: nextKey(),
+    id: t.id,
+    name: t.name,
+    width: String(t.width),
+    height: String(t.height),
+    rowNumber: t.rowNumber ? String(t.rowNumber) : "",
+    tablePrice: String(t.tablePrice),
+    bookingPrice: String(t.bookingPrice),
+    depositPrice: String(t.depositPrice),
+    customDimensions: t.customDimensions,
+  }));
+
+  const initialAddOnItems: AddOnItemRow[] = (event?.addOnItems ?? []).map((a) => ({
+    key: nextKey(),
+    id: a.id,
+    name: a.name,
+    price: String(a.price),
+    description: a.description,
+    maxPerSpace: a.maxPerSpace ? String(a.maxPerSpace) : "",
+    addOnImage: a.addOnImage,
+  }));
+
   const [tiers, setTiers] = useState<TierRow[]>(initialTiers);
   const [sections, setSections] = useState<SectionRow[]>(initialSections);
   const [ageRows, setAgeRows] = useState<AgeRow[]>(initialAgeRows);
@@ -401,6 +464,8 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [roundTableRows, setRoundTableRows] = useState<RoundTableRow[]>(initialRoundTables);
   const [workshopSessionRows, setWorkshopSessionRows] = useState<WorkshopSessionRow[]>(initialWorkshopSessions);
   const [workshopPackageRows, setWorkshopPackageRows] = useState<WorkshopPackageRow[]>(initialWorkshopPackages);
+  const [tableTemplateRows, setTableTemplateRows] = useState<TableTemplateRow[]>(initialTableTemplates);
+  const [addOnItemRows, setAddOnItemRows] = useState<AddOnItemRow[]>(initialAddOnItems);
   const [imagePreview, setImagePreview] = useState(event?.image ?? "");
 
   // Mirrors eventsh-v1's "Event Sections" toggles on its Venue tab: a
@@ -422,6 +487,9 @@ export function EventForm({ event }: { event?: EventRow }) {
   );
   const [hasWorkshops, setHasWorkshops] = useState(
     Boolean(event?.features?.hasWorkshops) || (event?.workshopSessions.length ?? 0) > 0,
+  );
+  const [hasSpaces, setHasSpaces] = useState(
+    Boolean(event?.features?.hasSpaces) || (event?.tableTemplates.length ?? 0) > 0,
   );
 
   function handleImageFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -539,6 +607,26 @@ export function EventForm({ event }: { event?: EventRow }) {
   function removeWorkshopPackage(key: string) {
     setWorkshopPackageRows((rows) => rows.filter((r) => r.key !== key));
   }
+  function updateTableTemplate(key: string, patch: Partial<TableTemplateRow>) {
+    setTableTemplateRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addTableTemplate() {
+    setTableTemplateRows((rows) => [...rows, emptyTableTemplateRow()]);
+  }
+  function removeTableTemplate(key: string) {
+    setTableTemplateRows((rows) => rows.filter((r) => r.key !== key));
+  }
+
+  function updateAddOnItem(key: string, patch: Partial<AddOnItemRow>) {
+    setAddOnItemRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addAddOnItem() {
+    setAddOnItemRows((rows) => [...rows, emptyAddOnItemRow()]);
+  }
+  function removeAddOnItem(key: string) {
+    setAddOnItemRows((rows) => rows.filter((r) => r.key !== key));
+  }
+
   function toggleWorkshopPackageSession(packageKey: string, sessionId: string, checked: boolean) {
     setWorkshopPackageRows((rows) =>
       rows.map((r) =>
@@ -588,6 +676,8 @@ export function EventForm({ event }: { event?: EventRow }) {
             <input type="hidden" name="roundTableCount" value={roundTableRows.length} />
             <input type="hidden" name="workshopSessionCount" value={workshopSessionRows.length} />
             <input type="hidden" name="workshopPackageCount" value={workshopPackageRows.length} />
+            <input type="hidden" name="tableTemplateCount" value={tableTemplateRows.length} />
+            <input type="hidden" name="addOnItemCount" value={addOnItemRows.length} />
 
             <Tabs defaultValue="basic">
               <TabsList>
@@ -601,6 +691,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                 {hasVolunteers && <TabsTrigger value="volunteers">Volunteers</TabsTrigger>}
                 {hasRoundTables && <TabsTrigger value="roundtables">Round Tables</TabsTrigger>}
                 {hasWorkshops && <TabsTrigger value="workshops">Workshops</TabsTrigger>}
+                {hasSpaces && <TabsTrigger value="spaces">Spaces</TabsTrigger>}
                 <TabsTrigger value="policies">Policies &amp; extras</TabsTrigger>
               </TabsList>
 
@@ -714,6 +805,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                   <input type="hidden" name="feature_hasVolunteers" value={hasVolunteers ? "on" : ""} />
                   <input type="hidden" name="feature_hasRoundTables" value={hasRoundTables ? "on" : ""} />
                   <input type="hidden" name="feature_hasWorkshops" value={hasWorkshops ? "on" : ""} />
+                  <input type="hidden" name="feature_hasSpaces" value={hasSpaces ? "on" : ""} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
                       <input
@@ -782,6 +874,20 @@ export function EventForm({ event }: { event?: EventRow }) {
                         <span className="block text-sm font-medium text-[var(--text-primary)]">Workshops</span>
                         <span className="block text-xs text-[var(--text-muted)]">
                           Priced workshop sessions, plus bundle packages across sessions.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
+                      <input
+                        type="checkbox"
+                        checked={hasSpaces}
+                        onChange={(e) => setHasSpaces(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-[var(--text-primary)]">Spaces</span>
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          Booth/table templates for vendors, with add-on items and pricing.
                         </span>
                       </span>
                     </label>
@@ -1869,6 +1975,218 @@ export function EventForm({ event }: { event?: EventRow }) {
                       <Icon name="plus" size={16} />
                       Add package
                     </Button>
+                  </FormSection>
+                </div>
+              </TabsContent>
+
+              {/* ---- Spaces (eventsh-v1's "Spaces"/table templates) ---------------- */}
+              <TabsContent value="spaces" className="mt-6">
+                <div className="flex flex-col gap-6">
+                  <FormSection
+                    title="Space templates"
+                    description="Booth/table templates vendors can book — dimensions and pricing. Placing them visually on a venue map isn't built yet."
+                  >
+                    <div className="flex flex-col gap-4">
+                      {tableTemplateRows.map((t, i) => (
+                        <div key={t.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                          <input type="hidden" name={`tableTemplate${i}Id`} value={t.id} />
+                          <div className="grid gap-3 sm:grid-cols-4">
+                            <Field label="Name" htmlFor={`tt${i}-name`}>
+                              <Input
+                                id={`tt${i}-name`}
+                                name={`tableTemplate${i}Name`}
+                                placeholder="e.g. Standard Booth"
+                                value={t.name}
+                                onChange={(e) => updateTableTemplate(t.key, { name: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Width (cm)" htmlFor={`tt${i}-width`}>
+                              <Input
+                                id={`tt${i}-width`}
+                                name={`tableTemplate${i}Width`}
+                                type="number"
+                                min="0"
+                                value={t.width}
+                                onChange={(e) => updateTableTemplate(t.key, { width: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Height (cm)" htmlFor={`tt${i}-height`}>
+                              <Input
+                                id={`tt${i}-height`}
+                                name={`tableTemplate${i}Height`}
+                                type="number"
+                                min="0"
+                                value={t.height}
+                                onChange={(e) => updateTableTemplate(t.key, { height: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Row number" htmlFor={`tt${i}-row`} hint="Optional grouping">
+                              <Input
+                                id={`tt${i}-row`}
+                                name={`tableTemplate${i}RowNumber`}
+                                type="number"
+                                min="1"
+                                value={t.rowNumber}
+                                onChange={(e) => updateTableTemplate(t.key, { rowNumber: e.target.value })}
+                              />
+                            </Field>
+                          </div>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                            <Field label={`Table price (${values.currency ?? event?.currency ?? "SGD"})`} htmlFor={`tt${i}-tablePrice`}>
+                              <Input
+                                id={`tt${i}-tablePrice`}
+                                name={`tableTemplate${i}TablePrice`}
+                                type="number"
+                                min="0"
+                                value={t.tablePrice}
+                                onChange={(e) => updateTableTemplate(t.key, { tablePrice: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Booking price" htmlFor={`tt${i}-bookingPrice`} hint="Non-refundable to hold it">
+                              <Input
+                                id={`tt${i}-bookingPrice`}
+                                name={`tableTemplate${i}BookingPrice`}
+                                type="number"
+                                min="0"
+                                value={t.bookingPrice}
+                                onChange={(e) => updateTableTemplate(t.key, { bookingPrice: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Deposit price" htmlFor={`tt${i}-depositPrice`}>
+                              <Input
+                                id={`tt${i}-depositPrice`}
+                                name={`tableTemplate${i}DepositPrice`}
+                                type="number"
+                                min="0"
+                                value={t.depositPrice}
+                                onChange={(e) => updateTableTemplate(t.key, { depositPrice: e.target.value })}
+                              />
+                            </Field>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+                              <input
+                                type="checkbox"
+                                name={`tableTemplate${i}CustomDimensions`}
+                                checked={t.customDimensions}
+                                onChange={(e) => updateTableTemplate(t.key, { customDimensions: e.target.checked })}
+                                className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                              />
+                              Vendor can request custom dimensions
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeTableTemplate(t.key)}
+                              className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                            >
+                              <Icon name="x" size={14} />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <Button type="button" variant="secondary" onClick={addTableTemplate}>
+                      <Icon name="plus" size={16} />
+                      Add space template
+                    </Button>
+                  </FormSection>
+
+                  <FormSection
+                    title="Add-on items"
+                    description="Extras a vendor can add to their booking — power supply, extra chair, signage, etc."
+                  >
+                    <div className="flex flex-col gap-4">
+                      {addOnItemRows.map((a, i) => (
+                        <div key={a.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                          <input type="hidden" name={`addOnItem${i}Id`} value={a.id} />
+                          <input type="hidden" name={`addOnItem${i}Image`} value={a.addOnImage} />
+                          <div className="flex gap-4">
+                            <CroppedImageField
+                              name={`addOnItem${i}ImageFile`}
+                              existingPath={a.addOnImage}
+                              aspect={1}
+                              label="Photo"
+                            />
+                            <div className="grid flex-1 gap-3 sm:grid-cols-3">
+                              <Field label="Name" htmlFor={`ai${i}-name`}>
+                                <Input
+                                  id={`ai${i}-name`}
+                                  name={`addOnItem${i}Name`}
+                                  placeholder="e.g. Extra Chair"
+                                  value={a.name}
+                                  onChange={(e) => updateAddOnItem(a.key, { name: e.target.value })}
+                                />
+                              </Field>
+                              <Field label={`Price (${values.currency ?? event?.currency ?? "SGD"})`} htmlFor={`ai${i}-price`}>
+                                <Input
+                                  id={`ai${i}-price`}
+                                  name={`addOnItem${i}Price`}
+                                  type="number"
+                                  min="0"
+                                  value={a.price}
+                                  onChange={(e) => updateAddOnItem(a.key, { price: e.target.value })}
+                                />
+                              </Field>
+                              <Field label="Max per space" htmlFor={`ai${i}-maxPerSpace`} hint="Optional">
+                                <Input
+                                  id={`ai${i}-maxPerSpace`}
+                                  name={`addOnItem${i}MaxPerSpace`}
+                                  type="number"
+                                  min="0"
+                                  value={a.maxPerSpace}
+                                  onChange={(e) => updateAddOnItem(a.key, { maxPerSpace: e.target.value })}
+                                />
+                              </Field>
+                            </div>
+                          </div>
+                          <Field label="Description" htmlFor={`ai${i}-description`} className="mt-3">
+                            <Input
+                              id={`ai${i}-description`}
+                              name={`addOnItem${i}Description`}
+                              value={a.description}
+                              onChange={(e) => updateAddOnItem(a.key, { description: e.target.value })}
+                            />
+                          </Field>
+                          <button
+                            type="button"
+                            onClick={() => removeAddOnItem(a.key)}
+                            className="mt-3 flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                          >
+                            <Icon name="x" size={14} />
+                            Remove add-on
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <Button type="button" variant="secondary" onClick={addAddOnItem}>
+                      <Icon name="plus" size={16} />
+                      Add add-on item
+                    </Button>
+                  </FormSection>
+
+                  <FormSection title="Vendor settings">
+                    <Field label="Max spaces per vendor" htmlFor="e-maxSpacesPerVendor" className="max-w-48">
+                      <Input
+                        id="e-maxSpacesPerVendor"
+                        name="maxSpacesPerVendor"
+                        type="number"
+                        min="1"
+                        defaultValue={values.maxSpacesPerVendor ?? String(event?.maxSpacesPerVendor ?? 1)}
+                      />
+                    </Field>
+                    <Toggle
+                      name="autoGenerateVendorCoupon"
+                      label="Auto-generate a vendor coupon"
+                      hint="Each confirmed vendor automatically gets a discount coupon to share."
+                      defaultChecked={submitted ? values.autoGenerateVendorCoupon === "on" : (event?.autoGenerateVendorCoupon ?? true)}
+                    />
+                    <Toggle
+                      name="showSpacePricesOnEventfront"
+                      label="Show space prices publicly"
+                      hint="Off hides pricing from the public page — vendors apply and are quoted directly."
+                      defaultChecked={submitted ? values.showSpacePricesOnEventfront === "on" : (event?.showSpacePricesOnEventfront ?? true)}
+                    />
                   </FormSection>
                 </div>
               </TabsContent>

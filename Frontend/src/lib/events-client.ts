@@ -89,7 +89,7 @@ export type TableTemplate = {
   type: "Straight";
   width: number;
   height: number;
-  rowNumber: number;
+  rowNumber?: number;
   tablePrice: number;
   bookingPrice: number;
   depositPrice: number;
@@ -113,8 +113,8 @@ export type AddOnItem = {
   price: number;
   addOnImage: string;
   description: string;
-  maxPerSpace: number;
-  maxPerTemplate: Record<string, number>;
+  maxPerSpace?: number;
+  maxPerTemplate?: Record<string, number>;
 };
 
 export type RoundTableTemplate = {

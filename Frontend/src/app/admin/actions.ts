@@ -281,6 +281,7 @@ export async function saveEvent(
       "hasVolunteers",
       "hasRoundTables",
       "hasWorkshops",
+      "hasSpaces",
     ]
       .filter((k) => bool(formData, `feature_${k}`))
       .map((k) => [k, true]),
@@ -418,9 +419,26 @@ export async function saveEvent(
     order: i,
   })).filter((wp) => wp.name);
 
+  const tableTemplateCount = num(formData, "tableTemplateCount", 0);
+  const tableTemplates = Array.from({ length: tableTemplateCount }, (_, i) => ({
+    id: str(formData, `tableTemplate${i}Id`) || `tbl-${i}`,
+    name: str(formData, `tableTemplate${i}Name`),
+    type: "Straight" as const,
+    width: num(formData, `tableTemplate${i}Width`, 100),
+    height: num(formData, `tableTemplate${i}Height`, 80),
+    rowNumber: str(formData, `tableTemplate${i}RowNumber`) ? num(formData, `tableTemplate${i}RowNumber`) : undefined,
+    tablePrice: num(formData, `tableTemplate${i}TablePrice`, 0),
+    bookingPrice: num(formData, `tableTemplate${i}BookingPrice`, 0),
+    depositPrice: num(formData, `tableTemplate${i}DepositPrice`, 0),
+    isBooked: false,
+    bookedBy: "",
+    customDimensions: bool(formData, `tableTemplate${i}CustomDimensions`),
+  })).filter((t) => t.name);
+
   let image: string;
   let speakerProfiles: Awaited<ReturnType<typeof buildSpeakerProfile>>[];
   let workshopSessions: Awaited<ReturnType<typeof buildWorkshopSession>>[];
+  let addOnItems: Awaited<ReturnType<typeof buildAddOnItem>>[];
   try {
     image = (await uploadEventImageIfPresent(formData, "imageFile")) ?? str(formData, "image");
     const speakerCount = num(formData, "speakerCount", 0);
@@ -436,6 +454,11 @@ export async function saveEvent(
         Array.from({ length: workshopSessionCount }, (_, i) => buildWorkshopSession(formData, i)),
       )
     ).filter((w) => w.name);
+
+    const addOnItemCount = num(formData, "addOnItemCount", 0);
+    addOnItems = (
+      await Promise.all(Array.from({ length: addOnItemCount }, (_, i) => buildAddOnItem(formData, i)))
+    ).filter((a) => a.name);
   } catch (err) {
     return eventsErrorState(err, formData);
   }
@@ -488,6 +511,11 @@ export async function saveEvent(
     workshopSessions,
     workshopPackages,
     workshopHostingOpen: bool(formData, "workshopHostingOpen"),
+    tableTemplates,
+    addOnItems,
+    maxSpacesPerVendor: num(formData, "maxSpacesPerVendor", 1),
+    autoGenerateVendorCoupon: bool(formData, "autoGenerateVendorCoupon"),
+    showSpacePricesOnEventfront: bool(formData, "showSpacePricesOnEventfront"),
   };
 
   let slug: string;
@@ -1047,6 +1075,19 @@ async function buildWorkshopSession(formData: FormData, i: number) {
     endTime: str(formData, `workshopSession${i}EndTime`),
     maxSeats: num(formData, `workshopSession${i}MaxSeats`, 0),
     order: i,
+  };
+}
+
+/** Same pattern again for an Add-on Items row (Spaces tab, Phase 8e). */
+async function buildAddOnItem(formData: FormData, i: number) {
+  const uploadedImage = await uploadEventImageIfPresent(formData, `addOnItem${i}ImageFile`);
+  return {
+    id: str(formData, `addOnItem${i}Id`) || `addon-${i}`,
+    name: str(formData, `addOnItem${i}Name`),
+    price: num(formData, `addOnItem${i}Price`, 0),
+    addOnImage: uploadedImage ?? str(formData, `addOnItem${i}Image`),
+    description: str(formData, `addOnItem${i}Description`),
+    maxPerSpace: str(formData, `addOnItem${i}MaxPerSpace`) ? num(formData, `addOnItem${i}MaxPerSpace`) : undefined,
   };
 }
 
