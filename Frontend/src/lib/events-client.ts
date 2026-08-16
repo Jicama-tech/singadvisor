@@ -205,22 +205,22 @@ export type VenueConfig = {
   gridSize: number;
   showGrid: boolean;
   hasMainStage: boolean;
-  mainStageLabel: string;
-  mainStageShape: string;
-  mainStageWidth: number;
-  mainStageHeight: number;
-  mainStageX: number;
-  mainStageY: number;
-  totalRows: number;
-  hasEntrance: boolean;
-  hasExit: boolean;
-  entranceShape: string;
-  exitShape: string;
-  customDoorTypes: unknown[];
-  cropped: boolean;
-  cropWidth: number;
-  cropHeight: number;
-  published: boolean;
+  mainStageLabel?: string;
+  mainStageShape?: string;
+  mainStageWidth?: number;
+  mainStageHeight?: number;
+  mainStageX?: number;
+  mainStageY?: number;
+  totalRows?: number;
+  hasEntrance?: boolean;
+  hasExit?: boolean;
+  entranceShape?: string;
+  exitShape?: string;
+  customDoorTypes?: unknown[];
+  cropped?: boolean;
+  cropWidth?: number;
+  cropHeight?: number;
+  published?: boolean;
 };
 
 export type SpeakerSlotTemplate = {

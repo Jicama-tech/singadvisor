@@ -6,6 +6,7 @@ import { saveEvent } from "@/app/admin/actions";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { CroppedImageField } from "@/components/admin/CroppedImageField";
+import { VenueCanvas, type CanvasTemplate, type PlacedItem, type VenueConfigState } from "@/components/admin/VenueCanvas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -166,9 +167,13 @@ type SpeakerSlotRow = {
   description: string;
 };
 function emptySpeakerSlotRow(): SpeakerSlotRow {
+  // Non-empty id from creation (like Workshop Sessions in 8d) — Phase 8g's
+  // Space Layout canvas needs to reference a template by id before it's
+  // ever been saved to eventsh.
+  const key = nextKey();
   return {
-    key: nextKey(),
-    id: "",
+    key,
+    id: key,
     name: "",
     startTime: "",
     endTime: "",
@@ -200,9 +205,10 @@ type RoundTableRow = {
   memberDepositPrice: string;
 };
 function emptyRoundTableRow(): RoundTableRow {
+  const key = nextKey(); // non-empty id from creation — see emptySpeakerSlotRow's comment
   return {
-    key: nextKey(),
-    id: "",
+    key,
+    id: key,
     name: "",
     numberOfChairs: "10",
     sellingMode: "table",
@@ -278,9 +284,10 @@ type TableTemplateRow = {
   customDimensions: boolean;
 };
 function emptyTableTemplateRow(): TableTemplateRow {
+  const key = nextKey(); // non-empty id from creation — see emptySpeakerSlotRow's comment
   return {
-    key: nextKey(),
-    id: "",
+    key,
+    id: key,
     name: "",
     width: "100",
     height: "80",
@@ -326,9 +333,10 @@ type ScheduledSpaceRow = {
   operatorId: string;
 };
 function emptyScheduledSpaceRow(): ScheduledSpaceRow {
+  const key = nextKey(); // non-empty id from creation — see emptySpeakerSlotRow's comment
   return {
-    key: nextKey(),
-    id: "",
+    key,
+    id: key,
     facilityType: "",
     name: "",
     shape: "Rectangle",
@@ -548,6 +556,71 @@ export function EventForm({ event }: { event?: EventRow }) {
     operatorId: s.operatorId || "",
   }));
 
+  // Space Layout (Phase 8g). Simplified from eventsh's array-of-venue-
+  // configs to a single primary config — this app has no multi-venue
+  // concept for one event today.
+  const firstVenueConfig = event?.venueConfig?.[0];
+  const initialVenueConfig: VenueConfigState = {
+    width: firstVenueConfig?.width || 800,
+    height: firstVenueConfig?.height || 500,
+    gridSize: firstVenueConfig?.gridSize || 50,
+    showGrid: firstVenueConfig?.showGrid ?? true,
+  };
+  const initialPlacedItems: PlacedItem[] = [
+    ...(event?.venueTables ?? []).map((t) => ({
+      positionId: t.positionId,
+      templateId: t.id,
+      kind: "table" as const,
+      name: t.tableName || t.name,
+      x: t.x,
+      y: t.y,
+      width: t.width,
+      height: t.height,
+      rotation: t.rotation || 0,
+      isCircle: false,
+      color: "#6366f1",
+    })),
+    ...(event?.venueRoundTables ?? []).map((t) => ({
+      positionId: t.positionId,
+      templateId: t.templateId,
+      kind: "roundTable" as const,
+      name: t.name,
+      x: t.x,
+      y: t.y,
+      width: t.tableDiameter || 150,
+      height: t.tableDiameter || 150,
+      rotation: t.rotation || 0,
+      isCircle: true,
+      color: t.color || "#4f46e5",
+    })),
+    ...(event?.venueScheduledSpaces ?? []).map((s) => ({
+      positionId: s.positionId,
+      templateId: s.templateId,
+      kind: "scheduledSpace" as const,
+      name: s.name,
+      x: s.x,
+      y: s.y,
+      width: s.shape === "Circle" ? s.diameter || 150 : s.width || 200,
+      height: s.shape === "Circle" ? s.diameter || 150 : s.height || 100,
+      rotation: s.rotation || 0,
+      isCircle: s.shape === "Circle",
+      color: s.color || "#0ea5e9",
+    })),
+    ...(event?.venueSpeakerZones ?? []).map((z) => ({
+      positionId: z.positionId,
+      templateId: z.templateId,
+      kind: "speakerZone" as const,
+      name: z.name,
+      x: z.x,
+      y: z.y,
+      width: z.width || 150,
+      height: z.height || 100,
+      rotation: z.rotation || 0,
+      isCircle: false,
+      color: "#f59e0b",
+    })),
+  ];
+
   const [tiers, setTiers] = useState<TierRow[]>(initialTiers);
   const [sections, setSections] = useState<SectionRow[]>(initialSections);
   const [ageRows, setAgeRows] = useState<AgeRow[]>(initialAgeRows);
@@ -561,6 +634,8 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [tableTemplateRows, setTableTemplateRows] = useState<TableTemplateRow[]>(initialTableTemplates);
   const [addOnItemRows, setAddOnItemRows] = useState<AddOnItemRow[]>(initialAddOnItems);
   const [scheduledSpaceRows, setScheduledSpaceRows] = useState<ScheduledSpaceRow[]>(initialScheduledSpaces);
+  const [venueConfig, setVenueConfig] = useState<VenueConfigState>(initialVenueConfig);
+  const [placedItems, setPlacedItems] = useState<PlacedItem[]>(initialPlacedItems);
   const [imagePreview, setImagePreview] = useState(event?.image ?? "");
 
   // Mirrors eventsh-v1's "Event Sections" toggles on its Venue tab: a
@@ -588,6 +663,9 @@ export function EventForm({ event }: { event?: EventRow }) {
   );
   const [hasScheduledSpaces, setHasScheduledSpaces] = useState(
     Boolean(event?.features?.hasScheduledSpaces) || (event?.scheduledSpaceTemplates.length ?? 0) > 0,
+  );
+  const [hasSpaceLayout, setHasSpaceLayout] = useState(
+    Boolean(event?.features?.hasSpaceLayout) || initialPlacedItems.length > 0,
   );
 
   function handleImageFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -840,6 +918,11 @@ export function EventForm({ event }: { event?: EventRow }) {
             {scheduledSpaceRows.map((s, i) => (
               <input key={s.key} type="hidden" name={`scheduledSpace${i}SlotCount`} value={s.slots.length} />
             ))}
+            {/* Space Layout (8g) placements are homogeneous-but-variably-shaped
+                across 4 kinds — JSON is a cleaner fit here than the indexed
+                per-field convention every other repeater in this form uses. */}
+            <input type="hidden" name="venueConfigJson" value={JSON.stringify(venueConfig)} />
+            <input type="hidden" name="placedItemsJson" value={JSON.stringify(placedItems)} />
 
             <Tabs defaultValue="basic">
               <TabsList>
@@ -855,6 +938,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                 {hasWorkshops && <TabsTrigger value="workshops">Workshops</TabsTrigger>}
                 {hasSpaces && <TabsTrigger value="spaces">Spaces</TabsTrigger>}
                 {hasScheduledSpaces && <TabsTrigger value="schedule-spaces">Scheduled Spaces</TabsTrigger>}
+                {hasSpaceLayout && <TabsTrigger value="space-layout">Space Layout</TabsTrigger>}
                 <TabsTrigger value="policies">Policies &amp; extras</TabsTrigger>
               </TabsList>
 
@@ -970,6 +1054,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                   <input type="hidden" name="feature_hasWorkshops" value={hasWorkshops ? "on" : ""} />
                   <input type="hidden" name="feature_hasSpaces" value={hasSpaces ? "on" : ""} />
                   <input type="hidden" name="feature_hasScheduledSpaces" value={hasScheduledSpaces ? "on" : ""} />
+                  <input type="hidden" name="feature_hasSpaceLayout" value={hasSpaceLayout ? "on" : ""} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
                       <input
@@ -1066,6 +1151,20 @@ export function EventForm({ event }: { event?: EventRow }) {
                         <span className="block text-sm font-medium text-[var(--text-primary)]">Scheduled Spaces</span>
                         <span className="block text-xs text-[var(--text-muted)]">
                           Time-slot-bookable facilities — courts, rooms, equipment — not sold once for the whole event.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
+                      <input
+                        type="checkbox"
+                        checked={hasSpaceLayout}
+                        onChange={(e) => setHasSpaceLayout(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-[var(--text-primary)]">Space Layout</span>
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          Visually place your Spaces/Round Tables/Scheduled Spaces/Speaker slots on a venue map.
                         </span>
                       </span>
                     </label>
@@ -2541,6 +2640,68 @@ export function EventForm({ event }: { event?: EventRow }) {
                     <Icon name="plus" size={16} />
                     Add scheduled space
                   </Button>
+                </FormSection>
+              </TabsContent>
+
+              {/* ---- Space Layout (eventsh-v1's VenueDesigner, scoped port — see
+                  VenueCanvas.tsx's own doc comment for exactly what's in/out) ---- */}
+              <TabsContent value="space-layout" className="mt-6">
+                <FormSection
+                  title="Space layout"
+                  description="Drag templates onto the venue plan below, then move/resize/rotate them. Click a placed item to select it."
+                >
+                  <VenueCanvas
+                    venueConfig={venueConfig}
+                    onVenueConfigChange={(patch) => setVenueConfig((c) => ({ ...c, ...patch }))}
+                    templates={[
+                      ...tableTemplateRows
+                        .filter((t) => t.name)
+                        .map((t): CanvasTemplate => ({
+                          templateId: t.id,
+                          kind: "table",
+                          name: t.name,
+                          width: Number(t.width) || 100,
+                          height: Number(t.height) || 80,
+                          isCircle: false,
+                          color: "#6366f1",
+                        })),
+                      ...roundTableRows
+                        .filter((t) => t.name)
+                        .map((t): CanvasTemplate => ({
+                          templateId: t.id,
+                          kind: "roundTable",
+                          name: t.name,
+                          width: Number(t.tableDiameter) || 150,
+                          height: Number(t.tableDiameter) || 150,
+                          isCircle: true,
+                          color: t.color,
+                        })),
+                      ...scheduledSpaceRows
+                        .filter((s) => s.name)
+                        .map((s): CanvasTemplate => ({
+                          templateId: s.id,
+                          kind: "scheduledSpace",
+                          name: s.name,
+                          width: s.shape === "Circle" ? Number(s.diameter) || 150 : Number(s.width) || 200,
+                          height: s.shape === "Circle" ? Number(s.diameter) || 150 : Number(s.height) || 100,
+                          isCircle: s.shape === "Circle",
+                          color: s.color,
+                        })),
+                      ...speakerSlotRows
+                        .filter((s) => s.name)
+                        .map((s): CanvasTemplate => ({
+                          templateId: s.id,
+                          kind: "speakerZone",
+                          name: s.name,
+                          width: 150,
+                          height: 100,
+                          isCircle: false,
+                          color: "#f59e0b",
+                        })),
+                    ]}
+                    placedItems={placedItems}
+                    onChange={setPlacedItems}
+                  />
                 </FormSection>
               </TabsContent>
 

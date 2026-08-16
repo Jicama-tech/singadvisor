@@ -39,6 +39,12 @@ import {
   resendTicketEmailAdmin,
   markTicketAttendanceAdmin,
 } from "@/lib/events-admin-client";
+import type {
+  PositionedTable,
+  PositionedRoundTable,
+  PositionedScheduledSpace,
+  PositionedSpeakerZone,
+} from "@/lib/events-client";
 
 /**
  * Every mutation below calls this first. The middleware already redirects
@@ -283,6 +289,7 @@ export async function saveEvent(
       "hasWorkshops",
       "hasSpaces",
       "hasScheduledSpaces",
+      "hasSpaceLayout",
     ]
       .filter((k) => bool(formData, `feature_${k}`))
       .map((k) => [k, true]),
@@ -496,6 +503,87 @@ export async function saveEvent(
     return eventsErrorState(err, formData);
   }
 
+  // Space Layout (Phase 8g) — parse the JSON placements EventForm.tsx sent
+  // (see its own comment: variably-shaped across 4 kinds, JSON fits better
+  // here than the indexed-field convention the rest of this action uses)
+  // and merge each placement with its full template (pricing, etc. — the
+  // canvas itself only ever tracked position/size/rotation) to build the
+  // shapes eventsh's venueTables/venueRoundTables/venueScheduledSpaces/
+  // venueSpeakerZones actually expect.
+  const VENUE_CONFIG_ID = "venueConfig1";
+  let venueConfig: Array<{
+    venueConfigId: string;
+    width: number;
+    height: number;
+    scale: number;
+    gridSize: number;
+    showGrid: boolean;
+    hasMainStage: boolean;
+  }> = [];
+  const venueTables: PositionedTable[] = [];
+  const venueRoundTables: PositionedRoundTable[] = [];
+  const venueScheduledSpaces: PositionedScheduledSpace[] = [];
+  const venueSpeakerZones: PositionedSpeakerZone[] = [];
+  try {
+    const rawConfig = JSON.parse(str(formData, "venueConfigJson") || "{}");
+    venueConfig = [
+      {
+        venueConfigId: VENUE_CONFIG_ID,
+        width: Number(rawConfig.width) || 800,
+        height: Number(rawConfig.height) || 500,
+        scale: 1,
+        gridSize: Number(rawConfig.gridSize) || 50,
+        showGrid: Boolean(rawConfig.showGrid),
+        hasMainStage: false,
+      },
+    ];
+
+    const placedItems: {
+      positionId: string;
+      templateId: string;
+      kind: "table" | "roundTable" | "scheduledSpace" | "speakerZone";
+      name: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      rotation: number;
+    }[] = JSON.parse(str(formData, "placedItemsJson") || "[]");
+
+    for (const item of placedItems) {
+      const common = { positionId: item.positionId, x: item.x, y: item.y, rotation: item.rotation, isPlaced: true, venueConfigId: VENUE_CONFIG_ID };
+      if (item.kind === "table") {
+        const t = tableTemplates.find((x) => x.id === item.templateId);
+        if (t) venueTables.push({ ...t, ...common, tableName: item.name, width: item.width, height: item.height });
+      } else if (item.kind === "roundTable") {
+        const t = roundTableTemplates.find((x) => x.id === item.templateId);
+        if (t) venueRoundTables.push({ ...t, ...common, templateId: t.id, bookedChairs: [], isFullyBooked: false });
+      } else if (item.kind === "scheduledSpace") {
+        const t = scheduledSpaceTemplates.find((x) => x.id === item.templateId);
+        if (t) venueScheduledSpaces.push({ ...t, ...common, templateId: t.id, displayWidth: item.width, displayHeight: item.height });
+      } else if (item.kind === "speakerZone") {
+        const t = speakerSlotTemplates.find((x) => x.id === item.templateId);
+        if (t) {
+          venueSpeakerZones.push({
+            ...common,
+            templateId: t.id,
+            name: t.name,
+            startTime: t.startTime,
+            endTime: t.endTime,
+            isMainStage: t.isMainStage,
+            width: item.width,
+            height: item.height,
+            assignedSpeakerId: t.assignedSpeakerId,
+            assignedSpeakerName: t.assignedSpeakerName,
+          });
+        }
+      }
+    }
+  } catch {
+    // Malformed/missing JSON (e.g. Space Layout tab never opened) — no
+    // placements is a perfectly valid event, not an error.
+  }
+
   const input = {
     slug: str(formData, "slug") || undefined,
     title,
@@ -550,6 +638,11 @@ export async function saveEvent(
     autoGenerateVendorCoupon: bool(formData, "autoGenerateVendorCoupon"),
     showSpacePricesOnEventfront: bool(formData, "showSpacePricesOnEventfront"),
     scheduledSpaceTemplates,
+    venueConfig,
+    venueTables,
+    venueRoundTables,
+    venueScheduledSpaces,
+    venueSpeakerZones,
   };
 
   let slug: string;
