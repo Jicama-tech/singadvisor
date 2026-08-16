@@ -5,6 +5,7 @@ import Link from "next/link";
 import { saveEvent } from "@/app/admin/actions";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { CroppedImageField } from "@/components/admin/CroppedImageField";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -179,6 +180,91 @@ function emptySpeakerSlotRow(): SpeakerSlotRow {
   };
 }
 
+type RoundTableRow = {
+  key: string;
+  id: string;
+  name: string;
+  numberOfChairs: string;
+  sellingMode: "table" | "chair";
+  category: string;
+  color: string;
+  tableDiameter: string;
+  forSale: boolean;
+  tablePrice: string;
+  chairPrice: string;
+  bookingPrice: string;
+  depositPrice: string;
+  memberTablePrice: string;
+  memberChairPrice: string;
+  memberBookingPrice: string;
+  memberDepositPrice: string;
+};
+function emptyRoundTableRow(): RoundTableRow {
+  return {
+    key: nextKey(),
+    id: "",
+    name: "",
+    numberOfChairs: "10",
+    sellingMode: "table",
+    category: "",
+    color: "#4f46e5",
+    tableDiameter: "150",
+    forSale: true,
+    tablePrice: "0",
+    chairPrice: "0",
+    bookingPrice: "0",
+    depositPrice: "0",
+    memberTablePrice: "",
+    memberChairPrice: "",
+    memberBookingPrice: "",
+    memberDepositPrice: "",
+  };
+}
+
+type WorkshopSessionRow = {
+  key: string;
+  id: string;
+  name: string;
+  description: string;
+  photo: string;
+  price: string;
+  facilitator: string;
+  startTime: string;
+  endTime: string;
+  maxSeats: string;
+};
+function emptyWorkshopSessionRow(): WorkshopSessionRow {
+  // Unlike other repeaters in this form, a brand-new session needs a
+  // non-empty, stable id immediately — Workshop Packages below reference
+  // sessions by id in the same submission, before either has ever been
+  // saved to eventsh.
+  const key = nextKey();
+  return {
+    key,
+    id: key,
+    name: "",
+    description: "",
+    photo: "",
+    price: "0",
+    facilitator: "",
+    startTime: "",
+    endTime: "",
+    maxSeats: "20",
+  };
+}
+
+type WorkshopPackageRow = {
+  key: string;
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+  sessionIds: string[];
+};
+function emptyWorkshopPackageRow(): WorkshopPackageRow {
+  return { key: nextKey(), id: "", name: "", description: "", price: "0", sessionIds: [] };
+}
+
 const AGE_OPTIONS = ["All Ages", "13+", "16+", "18+", "21+"];
 
 const FEATURE_FLAGS: { key: string; label: string }[] = [
@@ -263,6 +349,48 @@ export function EventForm({ event }: { event?: EventRow }) {
     description: s.description,
   }));
 
+  const initialRoundTables: RoundTableRow[] = (event?.roundTableTemplates ?? []).map((r) => ({
+    key: nextKey(),
+    id: r.id,
+    name: r.name,
+    numberOfChairs: String(r.numberOfChairs),
+    sellingMode: r.sellingMode,
+    category: r.category,
+    color: r.color || "#4f46e5",
+    tableDiameter: String(r.tableDiameter || 150),
+    forSale: r.forSale,
+    tablePrice: String(r.tablePrice || 0),
+    chairPrice: String(r.chairPrice || 0),
+    bookingPrice: String(r.bookingPrice || 0),
+    depositPrice: String(r.depositPrice || 0),
+    memberTablePrice: r.memberTablePrice ? String(r.memberTablePrice) : "",
+    memberChairPrice: r.memberChairPrice ? String(r.memberChairPrice) : "",
+    memberBookingPrice: r.memberBookingPrice ? String(r.memberBookingPrice) : "",
+    memberDepositPrice: r.memberDepositPrice ? String(r.memberDepositPrice) : "",
+  }));
+
+  const initialWorkshopSessions: WorkshopSessionRow[] = (event?.workshopSessions ?? []).map((w) => ({
+    key: nextKey(),
+    id: w.id,
+    name: w.name,
+    description: w.description,
+    photo: w.image,
+    price: String(w.price),
+    facilitator: w.facilitator,
+    startTime: w.startTime,
+    endTime: w.endTime,
+    maxSeats: String(w.maxSeats),
+  }));
+
+  const initialWorkshopPackages: WorkshopPackageRow[] = (event?.workshopPackages ?? []).map((p) => ({
+    key: nextKey(),
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    price: String(p.price),
+    sessionIds: p.sessionIds,
+  }));
+
   const [tiers, setTiers] = useState<TierRow[]>(initialTiers);
   const [sections, setSections] = useState<SectionRow[]>(initialSections);
   const [ageRows, setAgeRows] = useState<AgeRow[]>(initialAgeRows);
@@ -270,6 +398,9 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [sponsorRows, setSponsorRows] = useState<SponsorRow[]>(initialSponsors);
   const [volunteerRows, setVolunteerRows] = useState<VolunteerRow[]>(initialVolunteers);
   const [speakerSlotRows, setSpeakerSlotRows] = useState<SpeakerSlotRow[]>(initialSpeakerSlots);
+  const [roundTableRows, setRoundTableRows] = useState<RoundTableRow[]>(initialRoundTables);
+  const [workshopSessionRows, setWorkshopSessionRows] = useState<WorkshopSessionRow[]>(initialWorkshopSessions);
+  const [workshopPackageRows, setWorkshopPackageRows] = useState<WorkshopPackageRow[]>(initialWorkshopPackages);
   const [imagePreview, setImagePreview] = useState(event?.image ?? "");
 
   // Mirrors eventsh-v1's "Event Sections" toggles on its Venue tab: a
@@ -285,6 +416,12 @@ export function EventForm({ event }: { event?: EventRow }) {
   );
   const [hasVolunteers, setHasVolunteers] = useState(
     Boolean(event?.features?.hasVolunteers) || (event?.volunteers.length ?? 0) > 0,
+  );
+  const [hasRoundTables, setHasRoundTables] = useState(
+    Boolean(event?.features?.hasRoundTables) || (event?.roundTableTemplates.length ?? 0) > 0,
+  );
+  const [hasWorkshops, setHasWorkshops] = useState(
+    Boolean(event?.features?.hasWorkshops) || (event?.workshopSessions.length ?? 0) > 0,
   );
 
   function handleImageFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -371,6 +508,50 @@ export function EventForm({ event }: { event?: EventRow }) {
     setSpeakerSlotRows((rows) => rows.filter((r) => r.key !== key));
   }
 
+  function updateRoundTable(key: string, patch: Partial<RoundTableRow>) {
+    setRoundTableRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addRoundTable() {
+    setRoundTableRows((rows) => [...rows, emptyRoundTableRow()]);
+  }
+  function removeRoundTable(key: string) {
+    setRoundTableRows((rows) => rows.filter((r) => r.key !== key));
+  }
+
+  function updateWorkshopSession(key: string, patch: Partial<WorkshopSessionRow>) {
+    setWorkshopSessionRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addWorkshopSession() {
+    setWorkshopSessionRows((rows) => [...rows, emptyWorkshopSessionRow()]);
+  }
+  function removeWorkshopSession(key: string) {
+    setWorkshopSessionRows((rows) => rows.filter((r) => r.key !== key));
+    // A package referencing this session's id just harmlessly stops matching
+    // anything on next load — not scrubbed here to keep this a pure removal.
+  }
+
+  function updateWorkshopPackage(key: string, patch: Partial<WorkshopPackageRow>) {
+    setWorkshopPackageRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addWorkshopPackage() {
+    setWorkshopPackageRows((rows) => [...rows, emptyWorkshopPackageRow()]);
+  }
+  function removeWorkshopPackage(key: string) {
+    setWorkshopPackageRows((rows) => rows.filter((r) => r.key !== key));
+  }
+  function toggleWorkshopPackageSession(packageKey: string, sessionId: string, checked: boolean) {
+    setWorkshopPackageRows((rows) =>
+      rows.map((r) =>
+        r.key === packageKey
+          ? {
+              ...r,
+              sessionIds: checked ? [...r.sessionIds, sessionId] : r.sessionIds.filter((id) => id !== sessionId),
+            }
+          : r,
+      ),
+    );
+  }
+
   const agendaLines = (event?.agenda ?? []).map((a) => `${a.time} | ${a.title}`).join("\n");
   const speakersLines = (event?.speakers ?? []).join("\n");
   const tagsLine = (event?.tags ?? []).join(", ");
@@ -404,6 +585,9 @@ export function EventForm({ event }: { event?: EventRow }) {
             <input type="hidden" name="sponsorCount" value={sponsorRows.length} />
             <input type="hidden" name="volunteerCount" value={volunteerRows.length} />
             <input type="hidden" name="speakerSlotCount" value={speakerSlotRows.length} />
+            <input type="hidden" name="roundTableCount" value={roundTableRows.length} />
+            <input type="hidden" name="workshopSessionCount" value={workshopSessionRows.length} />
+            <input type="hidden" name="workshopPackageCount" value={workshopPackageRows.length} />
 
             <Tabs defaultValue="basic">
               <TabsList>
@@ -415,6 +599,8 @@ export function EventForm({ event }: { event?: EventRow }) {
                 {hasSpeakers && <TabsTrigger value="speakers">Speakers</TabsTrigger>}
                 {hasSponsors && <TabsTrigger value="sponsors">Sponsors</TabsTrigger>}
                 {hasVolunteers && <TabsTrigger value="volunteers">Volunteers</TabsTrigger>}
+                {hasRoundTables && <TabsTrigger value="roundtables">Round Tables</TabsTrigger>}
+                {hasWorkshops && <TabsTrigger value="workshops">Workshops</TabsTrigger>}
                 <TabsTrigger value="policies">Policies &amp; extras</TabsTrigger>
               </TabsList>
 
@@ -526,6 +712,8 @@ export function EventForm({ event }: { event?: EventRow }) {
                   <input type="hidden" name="feature_hasSpeakers" value={hasSpeakers ? "on" : ""} />
                   <input type="hidden" name="feature_hasSponsors" value={hasSponsors ? "on" : ""} />
                   <input type="hidden" name="feature_hasVolunteers" value={hasVolunteers ? "on" : ""} />
+                  <input type="hidden" name="feature_hasRoundTables" value={hasRoundTables ? "on" : ""} />
+                  <input type="hidden" name="feature_hasWorkshops" value={hasWorkshops ? "on" : ""} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
                       <input
@@ -566,6 +754,34 @@ export function EventForm({ event }: { event?: EventRow }) {
                         <span className="block text-sm font-medium text-[var(--text-primary)]">Volunteers</span>
                         <span className="block text-xs text-[var(--text-muted)]">
                           A contact list for door/scanner access — name, email, phone.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
+                      <input
+                        type="checkbox"
+                        checked={hasRoundTables}
+                        onChange={(e) => setHasRoundTables(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-[var(--text-primary)]">Round Tables</span>
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          Gala/banquet table templates — sell by the whole table or per chair.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
+                      <input
+                        type="checkbox"
+                        checked={hasWorkshops}
+                        onChange={(e) => setHasWorkshops(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-[var(--text-primary)]">Workshops</span>
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          Priced workshop sessions, plus bundle packages across sessions.
                         </span>
                       </span>
                     </label>
@@ -1269,6 +1485,392 @@ export function EventForm({ event }: { event?: EventRow }) {
                     Add volunteer
                   </Button>
                 </FormSection>
+              </TabsContent>
+
+              {/* ---- Round Tables ---------------------------------------------------- */}
+              <TabsContent value="roundtables" className="mt-6">
+                <FormSection
+                  title="Round table templates"
+                  description="Gala/banquet tables — sell the whole table at once, or per chair. Placing them visually on a venue map isn't built yet; this defines the templates and their pricing."
+                >
+                  <div className="flex flex-col gap-4">
+                    {roundTableRows.map((rt, i) => (
+                      <div key={rt.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                        <input type="hidden" name={`roundTable${i}Id`} value={rt.id} />
+                        <div className="grid gap-3 sm:grid-cols-4">
+                          <Field label="Name" htmlFor={`rt${i}-name`}>
+                            <Input
+                              id={`rt${i}-name`}
+                              name={`roundTable${i}Name`}
+                              placeholder="e.g. Gala Table"
+                              value={rt.name}
+                              onChange={(e) => updateRoundTable(rt.key, { name: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Chairs" htmlFor={`rt${i}-chairs`}>
+                            <Input
+                              id={`rt${i}-chairs`}
+                              name={`roundTable${i}NumberOfChairs`}
+                              type="number"
+                              min="1"
+                              value={rt.numberOfChairs}
+                              onChange={(e) => updateRoundTable(rt.key, { numberOfChairs: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Sell by" htmlFor={`rt${i}-sellingMode`}>
+                            <Select
+                              id={`rt${i}-sellingMode`}
+                              name={`roundTable${i}SellingMode`}
+                              value={rt.sellingMode}
+                              onChange={(e) => updateRoundTable(rt.key, { sellingMode: e.target.value as "table" | "chair" })}
+                            >
+                              <option value="table">Whole table</option>
+                              <option value="chair">Per chair</option>
+                            </Select>
+                          </Field>
+                          <Field label="Category" htmlFor={`rt${i}-category`} hint="Optional, e.g. Gala">
+                            <Input
+                              id={`rt${i}-category`}
+                              name={`roundTable${i}Category`}
+                              value={rt.category}
+                              onChange={(e) => updateRoundTable(rt.key, { category: e.target.value })}
+                            />
+                          </Field>
+                        </div>
+
+                        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                          {rt.sellingMode === "table" ? (
+                            <Field label={`Table price (${values.currency ?? event?.currency ?? "SGD"})`} htmlFor={`rt${i}-tablePrice`}>
+                              <Input
+                                id={`rt${i}-tablePrice`}
+                                name={`roundTable${i}TablePrice`}
+                                type="number"
+                                min="0"
+                                value={rt.tablePrice}
+                                onChange={(e) => updateRoundTable(rt.key, { tablePrice: e.target.value })}
+                              />
+                            </Field>
+                          ) : (
+                            <Field label={`Chair price (${values.currency ?? event?.currency ?? "SGD"})`} htmlFor={`rt${i}-chairPrice`}>
+                              <Input
+                                id={`rt${i}-chairPrice`}
+                                name={`roundTable${i}ChairPrice`}
+                                type="number"
+                                min="0"
+                                value={rt.chairPrice}
+                                onChange={(e) => updateRoundTable(rt.key, { chairPrice: e.target.value })}
+                              />
+                            </Field>
+                          )}
+                          <Field label="Booking price" htmlFor={`rt${i}-bookingPrice`} hint="Non-refundable to hold it">
+                            <Input
+                              id={`rt${i}-bookingPrice`}
+                              name={`roundTable${i}BookingPrice`}
+                              type="number"
+                              min="0"
+                              value={rt.bookingPrice}
+                              onChange={(e) => updateRoundTable(rt.key, { bookingPrice: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Deposit price" htmlFor={`rt${i}-depositPrice`}>
+                            <Input
+                              id={`rt${i}-depositPrice`}
+                              name={`roundTable${i}DepositPrice`}
+                              type="number"
+                              min="0"
+                              value={rt.depositPrice}
+                              onChange={(e) => updateRoundTable(rt.key, { depositPrice: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Table diameter (cm)" htmlFor={`rt${i}-diameter`}>
+                            <Input
+                              id={`rt${i}-diameter`}
+                              name={`roundTable${i}TableDiameter`}
+                              type="number"
+                              min="0"
+                              value={rt.tableDiameter}
+                              onChange={(e) => updateRoundTable(rt.key, { tableDiameter: e.target.value })}
+                            />
+                          </Field>
+                        </div>
+
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-sm font-medium text-[var(--text-secondary)]">
+                            Member pricing (optional)
+                          </summary>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                            <Field label="Member table price" htmlFor={`rt${i}-memberTablePrice`}>
+                              <Input
+                                id={`rt${i}-memberTablePrice`}
+                                name={`roundTable${i}MemberTablePrice`}
+                                type="number"
+                                min="0"
+                                placeholder="Same as above"
+                                value={rt.memberTablePrice}
+                                onChange={(e) => updateRoundTable(rt.key, { memberTablePrice: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Member chair price" htmlFor={`rt${i}-memberChairPrice`}>
+                              <Input
+                                id={`rt${i}-memberChairPrice`}
+                                name={`roundTable${i}MemberChairPrice`}
+                                type="number"
+                                min="0"
+                                placeholder="Same as above"
+                                value={rt.memberChairPrice}
+                                onChange={(e) => updateRoundTable(rt.key, { memberChairPrice: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Member booking price" htmlFor={`rt${i}-memberBookingPrice`}>
+                              <Input
+                                id={`rt${i}-memberBookingPrice`}
+                                name={`roundTable${i}MemberBookingPrice`}
+                                type="number"
+                                min="0"
+                                placeholder="Same as above"
+                                value={rt.memberBookingPrice}
+                                onChange={(e) => updateRoundTable(rt.key, { memberBookingPrice: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Member deposit price" htmlFor={`rt${i}-memberDepositPrice`}>
+                              <Input
+                                id={`rt${i}-memberDepositPrice`}
+                                name={`roundTable${i}MemberDepositPrice`}
+                                type="number"
+                                min="0"
+                                placeholder="Same as above"
+                                value={rt.memberDepositPrice}
+                                onChange={(e) => updateRoundTable(rt.key, { memberDepositPrice: e.target.value })}
+                              />
+                            </Field>
+                          </div>
+                        </details>
+
+                        <div className="mt-3 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+                              <input
+                                type="checkbox"
+                                name={`roundTable${i}ForSale`}
+                                checked={rt.forSale}
+                                onChange={(e) => updateRoundTable(rt.key, { forSale: e.target.checked })}
+                                className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                              />
+                              For sale
+                            </label>
+                            <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                              Colour
+                              <input
+                                type="color"
+                                name={`roundTable${i}Color`}
+                                value={rt.color}
+                                onChange={(e) => updateRoundTable(rt.key, { color: e.target.value })}
+                                className="h-8 w-8 rounded border border-[var(--border-strong)] p-0.5"
+                              />
+                            </label>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeRoundTable(rt.key)}
+                            className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                          >
+                            <Icon name="x" size={14} />
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={addRoundTable}>
+                    <Icon name="plus" size={16} />
+                    Add round table template
+                  </Button>
+                </FormSection>
+              </TabsContent>
+
+              {/* ---- Workshops ---------------------------------------------------- */}
+              <TabsContent value="workshops" className="mt-6">
+                <div className="flex flex-col gap-6">
+                  <FormSection
+                    title="Workshop sessions"
+                    description="Individually priced sessions attendees can book into."
+                  >
+                    <Toggle
+                      name="workshopHostingOpen"
+                      label="Open to host applications"
+                      hint="Let facilitators apply to run a session, instead of only you adding them here."
+                      defaultChecked={submitted ? values.workshopHostingOpen === "on" : (event?.workshopHostingOpen ?? false)}
+                    />
+                    <div className="flex flex-col gap-4">
+                      {workshopSessionRows.map((w, i) => (
+                        <div key={w.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                          <input type="hidden" name={`workshopSession${i}Id`} value={w.id} />
+                          <input type="hidden" name={`workshopSession${i}Photo`} value={w.photo} />
+                          <div className="flex gap-4">
+                            <CroppedImageField
+                              name={`workshopSession${i}PhotoFile`}
+                              existingPath={w.photo}
+                              aspect={4 / 3}
+                              label="Photo"
+                            />
+                            <div className="grid flex-1 gap-3 sm:grid-cols-2">
+                              <Field label="Name" htmlFor={`ws${i}-name`}>
+                                <Input
+                                  id={`ws${i}-name`}
+                                  name={`workshopSession${i}Name`}
+                                  value={w.name}
+                                  onChange={(e) => updateWorkshopSession(w.key, { name: e.target.value })}
+                                />
+                              </Field>
+                              <Field label="Facilitator" htmlFor={`ws${i}-facilitator`}>
+                                <Input
+                                  id={`ws${i}-facilitator`}
+                                  name={`workshopSession${i}Facilitator`}
+                                  value={w.facilitator}
+                                  onChange={(e) => updateWorkshopSession(w.key, { facilitator: e.target.value })}
+                                />
+                              </Field>
+                              <Field label="Start time" htmlFor={`ws${i}-start`}>
+                                <Input
+                                  id={`ws${i}-start`}
+                                  name={`workshopSession${i}StartTime`}
+                                  type="time"
+                                  value={w.startTime}
+                                  onChange={(e) => updateWorkshopSession(w.key, { startTime: e.target.value })}
+                                />
+                              </Field>
+                              <Field label="End time" htmlFor={`ws${i}-end`}>
+                                <Input
+                                  id={`ws${i}-end`}
+                                  name={`workshopSession${i}EndTime`}
+                                  type="time"
+                                  value={w.endTime}
+                                  onChange={(e) => updateWorkshopSession(w.key, { endTime: e.target.value })}
+                                />
+                              </Field>
+                              <Field label={`Price (${values.currency ?? event?.currency ?? "SGD"})`} htmlFor={`ws${i}-price`}>
+                                <Input
+                                  id={`ws${i}-price`}
+                                  name={`workshopSession${i}Price`}
+                                  type="number"
+                                  min="0"
+                                  value={w.price}
+                                  onChange={(e) => updateWorkshopSession(w.key, { price: e.target.value })}
+                                />
+                              </Field>
+                              <Field label="Max seats" htmlFor={`ws${i}-maxSeats`}>
+                                <Input
+                                  id={`ws${i}-maxSeats`}
+                                  name={`workshopSession${i}MaxSeats`}
+                                  type="number"
+                                  min="0"
+                                  value={w.maxSeats}
+                                  onChange={(e) => updateWorkshopSession(w.key, { maxSeats: e.target.value })}
+                                />
+                              </Field>
+                            </div>
+                          </div>
+                          <Field label="Description" htmlFor={`ws${i}-description`} className="mt-3">
+                            <Textarea
+                              id={`ws${i}-description`}
+                              name={`workshopSession${i}Description`}
+                              rows={2}
+                              value={w.description}
+                              onChange={(e) => updateWorkshopSession(w.key, { description: e.target.value })}
+                            />
+                          </Field>
+                          <button
+                            type="button"
+                            onClick={() => removeWorkshopSession(w.key)}
+                            className="mt-3 flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                          >
+                            <Icon name="x" size={14} />
+                            Remove session
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <Button type="button" variant="secondary" onClick={addWorkshopSession}>
+                      <Icon name="plus" size={16} />
+                      Add session
+                    </Button>
+                  </FormSection>
+
+                  <FormSection
+                    title="Workshop packages"
+                    description="A named bundle of sessions sold at its own price, independent of the sum of the individual session prices."
+                  >
+                    <div className="flex flex-col gap-4">
+                      {workshopPackageRows.map((p, i) => (
+                        <div key={p.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                          <input type="hidden" name={`workshopPackage${i}Id`} value={p.id} />
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="Package name" htmlFor={`wp${i}-name`}>
+                              <Input
+                                id={`wp${i}-name`}
+                                name={`workshopPackage${i}Name`}
+                                value={p.name}
+                                onChange={(e) => updateWorkshopPackage(p.key, { name: e.target.value })}
+                              />
+                            </Field>
+                            <Field label={`Bundle price (${values.currency ?? event?.currency ?? "SGD"})`} htmlFor={`wp${i}-price`}>
+                              <Input
+                                id={`wp${i}-price`}
+                                name={`workshopPackage${i}Price`}
+                                type="number"
+                                min="0"
+                                value={p.price}
+                                onChange={(e) => updateWorkshopPackage(p.key, { price: e.target.value })}
+                              />
+                            </Field>
+                          </div>
+                          <Field label="Description" htmlFor={`wp${i}-description`} className="mt-3">
+                            <Input
+                              id={`wp${i}-description`}
+                              name={`workshopPackage${i}Description`}
+                              value={p.description}
+                              onChange={(e) => updateWorkshopPackage(p.key, { description: e.target.value })}
+                            />
+                          </Field>
+                          {workshopSessionRows.length > 0 ? (
+                            <div className="mt-3">
+                              <p className="mb-1.5 text-xs font-medium text-[var(--text-secondary)]">Included sessions</p>
+                              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                                {workshopSessionRows.map((w) => (
+                                  <label key={w.key} className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      name={`workshopPackage${i}SessionIds`}
+                                      value={w.id}
+                                      checked={p.sessionIds.includes(w.id)}
+                                      onChange={(e) => toggleWorkshopPackageSession(p.key, w.id, e.target.checked)}
+                                      className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                                    />
+                                    {w.name || "(unnamed session)"}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-xs text-[var(--text-muted)]">Add a session above first.</p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeWorkshopPackage(p.key)}
+                            className="mt-3 flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                          >
+                            <Icon name="x" size={14} />
+                            Remove package
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <Button type="button" variant="secondary" onClick={addWorkshopPackage}>
+                      <Icon name="plus" size={16} />
+                      Add package
+                    </Button>
+                  </FormSection>
+                </div>
               </TabsContent>
 
               {/* ---- Policies & extras -------------------------------------------- */}

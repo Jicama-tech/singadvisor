@@ -126,10 +126,10 @@ export type RoundTableTemplate = {
   chairPrice: number;
   bookingPrice: number;
   depositPrice: number;
-  memberTablePrice: number;
-  memberChairPrice: number;
-  memberBookingPrice: number;
-  memberDepositPrice: number;
+  memberTablePrice?: number;
+  memberChairPrice?: number;
+  memberBookingPrice?: number;
+  memberDepositPrice?: number;
   category: string;
   color: string;
   tableDiameter: number;

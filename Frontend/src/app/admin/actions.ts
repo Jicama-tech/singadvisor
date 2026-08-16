@@ -279,6 +279,8 @@ export async function saveEvent(
       "hasSpeakers",
       "hasSponsors",
       "hasVolunteers",
+      "hasRoundTables",
+      "hasWorkshops",
     ]
       .filter((k) => bool(formData, `feature_${k}`))
       .map((k) => [k, true]),
@@ -379,8 +381,46 @@ export async function saveEvent(
     openForApplications: false,
   })).filter((s) => s.name);
 
+  const roundTableCount = num(formData, "roundTableCount", 0);
+  const roundTableTemplates = Array.from({ length: roundTableCount }, (_, i) => ({
+    id: str(formData, `roundTable${i}Id`) || `rt-${i}`,
+    name: str(formData, `roundTable${i}Name`),
+    numberOfChairs: num(formData, `roundTable${i}NumberOfChairs`, 10),
+    sellingMode: (str(formData, `roundTable${i}SellingMode`) || "table") as "table" | "chair",
+    category: str(formData, `roundTable${i}Category`),
+    color: str(formData, `roundTable${i}Color`) || "#4f46e5",
+    tableDiameter: num(formData, `roundTable${i}TableDiameter`, 150),
+    forSale: bool(formData, `roundTable${i}ForSale`),
+    tablePrice: num(formData, `roundTable${i}TablePrice`, 0),
+    chairPrice: num(formData, `roundTable${i}ChairPrice`, 0),
+    bookingPrice: num(formData, `roundTable${i}BookingPrice`, 0),
+    depositPrice: num(formData, `roundTable${i}DepositPrice`, 0),
+    memberTablePrice: str(formData, `roundTable${i}MemberTablePrice`) ? num(formData, `roundTable${i}MemberTablePrice`) : undefined,
+    memberChairPrice: str(formData, `roundTable${i}MemberChairPrice`) ? num(formData, `roundTable${i}MemberChairPrice`) : undefined,
+    memberBookingPrice: str(formData, `roundTable${i}MemberBookingPrice`) ? num(formData, `roundTable${i}MemberBookingPrice`) : undefined,
+    memberDepositPrice: str(formData, `roundTable${i}MemberDepositPrice`) ? num(formData, `roundTable${i}MemberDepositPrice`) : undefined,
+    x: 0,
+    y: 0,
+    rotation: 0,
+    isPlaced: false,
+    venueConfigId: "",
+    bookedChairs: [] as number[],
+    isFullyBooked: false,
+  })).filter((rt) => rt.name);
+
+  const workshopPackageCount = num(formData, "workshopPackageCount", 0);
+  const workshopPackages = Array.from({ length: workshopPackageCount }, (_, i) => ({
+    id: str(formData, `workshopPackage${i}Id`) || `wp-${i}`,
+    name: str(formData, `workshopPackage${i}Name`),
+    description: str(formData, `workshopPackage${i}Description`),
+    price: num(formData, `workshopPackage${i}Price`, 0),
+    sessionIds: formData.getAll(`workshopPackage${i}SessionIds`).map(String),
+    order: i,
+  })).filter((wp) => wp.name);
+
   let image: string;
   let speakerProfiles: Awaited<ReturnType<typeof buildSpeakerProfile>>[];
+  let workshopSessions: Awaited<ReturnType<typeof buildWorkshopSession>>[];
   try {
     image = (await uploadEventImageIfPresent(formData, "imageFile")) ?? str(formData, "image");
     const speakerCount = num(formData, "speakerCount", 0);
@@ -389,6 +429,13 @@ export async function saveEvent(
         Array.from({ length: speakerCount }, (_, i) => buildSpeakerProfile(formData, i)),
       )
     ).filter((s) => s.name && s.topic); // DTO requires both — drop rows added but never filled in
+
+    const workshopSessionCount = num(formData, "workshopSessionCount", 0);
+    workshopSessions = (
+      await Promise.all(
+        Array.from({ length: workshopSessionCount }, (_, i) => buildWorkshopSession(formData, i)),
+      )
+    ).filter((w) => w.name);
   } catch (err) {
     return eventsErrorState(err, formData);
   }
@@ -437,6 +484,10 @@ export async function saveEvent(
     sponsorTypes,
     volunteers,
     speakerSlotTemplates,
+    roundTableTemplates,
+    workshopSessions,
+    workshopPackages,
+    workshopHostingOpen: bool(formData, "workshopHostingOpen"),
   };
 
   let slug: string;
@@ -977,6 +1028,25 @@ async function buildSpeakerProfile(formData: FormData, i: number) {
       twitter: str(formData, `speaker${i}Twitter`),
       website: str(formData, `speaker${i}Website`),
     },
+  };
+}
+
+/** Same pattern as buildSpeakerProfile above, for a Workshop Sessions row —
+ * uploads the (already-cropped, per CroppedImageField) photo file if one was
+ * chosen, else keeps whatever path was already there. */
+async function buildWorkshopSession(formData: FormData, i: number) {
+  const uploadedPhoto = await uploadEventImageIfPresent(formData, `workshopSession${i}PhotoFile`);
+  return {
+    id: str(formData, `workshopSession${i}Id`) || `ws-${i}`,
+    name: str(formData, `workshopSession${i}Name`),
+    description: str(formData, `workshopSession${i}Description`),
+    image: uploadedPhoto ?? str(formData, `workshopSession${i}Photo`),
+    price: num(formData, `workshopSession${i}Price`, 0),
+    facilitator: str(formData, `workshopSession${i}Facilitator`),
+    startTime: str(formData, `workshopSession${i}StartTime`),
+    endTime: str(formData, `workshopSession${i}EndTime`),
+    maxSeats: num(formData, `workshopSession${i}MaxSeats`, 0),
+    order: i,
   };
 }
 
