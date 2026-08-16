@@ -160,6 +160,16 @@ function emptyStallTermRow(): StallTermRow {
   return { key: nextKey(), text: "", isMandatory: false };
 }
 
+/** One image slot in a CroppedImageField repeater (Phase 9d) — Gallery and
+ * Sponsor logos both use this same shape. `existingPath` is whatever image
+ * is already saved for this slot (rendered via CroppedImageField's own
+ * `existingPath` prop); a new upload replaces it on submit, an untouched
+ * slot keeps it (see actions.ts's buildIndexedImage). */
+type ImageSlotRow = { key: string; existingPath: string };
+function emptyImageSlotRow(): ImageSlotRow {
+  return { key: nextKey(), existingPath: "" };
+}
+
 /** Eventsh's "Speaker Space" — a bookable session slot (name/time/price/
  * capacity), distinct from the speaker profile cards above. Genuinely
  * useful on its own as a schedule of slots even without the Space Layout
@@ -470,6 +480,8 @@ export function EventForm({ event }: { event?: EventRow }) {
     text: t.text,
     isMandatory: t.isMandatory,
   }));
+  const initialGallery: ImageSlotRow[] = (event?.gallery ?? []).map((path) => ({ key: nextKey(), existingPath: path }));
+  const initialSponsorLogos: ImageSlotRow[] = (event?.sponsors ?? []).map((path) => ({ key: nextKey(), existingPath: path }));
   const initialSpeakerSlots: SpeakerSlotRow[] = (event?.speakerSlotTemplates ?? []).map((s) => ({
     key: nextKey(),
     id: s.id,
@@ -641,6 +653,8 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [sponsorRows, setSponsorRows] = useState<SponsorRow[]>(initialSponsors);
   const [volunteerRows, setVolunteerRows] = useState<VolunteerRow[]>(initialVolunteers);
   const [stallTermRows, setStallTermRows] = useState<StallTermRow[]>(initialStallTerms);
+  const [galleryRows, setGalleryRows] = useState<ImageSlotRow[]>(initialGallery);
+  const [sponsorLogoRows, setSponsorLogoRows] = useState<ImageSlotRow[]>(initialSponsorLogos);
   const [speakerSlotRows, setSpeakerSlotRows] = useState<SpeakerSlotRow[]>(initialSpeakerSlots);
   const [roundTableRows, setRoundTableRows] = useState<RoundTableRow[]>(initialRoundTables);
   const [workshopSessionRows, setWorkshopSessionRows] = useState<WorkshopSessionRow[]>(initialWorkshopSessions);
@@ -651,7 +665,6 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [venueConfig, setVenueConfig] = useState<VenueConfigState>(initialVenueConfig);
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>(initialPlacedItems);
   const [annotations, setAnnotations] = useState<VenueAnnotation[]>(initialAnnotations);
-  const [imagePreview, setImagePreview] = useState(event?.image ?? "");
 
   // Mirrors eventsh-v1's "Event Sections" toggles on its Venue tab: a
   // module's tab only appears once its switch is on. Defaults on if the
@@ -679,12 +692,6 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [hasSpaceLayout, setHasSpaceLayout] = useState(
     Boolean(event?.features?.hasSpaceLayout) || initialPlacedItems.length > 0,
   );
-
-  function handleImageFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImagePreview(URL.createObjectURL(file));
-  }
 
   function updateTier(key: string, patch: Partial<TierRow>) {
     setTiers((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -762,6 +769,19 @@ export function EventForm({ event }: { event?: EventRow }) {
   }
   function removeStallTerm(key: string) {
     setStallTermRows((rows) => rows.filter((r) => r.key !== key));
+  }
+
+  function addGalleryImage() {
+    setGalleryRows((rows) => [...rows, emptyImageSlotRow()]);
+  }
+  function removeGalleryImage(key: string) {
+    setGalleryRows((rows) => rows.filter((r) => r.key !== key));
+  }
+  function addSponsorLogo() {
+    setSponsorLogoRows((rows) => [...rows, emptyImageSlotRow()]);
+  }
+  function removeSponsorLogo(key: string) {
+    setSponsorLogoRows((rows) => rows.filter((r) => r.key !== key));
   }
 
   function updateSpeakerSlot(key: string, patch: Partial<SpeakerSlotRow>) {
@@ -899,7 +919,6 @@ export function EventForm({ event }: { event?: EventRow }) {
   }
 
   const tagsLine = (event?.tags ?? []).join(", ");
-  const galleryLines = (event?.gallery ?? []).join("\n");
   const reelLines = (event?.reelLinks ?? []).join("\n");
   const social = event?.socialMedia ?? {};
 
@@ -928,6 +947,8 @@ export function EventForm({ event }: { event?: EventRow }) {
             <input type="hidden" name="sponsorCount" value={sponsorRows.length} />
             <input type="hidden" name="volunteerCount" value={volunteerRows.length} />
             <input type="hidden" name="stallTermCount" value={stallTermRows.length} />
+            <input type="hidden" name="galleryCount" value={galleryRows.length} />
+            <input type="hidden" name="sponsorLogoCount" value={sponsorLogoRows.length} />
             <input type="hidden" name="speakerSlotCount" value={speakerSlotRows.length} />
             <input type="hidden" name="roundTableCount" value={roundTableRows.length} />
             <input type="hidden" name="workshopSessionCount" value={workshopSessionRows.length} />
@@ -1603,36 +1624,108 @@ export function EventForm({ event }: { event?: EventRow }) {
                     </div>
                   </FormSection>
 
-                  <FormSection title="Images &amp; links">
-                    <Field label="Cover image" htmlFor="e-imageFile" hint="JPEG, PNG, WebP or GIF.">
-                      <Input
-                        id="e-imageFile"
-                        name="imageFile"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif"
-                        onChange={handleImageFileChange}
-                        className="file:mr-3 file:rounded-full file:border-0 file:bg-[var(--accent)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--accent-foreground)] hover:file:bg-[var(--accent-hover)]"
-                      />
-                    </Field>
-                    {imagePreview && (
-                      // eslint-disable-next-line @next/next/no-img-element -- a blob: preview URL can't go through next/image
-                      <img
-                        src={imagePreview.startsWith("blob:") ? imagePreview : withEventshUrl(imagePreview)}
-                        alt=""
-                        className="h-40 w-full rounded-[var(--radius-card)] object-cover"
-                      />
+                  <FormSection title="Cover image &amp; gallery">
+                    {/* Real cropped-upload widgets (Phase 9d), matching
+                        eventsh's EventBanner/EventGallery — replaces the
+                        earlier plain-URL-textarea versions of these two
+                        fields. A hidden fallback preserves the existing
+                        path when no new file is chosen, same mechanic
+                        actions.ts's buildIndexedImage already used for
+                        speaker/workshop/add-on photos. */}
+                    <input type="hidden" name="image" value={event?.image ?? ""} />
+                    <CroppedImageField name="imageFile" existingPath={event?.image} aspect={16 / 9} label="Cover image" />
+
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-[var(--text-primary)]">
+                        Gallery ({galleryRows.length})
+                      </p>
+                      <div className="flex flex-wrap gap-4">
+                        {galleryRows.map((row, i) => (
+                          <div key={row.key} className="relative">
+                            <input type="hidden" name={`gallery${i}ExistingPath`} value={row.existingPath} />
+                            <CroppedImageField name={`gallery${i}File`} existingPath={row.existingPath} label={`Image ${i + 1}`} />
+                            <button
+                              type="button"
+                              onClick={() => removeGalleryImage(row.key)}
+                              className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white"
+                              aria-label="Remove image"
+                            >
+                              <Icon name="x" size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={addGalleryImage}>
+                        <Icon name="plus" size={14} />
+                        Add gallery image
+                      </Button>
+                    </div>
+                  </FormSection>
+
+                  <FormSection
+                    title="Sponsorships"
+                    description="Upload sponsor logos — they appear below the event banner as a moving carousel on the event page."
+                  >
+                    <Toggle
+                      name="showSponsorBar"
+                      label="Show the sponsor bar on the event page"
+                      hint="Off hides the strip entirely, including any confirmed sponsor logos."
+                      defaultChecked={submitted ? values.showSponsorBar === "on" : (event?.showSponsorBar ?? true)}
+                    />
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-[var(--text-primary)]">
+                        Logos ({sponsorLogoRows.length})
+                      </p>
+                      <div className="flex flex-wrap gap-4">
+                        {sponsorLogoRows.map((row, i) => (
+                          <div key={row.key} className="relative">
+                            <input type="hidden" name={`sponsorLogo${i}ExistingPath`} value={row.existingPath} />
+                            <CroppedImageField name={`sponsorLogo${i}File`} existingPath={row.existingPath} label={`Logo ${i + 1}`} />
+                            <button
+                              type="button"
+                              onClick={() => removeSponsorLogo(row.key)}
+                              className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white"
+                              aria-label="Remove logo"
+                            >
+                              <Icon name="x" size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={addSponsorLogo}>
+                        <Icon name="plus" size={14} />
+                        Add logo
+                      </Button>
+                    </div>
+                    {sponsorLogoRows.length > 0 && (
+                      <div>
+                        <p className="mb-1 text-xs font-medium text-[var(--text-muted)]">
+                          Preview — moves left-to-right on the event page
+                          {!event && " (shown after saving)"}
+                        </p>
+                        {/* CSS-only marquee, matching eventsh's own SponsorMarquee
+                            component's effect without a new dependency: two copies
+                            of the logo strip animated to loop seamlessly. */}
+                        <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-2">
+                          <div className="flex w-max animate-[marquee_20s_linear_infinite] items-center gap-8">
+                            {[...sponsorLogoRows, ...sponsorLogoRows].map((row, i) => (
+                              <span key={`${row.key}-${i}`} className="flex h-12 items-center">
+                                {row.existingPath ? (
+                                  // eslint-disable-next-line @next/next/no-img-element -- preview only, arbitrary already-uploaded paths
+                                  <img src={withEventshUrl(row.existingPath)} alt="" className="h-full object-contain" />
+                                ) : (
+                                  <span className="text-xs text-[var(--text-muted)]">(new — preview after saving)</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <style>{"@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }"}</style>
+                      </div>
                     )}
-                    <Field
-                      label="Image path"
-                      htmlFor="e-image"
-                      hint="A path under /public, or leave as-is after uploading above."
-                      error={errors.image}
-                    >
-                      <Input id="e-image" name="image" defaultValue={values.image ?? event?.image} />
-                    </Field>
-                    <Field label="Gallery" htmlFor="e-gallery" hint="One image URL per line.">
-                      <Textarea id="e-gallery" name="gallery" rows={4} defaultValue={values.gallery ?? galleryLines} />
-                    </Field>
+                  </FormSection>
+
+                  <FormSection title="Reel / video links">
                     <Field label="Reel / video links" htmlFor="e-reelLinks" hint="One link per line.">
                       <Textarea id="e-reelLinks" name="reelLinks" rows={3} defaultValue={values.reelLinks ?? reelLines} />
                     </Field>

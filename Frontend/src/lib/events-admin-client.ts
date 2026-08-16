@@ -136,6 +136,8 @@ export type EventInput = {
   customSections?: CustomSection[];
   image?: string;
   gallery?: string[];
+  sponsors?: string[];
+  showSponsorBar?: boolean;
   reelLinks?: string[];
   socialMedia?: Record<string, string>;
   status?: "draft" | "published" | "cancelled";

@@ -331,6 +331,11 @@ export type EventRow = {
   registrationFormFields: Record<string, unknown>;
   image: string;
   gallery: string[];
+  // Sponsor-logo marquee (Phase 9d) — distinct from sponsorTypes (the
+  // sellable sponsorship tiers): a moving carousel of uploaded logo images
+  // shown below the event banner, matching eventsh's own Media tab.
+  sponsors: string[];
+  showSponsorBar: boolean;
   reelLinks: string[];
   socialMedia: Record<string, string>;
   status: "draft" | "published" | "cancelled";

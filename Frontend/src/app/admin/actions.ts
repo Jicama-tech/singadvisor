@@ -243,11 +243,6 @@ export async function saveEvent(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const gallery = str(formData, "gallery")
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   const reelLinks = str(formData, "reelLinks")
     .split("\n")
     .map((s) => s.trim())
@@ -472,11 +467,26 @@ export async function saveEvent(
   }).filter((s) => s.name);
 
   let image: string;
+  let gallery: string[];
+  let sponsors: string[];
   let speakerProfiles: Awaited<ReturnType<typeof buildSpeakerProfile>>[];
   let workshopSessions: Awaited<ReturnType<typeof buildWorkshopSession>>[];
   let addOnItems: Awaited<ReturnType<typeof buildAddOnItem>>[];
   try {
     image = (await uploadEventImageIfPresent(formData, "imageFile")) ?? str(formData, "image");
+
+    const galleryCount = num(formData, "galleryCount", 0);
+    gallery = (
+      await Promise.all(Array.from({ length: galleryCount }, (_, i) => buildIndexedImage(formData, "gallery", i)))
+    ).filter(Boolean);
+
+    const sponsorLogoCount = num(formData, "sponsorLogoCount", 0);
+    sponsors = (
+      await Promise.all(
+        Array.from({ length: sponsorLogoCount }, (_, i) => buildIndexedImage(formData, "sponsorLogo", i)),
+      )
+    ).filter(Boolean);
+
     const speakerCount = num(formData, "speakerCount", 0);
     speakerProfiles = (
       await Promise.all(
@@ -628,6 +638,8 @@ export async function saveEvent(
     customSections,
     image,
     gallery,
+    sponsors,
+    showSponsorBar: bool(formData, "showSponsorBar"),
     reelLinks,
     socialMedia,
     status: (str(formData, "status") || "draft") as "draft" | "published" | "cancelled",
@@ -1168,6 +1180,16 @@ async function uploadEventImageIfPresent(formData: FormData, fieldName: string):
   if (!(file instanceof File) || file.size === 0) return null;
   const { url } = await uploadEventImage(file);
   return url;
+}
+
+/** One indexed slot of a CroppedImageField repeater (Gallery, Sponsor
+ * logos, Phase 9d) — uploads the new cropped file if one was chosen,
+ * falling back to the existing path (the hidden `${prefix}${i}ExistingPath`
+ * field EventForm.tsx renders alongside each CroppedImageField) so an
+ * untouched slot keeps its current image on save. */
+async function buildIndexedImage(formData: FormData, prefix: string, i: number): Promise<string> {
+  const uploaded = await uploadEventImageIfPresent(formData, `${prefix}${i}File`);
+  return uploaded ?? str(formData, `${prefix}${i}ExistingPath`);
 }
 
 /** Reads one indexed speaker row out of FormData, uploading its photo file

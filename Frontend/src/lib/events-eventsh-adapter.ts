@@ -68,6 +68,8 @@ export interface EventshEventDoc {
   registrationFormFields?: Record<string, unknown>;
   image?: string;
   gallery?: string[];
+  sponsors?: string[];
+  showSponsorBar?: boolean;
   reelLinks?: string[];
   socialMedia?: Record<string, string>;
   status?: "draft" | "published" | "cancelled";
@@ -282,6 +284,8 @@ export function fromEventshEvent(raw: EventshEventDoc): EventRow {
     registrationFormFields: raw.registrationFormFields || {},
     image: raw.image || "",
     gallery: raw.gallery || [],
+    sponsors: raw.sponsors || [],
+    showSponsorBar: raw.showSponsorBar ?? true,
     reelLinks: raw.reelLinks || [],
     socialMedia: raw.socialMedia || {},
     status: raw.status || "draft",
