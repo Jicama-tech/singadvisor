@@ -282,6 +282,7 @@ export async function saveEvent(
       "hasRoundTables",
       "hasWorkshops",
       "hasSpaces",
+      "hasScheduledSpaces",
     ]
       .filter((k) => bool(formData, `feature_${k}`))
       .map((k) => [k, true]),
@@ -435,6 +436,38 @@ export async function saveEvent(
     customDimensions: bool(formData, `tableTemplate${i}CustomDimensions`),
   })).filter((t) => t.name);
 
+  const scheduledSpaceCount = num(formData, "scheduledSpaceCount", 0);
+  const scheduledSpaceTemplates = Array.from({ length: scheduledSpaceCount }, (_, i) => {
+    const shape = (str(formData, `scheduledSpace${i}Shape`) || "Rectangle") as "Rectangle" | "Circle";
+    const slotCount = num(formData, `scheduledSpace${i}SlotCount`, 0);
+    const slots = Array.from({ length: slotCount }, (_, si) => ({
+      id: str(formData, `scheduledSpace${i}Slot${si}Id`) || `slot-${i}-${si}`,
+      label: str(formData, `scheduledSpace${i}Slot${si}Label`),
+      date: str(formData, `scheduledSpace${i}Slot${si}Date`),
+      startTime: str(formData, `scheduledSpace${i}Slot${si}StartTime`),
+      endTime: str(formData, `scheduledSpace${i}Slot${si}EndTime`),
+    })).filter((sl) => sl.date && sl.startTime && sl.endTime);
+    return {
+      id: str(formData, `scheduledSpace${i}Id`) || `ss-${i}`,
+      facilityType: str(formData, `scheduledSpace${i}FacilityType`),
+      name: str(formData, `scheduledSpace${i}Name`),
+      shape,
+      width: shape === "Rectangle" ? num(formData, `scheduledSpace${i}Width`, 200) : 0,
+      height: shape === "Rectangle" ? num(formData, `scheduledSpace${i}Height`, 100) : 0,
+      diameter: shape === "Circle" ? num(formData, `scheduledSpace${i}Diameter`, 150) : 0,
+      price: num(formData, `scheduledSpace${i}Price`, 0),
+      color: str(formData, `scheduledSpace${i}Color`) || "#0ea5e9",
+      slots,
+      // No Operator concept in SingAdvisor today — always unassigned.
+      operatorId: "",
+      x: 0,
+      y: 0,
+      rotation: 0,
+      isPlaced: false,
+      venueConfigId: "",
+    };
+  }).filter((s) => s.name);
+
   let image: string;
   let speakerProfiles: Awaited<ReturnType<typeof buildSpeakerProfile>>[];
   let workshopSessions: Awaited<ReturnType<typeof buildWorkshopSession>>[];
@@ -516,6 +549,7 @@ export async function saveEvent(
     maxSpacesPerVendor: num(formData, "maxSpacesPerVendor", 1),
     autoGenerateVendorCoupon: bool(formData, "autoGenerateVendorCoupon"),
     showSpacePricesOnEventfront: bool(formData, "showSpacePricesOnEventfront"),
+    scheduledSpaceTemplates,
   };
 
   let slug: string;

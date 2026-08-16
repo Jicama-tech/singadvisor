@@ -305,6 +305,43 @@ function emptyAddOnItemRow(): AddOnItemRow {
   return { key: nextKey(), id: "", name: "", price: "0", description: "", maxPerSpace: "", addOnImage: "" };
 }
 
+type ScheduleSlotRow = { key: string; id: string; label: string; date: string; startTime: string; endTime: string };
+
+type ScheduledSpaceRow = {
+  key: string;
+  id: string;
+  facilityType: string;
+  name: string;
+  shape: "Rectangle" | "Circle";
+  width: string;
+  height: string;
+  diameter: string;
+  price: string;
+  color: string;
+  slots: ScheduleSlotRow[];
+  // No Operator concept exists in SingAdvisor today (Phase 8f scoping
+  // check, per the plan) — kept as an inert field, never exposed as a
+  // pickable UI control, so the shape stays forward-compatible if
+  // Operators are ever added without another data-layer change.
+  operatorId: string;
+};
+function emptyScheduledSpaceRow(): ScheduledSpaceRow {
+  return {
+    key: nextKey(),
+    id: "",
+    facilityType: "",
+    name: "",
+    shape: "Rectangle",
+    width: "200",
+    height: "100",
+    diameter: "150",
+    price: "0",
+    color: "#0ea5e9",
+    slots: [],
+    operatorId: "",
+  };
+}
+
 const AGE_OPTIONS = ["All Ages", "13+", "16+", "18+", "21+"];
 
 const FEATURE_FLAGS: { key: string; label: string }[] = [
@@ -315,6 +352,48 @@ const FEATURE_FLAGS: { key: string; label: string }[] = [
   { key: "security", label: "Security on site" },
   { key: "accessibility", label: "Wheelchair accessible" },
 ];
+
+/** Small standalone form for bulk-generating equal time slots (eventsh's
+ * "Slot AI" tool) — a top-level component, not nested inside EventForm, so
+ * its own local input state doesn't get wiped by every EventForm re-render. */
+function SlotGenerator({
+  onGenerate,
+}: {
+  onGenerate: (date: string, startTime: string, endTime: string, durationMins: number) => void;
+}) {
+  const [date, setDate] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [duration, setDuration] = useState("60");
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-[var(--surface-sunken)] p-2">
+      <span className="text-xs text-[var(--text-muted)]">Generate:</span>
+      <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-40" />
+      <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="max-w-32" />
+      <span className="text-xs text-[var(--text-muted)]">to</span>
+      <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="max-w-32" />
+      <Input
+        type="number"
+        min="5"
+        step="5"
+        value={duration}
+        onChange={(e) => setDuration(e.target.value)}
+        className="max-w-24"
+        placeholder="mins"
+      />
+      <span className="text-xs text-[var(--text-muted)]">min slots</span>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={() => onGenerate(date, start, end, Number(duration) || 60)}
+      >
+        Generate
+      </Button>
+    </div>
+  );
+}
 
 /**
  * Every field eventsh-v1's own admin event form exposes, grouped into the
@@ -454,6 +533,21 @@ export function EventForm({ event }: { event?: EventRow }) {
     addOnImage: a.addOnImage,
   }));
 
+  const initialScheduledSpaces: ScheduledSpaceRow[] = (event?.scheduledSpaceTemplates ?? []).map((s) => ({
+    key: nextKey(),
+    id: s.id,
+    facilityType: s.facilityType,
+    name: s.name,
+    shape: s.shape,
+    width: String(s.width || 200),
+    height: String(s.height || 100),
+    diameter: String(s.diameter || 150),
+    price: String(s.price),
+    color: s.color || "#0ea5e9",
+    slots: (s.slots ?? []).map((sl) => ({ key: nextKey(), id: sl.id, label: sl.label, date: sl.date, startTime: sl.startTime, endTime: sl.endTime })),
+    operatorId: s.operatorId || "",
+  }));
+
   const [tiers, setTiers] = useState<TierRow[]>(initialTiers);
   const [sections, setSections] = useState<SectionRow[]>(initialSections);
   const [ageRows, setAgeRows] = useState<AgeRow[]>(initialAgeRows);
@@ -466,6 +560,7 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [workshopPackageRows, setWorkshopPackageRows] = useState<WorkshopPackageRow[]>(initialWorkshopPackages);
   const [tableTemplateRows, setTableTemplateRows] = useState<TableTemplateRow[]>(initialTableTemplates);
   const [addOnItemRows, setAddOnItemRows] = useState<AddOnItemRow[]>(initialAddOnItems);
+  const [scheduledSpaceRows, setScheduledSpaceRows] = useState<ScheduledSpaceRow[]>(initialScheduledSpaces);
   const [imagePreview, setImagePreview] = useState(event?.image ?? "");
 
   // Mirrors eventsh-v1's "Event Sections" toggles on its Venue tab: a
@@ -490,6 +585,9 @@ export function EventForm({ event }: { event?: EventRow }) {
   );
   const [hasSpaces, setHasSpaces] = useState(
     Boolean(event?.features?.hasSpaces) || (event?.tableTemplates.length ?? 0) > 0,
+  );
+  const [hasScheduledSpaces, setHasScheduledSpaces] = useState(
+    Boolean(event?.features?.hasScheduledSpaces) || (event?.scheduledSpaceTemplates.length ?? 0) > 0,
   );
 
   function handleImageFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -627,6 +725,66 @@ export function EventForm({ event }: { event?: EventRow }) {
     setAddOnItemRows((rows) => rows.filter((r) => r.key !== key));
   }
 
+  function updateScheduledSpace(key: string, patch: Partial<ScheduledSpaceRow>) {
+    setScheduledSpaceRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addScheduledSpace() {
+    setScheduledSpaceRows((rows) => [...rows, emptyScheduledSpaceRow()]);
+  }
+  function removeScheduledSpace(key: string) {
+    setScheduledSpaceRows((rows) => rows.filter((r) => r.key !== key));
+  }
+  function addSlot(spaceKey: string) {
+    setScheduledSpaceRows((rows) =>
+      rows.map((r) =>
+        r.key === spaceKey
+          ? { ...r, slots: [...r.slots, { key: nextKey(), id: "", label: "", date: "", startTime: "", endTime: "" }] }
+          : r,
+      ),
+    );
+  }
+  function updateSlot(spaceKey: string, slotKey: string, patch: Partial<ScheduleSlotRow>) {
+    setScheduledSpaceRows((rows) =>
+      rows.map((r) =>
+        r.key === spaceKey ? { ...r, slots: r.slots.map((s) => (s.key === slotKey ? { ...s, ...patch } : s)) } : r,
+      ),
+    );
+  }
+  function removeSlot(spaceKey: string, slotKey: string) {
+    setScheduledSpaceRows((rows) =>
+      rows.map((r) => (r.key === spaceKey ? { ...r, slots: r.slots.filter((s) => s.key !== slotKey) } : r)),
+    );
+  }
+  /** eventsh's own "Slot AI" tool calls out to an AI service to generate a
+   * run of equal slots; this is the deterministic equivalent (no new AI
+   * integration needed for the same practical outcome) — carve a date +
+   * time window into N equal-length slots in one click instead of adding
+   * them one at a time. */
+  function generateSlots(spaceKey: string, date: string, startTime: string, endTime: string, durationMins: number) {
+    if (!date || !startTime || !endTime || durationMins <= 0) return;
+    const [sh, sm] = startTime.split(":").map(Number);
+    const [eh, em] = endTime.split(":").map(Number);
+    let cursor = sh * 60 + sm;
+    const end = eh * 60 + em;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const toHM = (mins: number) => `${pad(Math.floor(mins / 60) % 24)}:${pad(mins % 60)}`;
+    const generated: ScheduleSlotRow[] = [];
+    while (cursor + durationMins <= end) {
+      generated.push({
+        key: nextKey(),
+        id: "",
+        label: "",
+        date,
+        startTime: toHM(cursor),
+        endTime: toHM(cursor + durationMins),
+      });
+      cursor += durationMins;
+    }
+    setScheduledSpaceRows((rows) =>
+      rows.map((r) => (r.key === spaceKey ? { ...r, slots: [...r.slots, ...generated] } : r)),
+    );
+  }
+
   function toggleWorkshopPackageSession(packageKey: string, sessionId: string, checked: boolean) {
     setWorkshopPackageRows((rows) =>
       rows.map((r) =>
@@ -678,6 +836,10 @@ export function EventForm({ event }: { event?: EventRow }) {
             <input type="hidden" name="workshopPackageCount" value={workshopPackageRows.length} />
             <input type="hidden" name="tableTemplateCount" value={tableTemplateRows.length} />
             <input type="hidden" name="addOnItemCount" value={addOnItemRows.length} />
+            <input type="hidden" name="scheduledSpaceCount" value={scheduledSpaceRows.length} />
+            {scheduledSpaceRows.map((s, i) => (
+              <input key={s.key} type="hidden" name={`scheduledSpace${i}SlotCount`} value={s.slots.length} />
+            ))}
 
             <Tabs defaultValue="basic">
               <TabsList>
@@ -692,6 +854,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                 {hasRoundTables && <TabsTrigger value="roundtables">Round Tables</TabsTrigger>}
                 {hasWorkshops && <TabsTrigger value="workshops">Workshops</TabsTrigger>}
                 {hasSpaces && <TabsTrigger value="spaces">Spaces</TabsTrigger>}
+                {hasScheduledSpaces && <TabsTrigger value="schedule-spaces">Scheduled Spaces</TabsTrigger>}
                 <TabsTrigger value="policies">Policies &amp; extras</TabsTrigger>
               </TabsList>
 
@@ -806,6 +969,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                   <input type="hidden" name="feature_hasRoundTables" value={hasRoundTables ? "on" : ""} />
                   <input type="hidden" name="feature_hasWorkshops" value={hasWorkshops ? "on" : ""} />
                   <input type="hidden" name="feature_hasSpaces" value={hasSpaces ? "on" : ""} />
+                  <input type="hidden" name="feature_hasScheduledSpaces" value={hasScheduledSpaces ? "on" : ""} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
                       <input
@@ -888,6 +1052,20 @@ export function EventForm({ event }: { event?: EventRow }) {
                         <span className="block text-sm font-medium text-[var(--text-primary)]">Spaces</span>
                         <span className="block text-xs text-[var(--text-muted)]">
                           Booth/table templates for vendors, with add-on items and pricing.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
+                      <input
+                        type="checkbox"
+                        checked={hasScheduledSpaces}
+                        onChange={(e) => setHasScheduledSpaces(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-[var(--text-primary)]">Scheduled Spaces</span>
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          Time-slot-bookable facilities — courts, rooms, equipment — not sold once for the whole event.
                         </span>
                       </span>
                     </label>
@@ -2189,6 +2367,181 @@ export function EventForm({ event }: { event?: EventRow }) {
                     />
                   </FormSection>
                 </div>
+              </TabsContent>
+
+              {/* ---- Scheduled Spaces ------------------------------------------------ */}
+              <TabsContent value="schedule-spaces" className="mt-6">
+                <FormSection
+                  title="Scheduled spaces"
+                  description="Bookable facilities that sell by the time slot, not once for the whole event — courts, rooms, equipment. Visual placement on a venue map isn't built yet."
+                >
+                  <div className="flex flex-col gap-4">
+                    {scheduledSpaceRows.map((s, i) => (
+                      <div key={s.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                        <input type="hidden" name={`scheduledSpace${i}Id`} value={s.id} />
+                        <div className="grid gap-3 sm:grid-cols-4">
+                          <Field label="Name" htmlFor={`ss${i}-name`}>
+                            <Input
+                              id={`ss${i}-name`}
+                              name={`scheduledSpace${i}Name`}
+                              placeholder="e.g. Tennis Court 1"
+                              value={s.name}
+                              onChange={(e) => updateScheduledSpace(s.key, { name: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Facility type" htmlFor={`ss${i}-facilityType`} hint="e.g. Court, Room">
+                            <Input
+                              id={`ss${i}-facilityType`}
+                              name={`scheduledSpace${i}FacilityType`}
+                              value={s.facilityType}
+                              onChange={(e) => updateScheduledSpace(s.key, { facilityType: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Shape" htmlFor={`ss${i}-shape`}>
+                            <Select
+                              id={`ss${i}-shape`}
+                              name={`scheduledSpace${i}Shape`}
+                              value={s.shape}
+                              onChange={(e) => updateScheduledSpace(s.key, { shape: e.target.value as "Rectangle" | "Circle" })}
+                            >
+                              <option value="Rectangle">Rectangle</option>
+                              <option value="Circle">Circle</option>
+                            </Select>
+                          </Field>
+                          <Field label={`Price per slot (${values.currency ?? event?.currency ?? "SGD"})`} htmlFor={`ss${i}-price`}>
+                            <Input
+                              id={`ss${i}-price`}
+                              name={`scheduledSpace${i}Price`}
+                              type="number"
+                              min="0"
+                              value={s.price}
+                              onChange={(e) => updateScheduledSpace(s.key, { price: e.target.value })}
+                            />
+                          </Field>
+                        </div>
+
+                        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                          {s.shape === "Rectangle" ? (
+                            <>
+                              <Field label="Width (cm)" htmlFor={`ss${i}-width`}>
+                                <Input
+                                  id={`ss${i}-width`}
+                                  name={`scheduledSpace${i}Width`}
+                                  type="number"
+                                  min="0"
+                                  value={s.width}
+                                  onChange={(e) => updateScheduledSpace(s.key, { width: e.target.value })}
+                                />
+                              </Field>
+                              <Field label="Height (cm)" htmlFor={`ss${i}-height`}>
+                                <Input
+                                  id={`ss${i}-height`}
+                                  name={`scheduledSpace${i}Height`}
+                                  type="number"
+                                  min="0"
+                                  value={s.height}
+                                  onChange={(e) => updateScheduledSpace(s.key, { height: e.target.value })}
+                                />
+                              </Field>
+                            </>
+                          ) : (
+                            <Field label="Diameter (cm)" htmlFor={`ss${i}-diameter`}>
+                              <Input
+                                id={`ss${i}-diameter`}
+                                name={`scheduledSpace${i}Diameter`}
+                                type="number"
+                                min="0"
+                                value={s.diameter}
+                                onChange={(e) => updateScheduledSpace(s.key, { diameter: e.target.value })}
+                              />
+                            </Field>
+                          )}
+                          <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                            Colour
+                            <input
+                              type="color"
+                              name={`scheduledSpace${i}Color`}
+                              value={s.color}
+                              onChange={(e) => updateScheduledSpace(s.key, { color: e.target.value })}
+                              className="h-8 w-8 rounded border border-[var(--border-strong)] p-0.5"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="mt-4 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3">
+                          <p className="mb-2 text-xs font-medium text-[var(--text-secondary)]">Bookable time slots</p>
+                          {s.slots.length === 0 ? (
+                            <p className="mb-2 text-xs text-[var(--text-muted)]">No slots yet.</p>
+                          ) : (
+                            <div className="mb-3 flex flex-col gap-2">
+                              {s.slots.map((slot, si) => (
+                                <div key={slot.key} className="flex items-center gap-2">
+                                  <input type="hidden" name={`scheduledSpace${i}Slot${si}Id`} value={slot.id} />
+                                  <Input
+                                    type="date"
+                                    name={`scheduledSpace${i}Slot${si}Date`}
+                                    value={slot.date}
+                                    onChange={(e) => updateSlot(s.key, slot.key, { date: e.target.value })}
+                                    className="max-w-40"
+                                  />
+                                  <Input
+                                    type="time"
+                                    name={`scheduledSpace${i}Slot${si}StartTime`}
+                                    value={slot.startTime}
+                                    onChange={(e) => updateSlot(s.key, slot.key, { startTime: e.target.value })}
+                                    className="max-w-32"
+                                  />
+                                  <Input
+                                    type="time"
+                                    name={`scheduledSpace${i}Slot${si}EndTime`}
+                                    value={slot.endTime}
+                                    onChange={(e) => updateSlot(s.key, slot.key, { endTime: e.target.value })}
+                                    className="max-w-32"
+                                  />
+                                  <Input
+                                    name={`scheduledSpace${i}Slot${si}Label`}
+                                    placeholder="Label (optional)"
+                                    value={slot.label}
+                                    onChange={(e) => updateSlot(s.key, slot.key, { label: e.target.value })}
+                                    className="flex-1"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeSlot(s.key, slot.key)}
+                                    aria-label="Remove slot"
+                                    className="shrink-0 text-[var(--text-muted)] hover:text-red-600"
+                                  >
+                                    <Icon name="x" size={16} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button type="button" variant="secondary" size="sm" onClick={() => addSlot(s.key)}>
+                              <Icon name="plus" size={14} />
+                              Add slot
+                            </Button>
+                            <SlotGenerator onGenerate={(date, start, end, duration) => generateSlots(s.key, date, start, end, duration)} />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeScheduledSpace(s.key)}
+                          className="mt-3 flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                        >
+                          <Icon name="x" size={14} />
+                          Remove space
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={addScheduledSpace}>
+                    <Icon name="plus" size={16} />
+                    Add scheduled space
+                  </Button>
+                </FormSection>
               </TabsContent>
 
               {/* ---- Policies & extras -------------------------------------------- */}
