@@ -26,6 +26,8 @@ function toLocalInput(iso: string | undefined): string {
 let rowCounter = 0;
 const nextKey = () => `row-${++rowCounter}`;
 
+const DEFAULT_FEATURE_KEYS = ["food", "parking", "wifi", "photography", "security", "accessibility"];
+
 const BLANK_FEATURE_ACCESS: VisitorFeatureAccess = {
   food: false,
   parking: false,
@@ -1465,22 +1467,19 @@ export function EventForm({ event }: { event?: EventRow }) {
                           </Field>
                         </div>
                         <Field label="Included with this tier" htmlFor={`tier${i}-features`} className="mt-3">
+                          {/* Open key set (Phase 9c), matching eventsh's own
+                              Visitors tab — the 6 defaults plus whatever
+                              custom features an organizer adds. Submitted as
+                              one JSON field since the key set is dynamic per
+                              tier, unlike every fixed-shape checkbox group
+                              elsewhere in this form. */}
+                          <input type="hidden" name={`tier${i}FeatureAccessJson`} value={JSON.stringify(tier.featureAccess)} />
                           <div id={`tier${i}-features`} className="flex flex-wrap gap-x-5 gap-y-2">
-                            {(
-                              [
-                                ["food", "Food"],
-                                ["parking", "Parking"],
-                                ["wifi", "Wi-Fi"],
-                                ["photography", "Photography"],
-                                ["security", "Security"],
-                                ["accessibility", "Accessibility"],
-                              ] as const
-                            ).map(([key, label]) => (
-                              <label key={key} className="flex items-center gap-2 text-sm">
+                            {Object.entries(tier.featureAccess).map(([key, checked]) => (
+                              <label key={key} className="flex items-center gap-1.5 text-sm capitalize">
                                 <input
                                   type="checkbox"
-                                  name={`tier${i}Feature_${key}`}
-                                  checked={tier.featureAccess[key]}
+                                  checked={checked}
                                   onChange={(e) =>
                                     updateTier(tier.key, {
                                       featureAccess: { ...tier.featureAccess, [key]: e.target.checked },
@@ -1488,9 +1487,39 @@ export function EventForm({ event }: { event?: EventRow }) {
                                   }
                                   className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
                                 />
-                                {label}
+                                {key}
+                                {!DEFAULT_FEATURE_KEYS.includes(key) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = { ...tier.featureAccess };
+                                      delete next[key];
+                                      updateTier(tier.key, { featureAccess: next });
+                                    }}
+                                    className="text-[var(--text-muted)] hover:text-red-600"
+                                    aria-label={`Remove ${key}`}
+                                  >
+                                    <Icon name="x" size={12} />
+                                  </button>
+                                )}
                               </label>
                             ))}
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <Input
+                              placeholder="Add custom feature (e.g. Lounge, Charging Station)"
+                              className="max-w-72 text-xs"
+                              onKeyDown={(e) => {
+                                if (e.key !== "Enter") return;
+                                e.preventDefault();
+                                const input = e.currentTarget;
+                                const val = input.value.trim().toLowerCase();
+                                if (val && !(val in tier.featureAccess)) {
+                                  updateTier(tier.key, { featureAccess: { ...tier.featureAccess, [val]: true } });
+                                  input.value = "";
+                                }
+                              }}
+                            />
                           </div>
                         </Field>
                         <Field label="Description" htmlFor={`tier${i}-description`} className="mt-3" hint="Optional — shown to buyers picking a tier.">

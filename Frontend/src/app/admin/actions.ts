@@ -306,14 +306,15 @@ export async function saveEvent(
       maxCount: num(formData, `tier${i}MaxCount`, 0),
       soldCount: existingTiersById.get(tierId) ?? 0,
       description: str(formData, `tier${i}Description`),
-      featureAccess: {
-        food: bool(formData, `tier${i}Feature_food`),
-        parking: bool(formData, `tier${i}Feature_parking`),
-        wifi: bool(formData, `tier${i}Feature_wifi`),
-        photography: bool(formData, `tier${i}Feature_photography`),
-        security: bool(formData, `tier${i}Feature_security`),
-        accessibility: bool(formData, `tier${i}Feature_accessibility`),
-      },
+      // Open key set (Phase 9c) — JSON since the feature-key set is dynamic
+      // per tier, matching eventsh's own custom-feature Visitors tab UI.
+      featureAccess: (() => {
+        try {
+          return JSON.parse(str(formData, `tier${i}FeatureAccessJson`) || "{}");
+        } catch {
+          return {};
+        }
+      })(),
       isActive: bool(formData, `tier${i}Active`),
     };
   });

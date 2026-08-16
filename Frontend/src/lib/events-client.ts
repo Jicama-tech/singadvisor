@@ -2,17 +2,14 @@ import "server-only";
 import { withEventshUrl } from "@/lib/media-url";
 import { fromEventshEvent, type EventshEventDoc } from "@/lib/events-eventsh-adapter";
 
-/** Fixed 6-flag set — matches eventsh's VisitorFeatureAccessDto exactly (not
- * an arbitrary custom list; the older `string[]` shape here didn't match
- * what eventsh actually accepts). */
-export type VisitorFeatureAccess = {
-  food: boolean;
-  parking: boolean;
-  wifi: boolean;
-  photography: boolean;
-  security: boolean;
-  accessibility: boolean;
-};
+/** Open key set (Phase 9c) — eventsh's own Visitors tab lets an organizer
+ * add arbitrary custom feature names alongside the 6 defaults (food/
+ * parking/wifi/photography/security/accessibility), and its backend really
+ * does persist them despite VisitorFeatureAccessDto's own class-validator
+ * shape looking fixed — confirmed directly against the live dedicated
+ * instance (a custom "lounge" key round-tripped through create+refetch
+ * intact), not assumed from the DTO's declared shape alone. */
+export type VisitorFeatureAccess = Record<string, boolean>;
 
 export type VisitorType = {
   id: string;

@@ -139,7 +139,10 @@ interface EventshVisitorTypeDoc {
   price: number;
   maxCount?: number;
   description?: string;
-  featureAccess?: Partial<VisitorFeatureAccess>;
+  // VisitorFeatureAccess is already an open Record<string, boolean> (Phase
+  // 9c) — no Partial<> wrapper needed; a key being absent (not "present but
+  // undefined") is how an open record naturally represents "not set".
+  featureAccess?: VisitorFeatureAccess;
   isActive?: boolean;
   // Present on public/slug/list reads (EventsService.attachSoldCounts()),
   // absent on the admin GET /events/:id path — always normalized to a
