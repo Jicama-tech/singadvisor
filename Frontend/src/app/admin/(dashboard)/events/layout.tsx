@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { EventsNestedNav, EVENTS_DASHBOARD_ROUTES } from "@/components/admin/EventsNestedNav";
+import { EventsNestedNav, isEventsDashboardRoute } from "@/components/admin/EventsNestedNav";
 
 /**
  * Wraps every /admin/events/* route. Shows the nested "Organizer dashboard"
@@ -16,11 +16,8 @@ import { EventsNestedNav, EVENTS_DASHBOARD_ROUTES } from "@/components/admin/Eve
  */
 export default function EventsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isDashboardTab = EVENTS_DASHBOARD_ROUTES.some((href) =>
-    href === "/admin/events" ? pathname === href : pathname.startsWith(href),
-  );
 
-  if (!isDashboardTab) return <>{children}</>;
+  if (!isEventsDashboardRoute(pathname)) return <>{children}</>;
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">

@@ -29,21 +29,30 @@ const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: "/admin/events/settings", label: "Settings", icon: "settings" },
 ];
 
-/** Every route this nav links to — used by EventsShell to decide whether a
- * given /admin/events/* page is a "dashboard tab" (show the nested nav) or a
+/** Every route this nav links to — used by EventsShell (and AdminShell, to
+ * decide when to collapse itself to icon-only) to tell whether a given
+ * /admin/events/* page is a "dashboard tab" (show the nested nav) or a
  * focused sub-page like /new or /[id] (hide it, full width). */
 export const EVENTS_DASHBOARD_ROUTES = TABS.map((t) => t.href);
 
+/** "/admin/events" itself must match exactly (every other route under
+ * /admin/events/* would otherwise also satisfy startsWith("/admin/events")).
+ * Shared by EventsLayout and AdminShell so the two never drift apart on
+ * which routes count as "the nested nav is showing". */
+export function isEventsDashboardRoute(pathname: string): boolean {
+  return EVENTS_DASHBOARD_ROUTES.some((href) =>
+    href === "/admin/events" ? pathname === href : pathname.startsWith(href),
+  );
+}
+
 export function EventsNestedNav() {
   const pathname = usePathname();
-  // "/admin/events" itself must match exactly (every other route under
-  // /admin/events/* would otherwise also satisfy startsWith("/admin/events")).
   const isActive = (href: string) =>
     href === "/admin/events" ? pathname === href : pathname.startsWith(href);
 
   return (
     <nav
-      className="flex shrink-0 flex-col gap-0.5 border-[var(--border-subtle)] p-3 lg:w-56 lg:border-r"
+      className="flex shrink-0 flex-col gap-0.5 border-[var(--border-subtle)] p-3 lg:sticky lg:top-8 lg:max-h-[calc(100vh-5rem)] lg:w-56 lg:overflow-y-auto lg:border-r"
       aria-label="Organizer dashboard"
     >
       <p className="hidden px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] lg:block">

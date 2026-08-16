@@ -6,6 +6,7 @@ import { useState } from "react";
 import { logout } from "@/app/admin/actions";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
+import { isEventsDashboardRoute } from "@/components/admin/EventsNestedNav";
 import { cn } from "@/lib/utils";
 
 export type AdminCounts = {
@@ -61,22 +62,31 @@ export function AdminShell({
   const isActive = (href: string) =>
     href === "/admin" ? pathname === href : pathname.startsWith(href);
 
+  // Collapse to icon-only once the Events nested "Organizer dashboard"
+  // sidebar is showing — two full sidebars side by side left barely any
+  // room for the actual page content. Only the desktop `<aside>` collapses;
+  // the mobile menu (a dropdown, not a permanent column) stays full-width
+  // since it isn't competing with the nested nav for horizontal space.
+  const collapsed = isEventsDashboardRoute(pathname);
+
   const nav = (
     <nav className="flex flex-col gap-6" aria-label="Admin">
       <div>
-        <NavLink href="/admin" icon="activity" active={pathname === "/admin"}>
+        <NavLink href="/admin" icon="activity" active={pathname === "/admin"} collapsed={collapsed}>
           Overview
         </NavLink>
       </div>
 
       <div>
-        <p className="px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          Content
-        </p>
+        {!collapsed && (
+          <p className="px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Content
+          </p>
+        )}
         <ul className="flex flex-col gap-0.5">
           {CONTENT_NAV.map((item) => (
             <li key={item.href}>
-              <NavLink href={item.href} icon={item.icon} active={isActive(item.href)}>
+              <NavLink href={item.href} icon={item.icon} active={isActive(item.href)} collapsed={collapsed}>
                 {item.label}
               </NavLink>
             </li>
@@ -85,9 +95,11 @@ export function AdminShell({
       </div>
 
       <div>
-        <p className="px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          Inbox
-        </p>
+        {!collapsed && (
+          <p className="px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Inbox
+          </p>
+        )}
         <ul className="flex flex-col gap-0.5">
           {INBOX_NAV.map((item) => (
             <li key={item.href}>
@@ -96,6 +108,7 @@ export function AdminShell({
                 icon={item.icon}
                 active={isActive(item.href)}
                 count={counts[item.key]}
+                collapsed={collapsed}
               >
                 {item.label}
               </NavLink>
@@ -112,19 +125,41 @@ export function AdminShell({
       {/* Sticky + viewport-height so it stays put while `main` scrolls; the
           nav's own overflow-y-auto (below) picks up the scroll instead once
           there are enough tabs to overflow it. */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-[var(--border-subtle)] surface-raised lg:flex">
-        <div className="flex h-16 items-center border-b border-[var(--border-subtle)] px-5">
-          <Link href="/admin" className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            SingAdvisor
-          </Link>
-          <span className="ml-2 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-[var(--accent-on-soft)]">
-            Admin
-          </span>
+      <aside
+        className={cn(
+          "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-[var(--border-subtle)] surface-raised transition-[width] duration-200 lg:flex",
+          collapsed ? "w-[68px]" : "w-64",
+        )}
+      >
+        <div
+          className={cn(
+            "flex h-16 items-center border-b border-[var(--border-subtle)]",
+            collapsed ? "justify-center px-2" : "px-5",
+          )}
+        >
+          {collapsed ? (
+            <Link
+              href="/admin"
+              title="SingAdvisor Admin"
+              className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--accent-soft)] font-[family-name:var(--font-display)] text-sm font-semibold text-[var(--accent-on-soft)]"
+            >
+              S
+            </Link>
+          ) : (
+            <>
+              <Link href="/admin" className="font-[family-name:var(--font-display)] text-lg font-semibold">
+                SingAdvisor
+              </Link>
+              <span className="ml-2 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-[var(--accent-on-soft)]">
+                Admin
+              </span>
+            </>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3">{nav}</div>
+        <div className={cn("flex-1 overflow-y-auto", collapsed ? "p-2" : "p-3")}>{nav}</div>
 
-        <UserPanel user={user} />
+        <UserPanel user={user} collapsed={collapsed} />
       </aside>
 
       {/* ---- Main ------------------------------------------------------- */}
@@ -180,43 +215,74 @@ function NavLink({
   icon,
   active,
   count,
+  collapsed,
   children,
 }: {
   href: string;
   icon: IconName;
   active: boolean;
   count?: number;
+  collapsed?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
+      // The label still needs to reach assistive tech and hover users when
+      // collapsed — `title` covers both without permanently reserving the
+      // width a visible label would need.
+      title={collapsed ? String(children) : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors",
+        collapsed ? "justify-center px-0" : "px-3",
         active
           ? "bg-[var(--accent-soft)] text-[var(--accent-on-soft)]"
           : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]",
       )}
     >
-      <Icon name={icon} size={17} className="shrink-0" />
-      <span className="flex-1">{children}</span>
-      {!!count && count > 0 && (
-        <span className="rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[0.65rem] font-semibold text-[var(--accent-foreground)]">
-          {count}
-        </span>
+      <span className="relative shrink-0">
+        <Icon name={icon} size={17} />
+        {/* Collapsed: swap the full count badge for a small dot so
+            "something needs attention" still reads at a glance without
+            needing space for digits. */}
+        {collapsed && !!count && count > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--accent)]" />
+        )}
+      </span>
+      {!collapsed && (
+        <>
+          <span className="flex-1">{children}</span>
+          {!!count && count > 0 && (
+            <span className="rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[0.65rem] font-semibold text-[var(--accent-foreground)]">
+              {count}
+            </span>
+          )}
+        </>
       )}
     </Link>
   );
 }
 
-function UserPanel({ user }: { user: { name: string; email: string; role: string } }) {
+function UserPanel({
+  user,
+  collapsed,
+}: {
+  user: { name: string; email: string; role: string };
+  collapsed?: boolean;
+}) {
   // Role label ("owner"/"editor") intentionally not shown here — the
   // sidebar header already reads "SingAdvisor Admin", so it was redundant.
   // Sign out lives in the top header next to "View site" instead.
   return (
     <div className="border-t border-[var(--border-subtle)] p-3">
-      <div className="flex items-center gap-3 px-2 py-2">
+      <div
+        className={cn(
+          "flex items-center gap-3 py-2",
+          collapsed ? "justify-center px-0" : "px-2",
+        )}
+        title={collapsed ? `${user.name} — ${user.email}` : undefined}
+      >
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-sm font-semibold text-[var(--accent-foreground)]">
           {user.name
             .split(" ")
@@ -224,12 +290,14 @@ function UserPanel({ user }: { user: { name: string; email: string; role: string
             .slice(0, 2)
             .join("")}
         </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-            {user.name}
-          </p>
-          <p className="truncate text-xs text-[var(--text-muted)]">{user.email}</p>
-        </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+              {user.name}
+            </p>
+            <p className="truncate text-xs text-[var(--text-muted)]">{user.email}</p>
+          </div>
+        )}
       </div>
     </div>
   );
