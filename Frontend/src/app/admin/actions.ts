@@ -44,6 +44,7 @@ import type {
   PositionedRoundTable,
   PositionedScheduledSpace,
   PositionedSpeakerZone,
+  VenueAnnotation,
 } from "@/lib/events-client";
 
 /**
@@ -584,6 +585,17 @@ export async function saveEvent(
     // placements is a perfectly valid event, not an error.
   }
 
+  // CAD annotations (Phase 8h) drawn on the same canvas — stored flat,
+  // parsed separately from the placements block above so a malformed
+  // annotations field never drops otherwise-valid placements (or vice
+  // versa).
+  let venueAnnotations: VenueAnnotation[] = [];
+  try {
+    venueAnnotations = JSON.parse(str(formData, "venueAnnotationsJson") || "[]");
+  } catch {
+    // No annotations is a perfectly valid event, not an error.
+  }
+
   const input = {
     slug: str(formData, "slug") || undefined,
     title,
@@ -643,6 +655,7 @@ export async function saveEvent(
     venueRoundTables,
     venueScheduledSpaces,
     venueSpeakerZones,
+    venueAnnotations,
   };
 
   let slug: string;

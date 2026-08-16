@@ -1,9 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Field, Input } from "@/components/ui/Field";
+import type { AnnotationTool, VenueAnnotation } from "./VenueAnnotationLayer";
+
+// react-konva's Stage touches Canvas/DOM APIs at mount time — must never
+// run during server rendering. Same non-negotiable Next.js-specific
+// adaptation already used for RichTextEditor/Quill (Phase 8c).
+const VenueAnnotationLayer = dynamic(() => import("./VenueAnnotationLayer"), {
+  ssr: false,
+});
 
 /**
  * Scoped port of eventsh-v1's VenueDesigner (CreateEventForm.tsx,
@@ -16,8 +25,12 @@ import { Field, Input } from "@/components/ui/Field";
  * organizers actually need — place/drag/resize/rotate(90°)/remove each
  * template type on a venue plan — rather than eventsh's full feature set
  * (continuous-angle rotation, the "draw row" bulk seat tool, floor-plan
- * image import, measurement tools). The CAD annotation overlay (Phase 8h)
- * layers on top of this unchanged either way.
+ * image import, measurement tools).
+ *
+ * Phase 8h adds the CAD annotation overlay (line/arrow/rect/text/dimension
+ * draw tools, ported from eventsh's VenueAnnotationLayer.tsx as a
+ * react-konva Stage layered over this SVG canvas) and a PDF export of the
+ * finished layout.
  */
 
 export type CanvasKind = "table" | "roundTable" | "scheduledSpace" | "speakerZone";
@@ -53,6 +66,8 @@ export type VenueConfigState = {
   showGrid: boolean;
 };
 
+export type { AnnotationTool, VenueAnnotation } from "./VenueAnnotationLayer";
+
 let placedCounter = 0;
 const nextPlacedId = () => `pos-${Date.now()}-${++placedCounter}`;
 
@@ -63,22 +78,74 @@ const KIND_LABEL: Record<CanvasKind, string> = {
   speakerZone: "Speaker Slot",
 };
 
+// eventsh's own CreateEventForm toolbar omits a "Text" button despite
+// VenueAnnotationLayer fully supporting the "text" tool (click to place a
+// label, opens an inline editor) — a pre-existing gap in its source, not
+// intentional scope. Added here since the plan for this phase explicitly
+// names text as one of the tools to port and the logic is already fully
+// wired (verbatim-ported, not new).
+const ANNOTATION_TOOLS: { t: AnnotationTool; label: string; icon: "move" | "pointer" | "minus" | "arrow-up-right" | "square" | "ruler" | "type" }[] = [
+  { t: "none", label: "Move", icon: "move" },
+  { t: "select", label: "Select", icon: "pointer" },
+  { t: "text", label: "Text", icon: "type" },
+  { t: "line", label: "Line", icon: "minus" },
+  { t: "arrow", label: "Arrow", icon: "arrow-up-right" },
+  { t: "rect", label: "Box", icon: "square" },
+  { t: "dimension", label: "Dimension", icon: "ruler" },
+];
+
 export function VenueCanvas({
   venueConfig,
   onVenueConfigChange,
   templates,
   placedItems,
   onChange,
+  annotations,
+  onAnnotationsChange,
 }: {
   venueConfig: VenueConfigState;
   onVenueConfigChange: (patch: Partial<VenueConfigState>) => void;
   templates: CanvasTemplate[];
   placedItems: PlacedItem[];
   onChange: (items: PlacedItem[]) => void;
+  annotations: VenueAnnotation[];
+  onAnnotationsChange: (next: VenueAnnotation[]) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const dragState = useRef<{ id: string; offsetX: number; offsetY: number; mode: "move" | "resize" } | null>(null);
+
+  // CAD annotation toolbar state (Phase 8h) — kept local to this component,
+  // same as `selectedId` above for placed items, so EventForm.tsx only
+  // needs to own the `annotations` data itself, not the tool/UI state.
+  const [annotationTool, setAnnotationTool] = useState<AnnotationTool>("none");
+  const [annotationColor, setAnnotationColor] = useState("#1e293b");
+  const [selectedAnnId, setSelectedAnnId] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  // Screen-px size of the rendered SVG, tracked via ResizeObserver so the
+  // Konva overlay stays pixel-aligned with the (responsive, fluid-width)
+  // SVG canvas beneath it. Kept in sync with venueConfig's aspect ratio —
+  // see the `aspect-ratio` style below, which guarantees no letterboxing
+  // so a single uniform scale factor is always correct (no separate
+  // scaleX/scaleY needed).
+  const [overlay, setOverlay] = useState({ width: 0, height: 0, scale: 1 });
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && venueConfig.width > 0) {
+        setOverlay({ width: rect.width, height: rect.height, scale: rect.width / venueConfig.width });
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [venueConfig.width, venueConfig.height]);
 
   function svgPoint(clientX: number, clientY: number): { x: number; y: number } {
     const svg = svgRef.current;
@@ -162,6 +229,43 @@ export function VenueCanvas({
     window.removeEventListener("mouseup", handleDragEnd);
   }
 
+  // Rasterise the canvas (placed items + annotations) and save it as a
+  // PDF — mirrors eventsh's own `downloadVenuePdf`. Dynamic `import()`
+  // here (not next/dynamic) since these are only needed inside a click
+  // handler, never at render time.
+  async function downloadVenuePdf() {
+    const el = wrapRef.current;
+    if (!el) return;
+    setPdfBusy(true);
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+      const canvas = await html2canvas(el, { backgroundColor: "#ffffff", scale: 2, useCORS: true });
+      const img = canvas.toDataURL("image/png");
+      const pxW = canvas.width;
+      const pxH = canvas.height;
+      const pdf = new jsPDF({ orientation: pxW >= pxH ? "landscape" : "portrait", unit: "pt", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 28;
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+      const ratio = Math.min(maxW / pxW, maxH / pxH);
+      const drawW = pxW * ratio;
+      const drawH = pxH * ratio;
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+      pdf.addImage(img, "PNG", x, y, drawW, drawH);
+      pdf.save("venue-layout.pdf");
+    } catch {
+      // Best-effort export — no form/canvas state to roll back on failure.
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   const gridLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
   if (venueConfig.showGrid && venueConfig.gridSize > 0) {
     for (let x = venueConfig.gridSize; x < venueConfig.width; x += venueConfig.gridSize) {
@@ -178,109 +282,186 @@ export function VenueCanvas({
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
       <div className="flex flex-1 flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Field label="Venue width (cm)" htmlFor="vc-width" className="max-w-36">
-            <Input
-              id="vc-width"
-              type="number"
-              min="100"
-              value={venueConfig.width}
-              onChange={(e) => onVenueConfigChange({ width: Math.max(100, Number(e.target.value) || 0) })}
-            />
-          </Field>
-          <Field label="Venue height (cm)" htmlFor="vc-height" className="max-w-36">
-            <Input
-              id="vc-height"
-              type="number"
-              min="100"
-              value={venueConfig.height}
-              onChange={(e) => onVenueConfigChange({ height: Math.max(100, Number(e.target.value) || 0) })}
-            />
-          </Field>
-          <label className="flex items-center gap-2 self-end pb-2.5 text-sm text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={venueConfig.showGrid}
-              onChange={(e) => onVenueConfigChange({ showGrid: e.target.checked })}
-              className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
-            />
-            Show grid
-          </label>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Field label="Venue width (cm)" htmlFor="vc-width" className="max-w-36">
+              <Input
+                id="vc-width"
+                type="number"
+                min="100"
+                value={venueConfig.width}
+                onChange={(e) => onVenueConfigChange({ width: Math.max(100, Number(e.target.value) || 0) })}
+              />
+            </Field>
+            <Field label="Venue height (cm)" htmlFor="vc-height" className="max-w-36">
+              <Input
+                id="vc-height"
+                type="number"
+                min="100"
+                value={venueConfig.height}
+                onChange={(e) => onVenueConfigChange({ height: Math.max(100, Number(e.target.value) || 0) })}
+              />
+            </Field>
+            <label className="flex items-center gap-2 self-end pb-2.5 text-sm text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                checked={venueConfig.showGrid}
+                onChange={(e) => onVenueConfigChange({ showGrid: e.target.checked })}
+                className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+              />
+              Show grid
+            </label>
+          </div>
+          <Button type="button" variant="secondary" size="sm" onClick={downloadVenuePdf} disabled={pdfBusy}>
+            <Icon name="download" size={14} />
+            {pdfBusy ? "Preparing…" : "Download PDF"}
+          </Button>
         </div>
 
-        <svg
-          ref={svgRef}
-          data-testid="venue-canvas"
-          viewBox={`0 0 ${venueConfig.width} ${venueConfig.height}`}
-          className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-sunken)]"
-          style={{ maxHeight: 520 }}
-          onMouseDown={() => setSelectedId(null)}
-        >
-          {gridLines.map((l, i) => (
-            <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="var(--border-subtle)" strokeWidth={1} />
+        {/* CAD annotation toolbar (Phase 8h) — switch between moving/placing
+          templates and the drawing tools (line / arrow / box / dimension). */}
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-[var(--border-subtle)] p-1.5">
+          {ANNOTATION_TOOLS.map(({ t, label, icon }) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => {
+                setAnnotationTool(t);
+                setSelectedAnnId(null);
+              }}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                annotationTool === t
+                  ? "bg-[var(--accent)] text-white"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)]"
+              }`}
+              title={t === "none" ? "Move / place items" : `Draw ${label.toLowerCase()}`}
+            >
+              <Icon name={icon} size={14} />
+              {label}
+            </button>
           ))}
-          {placedItems.map((p) => {
-            const isSelected = p.positionId === selectedId;
-            return (
-              <g key={p.positionId}>
-                {p.isCircle ? (
-                  <circle
-                    data-testid="placed-item"
-                    data-position-id={p.positionId}
-                    cx={p.x + p.width / 2}
-                    cy={p.y + p.height / 2}
-                    r={p.width / 2}
-                    fill={p.color}
-                    fillOpacity={0.75}
-                    stroke={isSelected ? "var(--accent)" : "#00000033"}
-                    strokeWidth={isSelected ? 3 : 1}
-                    onMouseDown={(e) => startDrag(e, p, "move")}
-                    className="cursor-move"
-                  />
-                ) : (
-                  <rect
-                    data-testid="placed-item"
-                    data-position-id={p.positionId}
-                    x={p.x}
-                    y={p.y}
-                    width={p.width}
-                    height={p.height}
-                    rx={4}
-                    fill={p.color}
-                    fillOpacity={0.75}
-                    stroke={isSelected ? "var(--accent)" : "#00000033"}
-                    strokeWidth={isSelected ? 3 : 1}
-                    onMouseDown={(e) => startDrag(e, p, "move")}
-                    className="cursor-move"
-                  />
-                )}
-                <text
-                  x={p.x + p.width / 2}
-                  y={p.y + p.height / 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={12}
-                  fill="#111"
-                  pointerEvents="none"
-                >
-                  {p.name}
-                </text>
-                {isSelected && !p.isCircle && (
-                  <rect
-                    data-testid="resize-handle"
-                    x={p.x + p.width - 8}
-                    y={p.y + p.height - 8}
-                    width={16}
-                    height={16}
-                    fill="var(--accent)"
-                    className="cursor-nwse-resize"
-                    onMouseDown={(e) => startDrag(e, p, "resize")}
-                  />
-                )}
-              </g>
-            );
-          })}
-        </svg>
+          <div className="mx-1 h-5 w-px bg-[var(--border-subtle)]" />
+          <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]" title="Drawing colour">
+            <input
+              type="color"
+              value={annotationColor}
+              onChange={(e) => setAnnotationColor(e.target.value)}
+              className="h-6 w-7 cursor-pointer rounded border border-[var(--border-strong)] bg-transparent p-0"
+            />
+          </label>
+          {selectedAnnId && annotationTool === "select" && (
+            <>
+              <div className="mx-1 h-5 w-px bg-[var(--border-subtle)]" />
+              <button
+                type="button"
+                onClick={() => {
+                  onAnnotationsChange(annotations.filter((a) => a.id !== selectedAnnId));
+                  setSelectedAnnId(null);
+                }}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
+              >
+                <Icon name="trash" size={14} />
+                Delete
+              </button>
+            </>
+          )}
+          {annotationTool !== "none" && (
+            <span className="ml-auto pr-1 text-[11px] text-[var(--text-muted)]">
+              {annotationTool === "select"
+                ? "Click a drawing to select · Del to remove"
+                : "Click-drag on the canvas to draw"}
+            </span>
+          )}
+        </div>
+
+        <div ref={wrapRef} className="relative mx-auto w-full max-w-[900px]">
+          <svg
+            ref={svgRef}
+            data-testid="venue-canvas"
+            viewBox={`0 0 ${venueConfig.width} ${venueConfig.height}`}
+            className="block w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-sunken)]"
+            style={{ aspectRatio: `${venueConfig.width} / ${venueConfig.height}` }}
+            onMouseDown={() => setSelectedId(null)}
+          >
+            {gridLines.map((l, i) => (
+              <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="var(--border-subtle)" strokeWidth={1} />
+            ))}
+            {placedItems.map((p) => {
+              const isSelected = p.positionId === selectedId;
+              return (
+                <g key={p.positionId}>
+                  {p.isCircle ? (
+                    <circle
+                      data-testid="placed-item"
+                      data-position-id={p.positionId}
+                      cx={p.x + p.width / 2}
+                      cy={p.y + p.height / 2}
+                      r={p.width / 2}
+                      fill={p.color}
+                      fillOpacity={0.75}
+                      stroke={isSelected ? "var(--accent)" : "#00000033"}
+                      strokeWidth={isSelected ? 3 : 1}
+                      onMouseDown={(e) => startDrag(e, p, "move")}
+                      className="cursor-move"
+                    />
+                  ) : (
+                    <rect
+                      data-testid="placed-item"
+                      data-position-id={p.positionId}
+                      x={p.x}
+                      y={p.y}
+                      width={p.width}
+                      height={p.height}
+                      rx={4}
+                      fill={p.color}
+                      fillOpacity={0.75}
+                      stroke={isSelected ? "var(--accent)" : "#00000033"}
+                      strokeWidth={isSelected ? 3 : 1}
+                      onMouseDown={(e) => startDrag(e, p, "move")}
+                      className="cursor-move"
+                    />
+                  )}
+                  <text
+                    x={p.x + p.width / 2}
+                    y={p.y + p.height / 2}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fontSize={12}
+                    fill="#111"
+                    pointerEvents="none"
+                  >
+                    {p.name}
+                  </text>
+                  {isSelected && !p.isCircle && (
+                    <rect
+                      data-testid="resize-handle"
+                      x={p.x + p.width - 8}
+                      y={p.y + p.height - 8}
+                      width={16}
+                      height={16}
+                      fill="var(--accent)"
+                      className="cursor-nwse-resize"
+                      onMouseDown={(e) => startDrag(e, p, "resize")}
+                    />
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+
+          {overlay.width > 0 && (
+            <VenueAnnotationLayer
+              width={overlay.width}
+              height={overlay.height}
+              scale={overlay.scale}
+              annotations={annotations}
+              onChange={onAnnotationsChange}
+              tool={annotationTool}
+              color={annotationColor}
+              onSelect={setSelectedAnnId}
+            />
+          )}
+        </div>
 
         {selected && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-[var(--surface-sunken)] p-2 text-sm">

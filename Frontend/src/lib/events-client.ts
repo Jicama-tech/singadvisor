@@ -257,12 +257,37 @@ export type PositionedSpeakerZone = {
   assignedSpeakerName: string;
 };
 
-/** Placed door / CAD annotation — eventsh itself keeps both as loose `any[]`
- * (createEvent.dto.ts's own comment: "small and stable enough... skip a
- * typed sub-DTO"). Matched here rather than over-typing what the source of
- * truth deliberately doesn't. */
+/** Placed door — eventsh itself keeps this as a loose `any[]` (createEvent.dto.ts's
+ * own comment: "small and stable enough... skip a typed sub-DTO"), and door
+ * placement isn't built in SingAdvisor's own Space Layout canvas (Phase 8g/8h
+ * scoped to tables/round tables/scheduled spaces/speaker zones + annotations
+ * only), so it stays untyped here too rather than over-typing what nothing
+ * yet produces. */
 export type VenueDoor = Record<string, unknown>;
-export type VenueAnnotation = Record<string, unknown>;
+
+/** CAD annotation drawn on the Space Layout canvas (Phase 8h) — line / arrow
+ * / rect / text / dimension shapes. Matches VenueAnnotationLayer.tsx's own
+ * type (kept as a separate, structurally-identical definition rather than
+ * importing a UI component's types into this data-layer file, same
+ * decoupling already used for CanvasTemplate/PlacedItem vs. this module's
+ * TableTemplate/RoundTableTemplate — the two are merged by id server-side,
+ * not shared by type). eventsh itself stores this as a loose `any[]` on the
+ * DTO; typed properly here since it's real, structured data this app now
+ * produces and needs to round-trip. */
+export type VenueAnnotation = {
+  id: string;
+  type: "line" | "arrow" | "text" | "rect" | "dimension";
+  points?: number[];
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  text?: string;
+  color?: string;
+  fill?: string;
+  strokeWidth?: number;
+  fontSize?: number;
+};
 
 export type EventRow = {
   _id: string;

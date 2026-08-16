@@ -12,7 +12,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { withEventshUrl } from "@/lib/media-url";
-import type { EventRow, SpeakerProfile, SponsorType, VisitorFeatureAccess } from "@/lib/events-client";
+import type { EventRow, SpeakerProfile, SponsorType, VenueAnnotation, VisitorFeatureAccess } from "@/lib/events-client";
 
 /** `datetime-local` needs `YYYY-MM-DDTHH:mm` in local time, not an ISO string. */
 function toLocalInput(iso: string | undefined): string {
@@ -621,6 +621,12 @@ export function EventForm({ event }: { event?: EventRow }) {
     })),
   ];
 
+  // CAD annotations (Phase 8h) — drawn on top of the Space Layout canvas.
+  // Stored flat, matching eventsh's own `venueAnnotations` shape (a single
+  // array, not keyed per venue config — this app has no multi-venue concept
+  // for one event, same simplification already made for venueConfig above).
+  const initialAnnotations: VenueAnnotation[] = event?.venueAnnotations ?? [];
+
   const [tiers, setTiers] = useState<TierRow[]>(initialTiers);
   const [sections, setSections] = useState<SectionRow[]>(initialSections);
   const [ageRows, setAgeRows] = useState<AgeRow[]>(initialAgeRows);
@@ -636,6 +642,7 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [scheduledSpaceRows, setScheduledSpaceRows] = useState<ScheduledSpaceRow[]>(initialScheduledSpaces);
   const [venueConfig, setVenueConfig] = useState<VenueConfigState>(initialVenueConfig);
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>(initialPlacedItems);
+  const [annotations, setAnnotations] = useState<VenueAnnotation[]>(initialAnnotations);
   const [imagePreview, setImagePreview] = useState(event?.image ?? "");
 
   // Mirrors eventsh-v1's "Event Sections" toggles on its Venue tab: a
@@ -923,6 +930,9 @@ export function EventForm({ event }: { event?: EventRow }) {
                 per-field convention every other repeater in this form uses. */}
             <input type="hidden" name="venueConfigJson" value={JSON.stringify(venueConfig)} />
             <input type="hidden" name="placedItemsJson" value={JSON.stringify(placedItems)} />
+            {/* CAD annotations (8h) drawn on the same canvas — flat array,
+                same JSON-field rationale as the two placements fields above. */}
+            <input type="hidden" name="venueAnnotationsJson" value={JSON.stringify(annotations)} />
 
             <Tabs defaultValue="basic">
               <TabsList>
@@ -2701,6 +2711,8 @@ export function EventForm({ event }: { event?: EventRow }) {
                     ]}
                     placedItems={placedItems}
                     onChange={setPlacedItems}
+                    annotations={annotations}
+                    onAnnotationsChange={setAnnotations}
                   />
                 </FormSection>
               </TabsContent>

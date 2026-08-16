@@ -67,6 +67,23 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // konva (Space Layout's CAD annotation overlay, Phase 8h) ships a
+  // Node-target build (konva/lib/index-node.js) that `require("canvas")` —
+  // the native npm package, not the browser Canvas API — for server-side
+  // rendering support Konva offers that this app never uses (the whole
+  // annotation layer is loaded via next/dynamic(..., { ssr: false })).
+  // Without this, webpack still tries to resolve 'canvas' while bundling
+  // the server reference for that client component and fails outright
+  // (it's a native binding, not installed, not wanted). Marking it
+  // external makes webpack skip bundling it; the actual `require("canvas")`
+  // call inside konva's Node build is dead code here since ssr:false means
+  // it's never reached at runtime. Standard, widely-documented fix for
+  // konva/react-konva under Next.js.
+  webpack: (config) => {
+    config.externals = [...(config.externals ?? []), { canvas: "commonjs canvas" }];
+    return config;
+  },
+
   // basePath alone is correct here. Do NOT also set `assetPrefix` to the same
   // value: basePath already serves /_next and /public under the prefix, and
   // the pair makes the image optimizer reject every request with a 400, which

@@ -41,7 +41,15 @@ export type IconName =
   | "dollar-sign"
   | "scan"
   | "life-buoy"
-  | "settings";
+  | "settings"
+  | "move"
+  | "pointer"
+  | "minus"
+  | "arrow-up-right"
+  | "square"
+  | "ruler"
+  | "download"
+  | "type";
 
 const paths: Record<IconName, string> = {
   "arrow-right": "M5 12h14M13 6l6 6-6 6",
@@ -91,6 +99,16 @@ const paths: Record<IconName, string> = {
     "M12 22a10 10 0 100-20 10 10 0 000 20zM4.9 4.9l4.24 4.24M14.86 14.86l4.24 4.24M14.86 9.14l4.24-4.24M4.9 19.1l4.24-4.24M12 16a4 4 0 100-8 4 4 0 000 8z",
   settings:
     "M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82A1.65 1.65 0 003 15.09H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
+  // Added for the Space Layout CAD annotation toolbar (Phase 8h).
+  move: "M5 9L2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20",
+  pointer: "M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3zM13 13l6 6",
+  minus: "M5 12h14",
+  "arrow-up-right": "M7 17L17 7M7 7h10v10",
+  square: "M3 3h18v18H3z",
+  ruler:
+    "M3 17L17 3l4 4L7 21l-4-4zM14.5 5.5l2 2M11.5 8.5l2 2M8.5 11.5l2 2M5.5 14.5l2 2",
+  download: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 11l5 5 5-5M12 4v12",
+  type: "M4 7V4h16v3M9 20h6M12 4v16",
 };
 
 export function Icon({
