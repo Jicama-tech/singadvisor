@@ -4,6 +4,7 @@ import { useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { saveEvent } from "@/app/admin/actions";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -142,6 +143,42 @@ function emptySponsorRow(): SponsorRow {
   return { key: nextKey(), id: "", name: "", price: "0", collectPayment: true, customOptions: "", description: "" };
 }
 
+type VolunteerRow = { key: string; name: string; email: string; phoneNumber: string };
+function emptyVolunteerRow(): VolunteerRow {
+  return { key: nextKey(), name: "", email: "", phoneNumber: "" };
+}
+
+/** Eventsh's "Speaker Space" — a bookable session slot (name/time/price/
+ * capacity), distinct from the speaker profile cards above. Genuinely
+ * useful on its own as a schedule of slots even without the Space Layout
+ * canvas (Phase 8g) to place it on visually. */
+type SpeakerSlotRow = {
+  key: string;
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  isMainStage: boolean;
+  price: string;
+  maxSpeakers: string;
+  maxVisitors: string;
+  description: string;
+};
+function emptySpeakerSlotRow(): SpeakerSlotRow {
+  return {
+    key: nextKey(),
+    id: "",
+    name: "",
+    startTime: "",
+    endTime: "",
+    isMainStage: false,
+    price: "0",
+    maxSpeakers: "1",
+    maxVisitors: "0",
+    description: "",
+  };
+}
+
 const AGE_OPTIONS = ["All Ages", "13+", "16+", "18+", "21+"];
 
 const FEATURE_FLAGS: { key: string; label: string }[] = [
@@ -207,12 +244,32 @@ export function EventForm({ event }: { event?: EventRow }) {
 
   const initialSpeakers: SpeakerRow[] = (event?.speakerProfiles ?? []).map(speakerRowFromProfile);
   const initialSponsors: SponsorRow[] = (event?.sponsorTypes ?? []).map(sponsorRowFromType);
+  const initialVolunteers: VolunteerRow[] = (event?.volunteers ?? []).map((v) => ({
+    key: nextKey(),
+    name: v.name,
+    email: v.email,
+    phoneNumber: v.phoneNumber,
+  }));
+  const initialSpeakerSlots: SpeakerSlotRow[] = (event?.speakerSlotTemplates ?? []).map((s) => ({
+    key: nextKey(),
+    id: s.id,
+    name: s.name,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    isMainStage: s.isMainStage,
+    price: String(s.slotPrice),
+    maxSpeakers: String(s.maxSpeakers),
+    maxVisitors: String(s.maxVisitors),
+    description: s.description,
+  }));
 
   const [tiers, setTiers] = useState<TierRow[]>(initialTiers);
   const [sections, setSections] = useState<SectionRow[]>(initialSections);
   const [ageRows, setAgeRows] = useState<AgeRow[]>(initialAgeRows);
   const [speakerRows, setSpeakerRows] = useState<SpeakerRow[]>(initialSpeakers);
   const [sponsorRows, setSponsorRows] = useState<SponsorRow[]>(initialSponsors);
+  const [volunteerRows, setVolunteerRows] = useState<VolunteerRow[]>(initialVolunteers);
+  const [speakerSlotRows, setSpeakerSlotRows] = useState<SpeakerSlotRow[]>(initialSpeakerSlots);
   const [imagePreview, setImagePreview] = useState(event?.image ?? "");
 
   // Mirrors eventsh-v1's "Event Sections" toggles on its Venue tab: a
@@ -225,6 +282,9 @@ export function EventForm({ event }: { event?: EventRow }) {
   );
   const [hasSponsors, setHasSponsors] = useState(
     Boolean(event?.features?.hasSponsors) || (event?.sponsorTypes.length ?? 0) > 0,
+  );
+  const [hasVolunteers, setHasVolunteers] = useState(
+    Boolean(event?.features?.hasVolunteers) || (event?.volunteers.length ?? 0) > 0,
   );
 
   function handleImageFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -291,6 +351,26 @@ export function EventForm({ event }: { event?: EventRow }) {
     setSponsorRows((rows) => rows.filter((r) => r.key !== key));
   }
 
+  function updateVolunteer(key: string, patch: Partial<VolunteerRow>) {
+    setVolunteerRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addVolunteer() {
+    setVolunteerRows((rows) => [...rows, emptyVolunteerRow()]);
+  }
+  function removeVolunteer(key: string) {
+    setVolunteerRows((rows) => rows.filter((r) => r.key !== key));
+  }
+
+  function updateSpeakerSlot(key: string, patch: Partial<SpeakerSlotRow>) {
+    setSpeakerSlotRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addSpeakerSlot() {
+    setSpeakerSlotRows((rows) => [...rows, emptySpeakerSlotRow()]);
+  }
+  function removeSpeakerSlot(key: string) {
+    setSpeakerSlotRows((rows) => rows.filter((r) => r.key !== key));
+  }
+
   const agendaLines = (event?.agenda ?? []).map((a) => `${a.time} | ${a.title}`).join("\n");
   const speakersLines = (event?.speakers ?? []).join("\n");
   const tagsLine = (event?.tags ?? []).join(", ");
@@ -322,6 +402,8 @@ export function EventForm({ event }: { event?: EventRow }) {
             <input type="hidden" name="ageRowCount" value={ageRows.length} />
             <input type="hidden" name="speakerCount" value={speakerRows.length} />
             <input type="hidden" name="sponsorCount" value={sponsorRows.length} />
+            <input type="hidden" name="volunteerCount" value={volunteerRows.length} />
+            <input type="hidden" name="speakerSlotCount" value={speakerSlotRows.length} />
 
             <Tabs defaultValue="basic">
               <TabsList>
@@ -332,6 +414,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                 <TabsTrigger value="programme">Programme</TabsTrigger>
                 {hasSpeakers && <TabsTrigger value="speakers">Speakers</TabsTrigger>}
                 {hasSponsors && <TabsTrigger value="sponsors">Sponsors</TabsTrigger>}
+                {hasVolunteers && <TabsTrigger value="volunteers">Volunteers</TabsTrigger>}
                 <TabsTrigger value="policies">Policies &amp; extras</TabsTrigger>
               </TabsList>
 
@@ -442,6 +525,7 @@ export function EventForm({ event }: { event?: EventRow }) {
                 >
                   <input type="hidden" name="feature_hasSpeakers" value={hasSpeakers ? "on" : ""} />
                   <input type="hidden" name="feature_hasSponsors" value={hasSponsors ? "on" : ""} />
+                  <input type="hidden" name="feature_hasVolunteers" value={hasVolunteers ? "on" : ""} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
                       <input
@@ -468,6 +552,20 @@ export function EventForm({ event }: { event?: EventRow }) {
                         <span className="block text-sm font-medium text-[var(--text-primary)]">Sponsors</span>
                         <span className="block text-xs text-[var(--text-muted)]">
                           Sponsorship tiers with a public &quot;Become a sponsor&quot; application form.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
+                      <input
+                        type="checkbox"
+                        checked={hasVolunteers}
+                        onChange={(e) => setHasVolunteers(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-[var(--text-primary)]">Volunteers</span>
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          A contact list for door/scanner access — name, email, phone.
                         </span>
                       </span>
                     </label>
@@ -715,6 +813,7 @@ export function EventForm({ event }: { event?: EventRow }) {
               {/* ---- Speakers (eventsh-v1's "Speakers" tab, minus the venue-zone
                   placement — see event.entity.ts's SpeakerProfile doc comment) --- */}
               <TabsContent value="speakers" className="mt-6">
+                <div className="flex flex-col gap-6">
                 <FormSection
                   title="Speakers"
                   description="Full speaker profiles with photo, bio and session details — richer than the plain name list on the Programme tab, which still works as a quick fallback."
@@ -906,6 +1005,104 @@ export function EventForm({ event }: { event?: EventRow }) {
                     Add speaker
                   </Button>
                 </FormSection>
+
+                <FormSection
+                  title="Speaker slots"
+                  description="Named session slots — a schedule of when/where speakers present, separate from the profile cards above (a slot doesn't have to be assigned to a speaker yet). Visual placement on a venue map isn't built yet; this defines the slots themselves."
+                >
+                  <div className="flex flex-col gap-4">
+                    {speakerSlotRows.map((slot, i) => (
+                      <div key={slot.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                        <input type="hidden" name={`speakerSlot${i}Id`} value={slot.id} />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field label="Slot name" htmlFor={`speakerSlot${i}-name`}>
+                            <Input
+                              id={`speakerSlot${i}-name`}
+                              name={`speakerSlot${i}Name`}
+                              placeholder="e.g. Main Stage — Morning Keynote"
+                              value={slot.name}
+                              onChange={(e) => updateSpeakerSlot(slot.key, { name: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Description" htmlFor={`speakerSlot${i}-description`}>
+                            <Input
+                              id={`speakerSlot${i}-description`}
+                              name={`speakerSlot${i}Description`}
+                              value={slot.description}
+                              onChange={(e) => updateSpeakerSlot(slot.key, { description: e.target.value })}
+                            />
+                          </Field>
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                          <Field label="Start time" htmlFor={`speakerSlot${i}-start`}>
+                            <Input
+                              id={`speakerSlot${i}-start`}
+                              name={`speakerSlot${i}StartTime`}
+                              type="time"
+                              value={slot.startTime}
+                              onChange={(e) => updateSpeakerSlot(slot.key, { startTime: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="End time" htmlFor={`speakerSlot${i}-end`}>
+                            <Input
+                              id={`speakerSlot${i}-end`}
+                              name={`speakerSlot${i}EndTime`}
+                              type="time"
+                              value={slot.endTime}
+                              onChange={(e) => updateSpeakerSlot(slot.key, { endTime: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Max speakers" htmlFor={`speakerSlot${i}-maxSpeakers`}>
+                            <Input
+                              id={`speakerSlot${i}-maxSpeakers`}
+                              name={`speakerSlot${i}MaxSpeakers`}
+                              type="number"
+                              min="1"
+                              value={slot.maxSpeakers}
+                              onChange={(e) => updateSpeakerSlot(slot.key, { maxSpeakers: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Max visitors" htmlFor={`speakerSlot${i}-maxVisitors`}>
+                            <Input
+                              id={`speakerSlot${i}-maxVisitors`}
+                              name={`speakerSlot${i}MaxVisitors`}
+                              type="number"
+                              min="0"
+                              placeholder="0 = unlimited"
+                              value={slot.maxVisitors}
+                              onChange={(e) => updateSpeakerSlot(slot.key, { maxVisitors: e.target.value })}
+                            />
+                          </Field>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+                            <input
+                              type="checkbox"
+                              name={`speakerSlot${i}IsMainStage`}
+                              checked={slot.isMainStage}
+                              onChange={(e) => updateSpeakerSlot(slot.key, { isMainStage: e.target.checked })}
+                              className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                            />
+                            Main stage
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removeSpeakerSlot(slot.key)}
+                            className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                          >
+                            <Icon name="x" size={14} />
+                            Remove slot
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={addSpeakerSlot}>
+                    <Icon name="plus" size={16} />
+                    Add speaker slot
+                  </Button>
+                </FormSection>
+                </div>
               </TabsContent>
 
               {/* ---- Sponsors ------------------------------------------------------ */}
@@ -1017,6 +1214,59 @@ export function EventForm({ event }: { event?: EventRow }) {
                   <Button type="button" variant="secondary" onClick={addSponsor}>
                     <Icon name="plus" size={16} />
                     Add sponsorship tier
+                  </Button>
+                </FormSection>
+              </TabsContent>
+
+              {/* ---- Volunteers ---------------------------------------------------- */}
+              <TabsContent value="volunteers" className="mt-6">
+                <FormSection
+                  title="Volunteers"
+                  description="A contact list for door/scanner access at this event — name, email, phone."
+                >
+                  <div className="flex flex-col gap-3">
+                    {volunteerRows.map((v, i) => (
+                      <div key={v.key} className="grid gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+                        <Field label="Name" htmlFor={`volunteer${i}-name`}>
+                          <Input
+                            id={`volunteer${i}-name`}
+                            name={`volunteer${i}Name`}
+                            value={v.name}
+                            onChange={(e) => updateVolunteer(v.key, { name: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Email" htmlFor={`volunteer${i}-email`}>
+                          <Input
+                            id={`volunteer${i}-email`}
+                            name={`volunteer${i}Email`}
+                            type="email"
+                            value={v.email}
+                            onChange={(e) => updateVolunteer(v.key, { email: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Phone" htmlFor={`volunteer${i}-phone`} hint="Optional">
+                          <Input
+                            id={`volunteer${i}-phone`}
+                            name={`volunteer${i}Phone`}
+                            placeholder="+65 8123 4567"
+                            value={v.phoneNumber}
+                            onChange={(e) => updateVolunteer(v.key, { phoneNumber: e.target.value })}
+                          />
+                        </Field>
+                        <button
+                          type="button"
+                          onClick={() => removeVolunteer(v.key)}
+                          aria-label="Remove volunteer"
+                          className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-red-600"
+                        >
+                          <Icon name="x" size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={addVolunteer}>
+                    <Icon name="plus" size={16} />
+                    Add volunteer
                   </Button>
                 </FormSection>
               </TabsContent>
@@ -1142,11 +1392,10 @@ export function EventForm({ event }: { event?: EventRow }) {
                               />
                             </Field>
                             <Field label="Content" htmlFor={`section${i}-content`}>
-                              <Textarea
-                                id={`section${i}-content`}
-                                rows={3}
+                              <RichTextEditor
                                 value={section.content}
-                                onChange={(e) => updateSection(section.key, { content: e.target.value })}
+                                onChange={(html) => updateSection(section.key, { content: html })}
+                                placeholder="Write this section's content…"
                               />
                             </Field>
                           </div>

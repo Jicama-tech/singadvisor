@@ -278,6 +278,7 @@ export async function saveEvent(
       // switches, gating which of this form's own tabs are shown.
       "hasSpeakers",
       "hasSponsors",
+      "hasVolunteers",
     ]
       .filter((k) => bool(formData, `feature_${k}`))
       .map((k) => [k, true]),
@@ -351,6 +352,33 @@ export async function saveEvent(
     age: str(formData, `ageRow${i}Age`) || "All Ages",
   })).filter((a) => a.heading);
 
+  const volunteerCount = num(formData, "volunteerCount", 0);
+  const volunteers = Array.from({ length: volunteerCount }, (_, i) => ({
+    name: str(formData, `volunteer${i}Name`),
+    email: str(formData, `volunteer${i}Email`),
+    phoneNumber: str(formData, `volunteer${i}Phone`),
+  })).filter((v) => v.name && v.email);
+
+  const speakerSlotCount = num(formData, "speakerSlotCount", 0);
+  const speakerSlotTemplates = Array.from({ length: speakerSlotCount }, (_, i) => ({
+    id: str(formData, `speakerSlot${i}Id`) || `slot-${i}`,
+    name: str(formData, `speakerSlot${i}Name`),
+    startTime: str(formData, `speakerSlot${i}StartTime`),
+    endTime: str(formData, `speakerSlot${i}EndTime`),
+    isMainStage: bool(formData, `speakerSlot${i}IsMainStage`),
+    slotPrice: num(formData, `speakerSlot${i}Price`, 0),
+    maxSpeakers: num(formData, `speakerSlot${i}MaxSpeakers`, 1),
+    maxVisitors: num(formData, `speakerSlot${i}MaxVisitors`, 0),
+    description: str(formData, `speakerSlot${i}Description`),
+    // Only meaningful once the Space Layout canvas (Phase 8g) exists to
+    // place a slot visually / an application flow assigns a speaker to it.
+    width: 0,
+    height: 0,
+    assignedSpeakerId: "",
+    assignedSpeakerName: "",
+    openForApplications: false,
+  })).filter((s) => s.name);
+
   let image: string;
   let speakerProfiles: Awaited<ReturnType<typeof buildSpeakerProfile>>[];
   try {
@@ -407,6 +435,8 @@ export async function saveEvent(
     featured: bool(formData, "featured"),
     visitorTypes,
     sponsorTypes,
+    volunteers,
+    speakerSlotTemplates,
   };
 
   let slug: string;
