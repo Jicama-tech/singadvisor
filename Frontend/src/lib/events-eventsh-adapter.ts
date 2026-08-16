@@ -100,16 +100,53 @@ interface EventshVisitorTypeDoc {
  * timestamp per field. Passing eventsh's date-only startDate straight
  * through silently zeroed every event's time-of-day and made any same-day
  * event fail that check (start === end, both midnight) — found via a real
- * edit through the admin UI, not assumed. Combines using UTC methods
- * (not the server's local timezone) so the already-UTC-midnight date
- * portion never shifts to a different calendar day. */
+ * edit through the admin UI, not assumed.
+ *
+ * eventsh's `time`/`endTime` are naive "HH:mm" wall-clock strings with no
+ * timezone attached — organizers enter them as their own local time. This
+ * app, unlike eventsh, has exactly one deliberate, code-enforced timezone
+ * rule: every date/time is DISPLAYED in Singapore time regardless of the
+ * viewer's or server's own timezone (utils.ts's `formatDateTime`/
+ * `formatTimeRange`, `timeZone: "Asia/Singapore"`). Naively writing "HH:mm"
+ * as UTC hours (the first version of this function) meant a 9am event
+ * displayed as 5pm — the SGT formatter added another +8h on top. Subtract
+ * Singapore's fixed +8h UTC offset (no DST) here so that when the SGT
+ * formatter adds it back, the original digits come back unchanged. Found
+ * via a real rendered event page, not assumed — the DB-level round-trip
+ * check done for the date-split fix above didn't render through the SGT
+ * formatter, so this second bug wasn't visible there. */
 function combineDateAndTime(dateIso: string, timeStr?: string): string {
   const d = new Date(dateIso);
   if (Number.isNaN(d.getTime()) || !timeStr) return dateIso;
   const match = /^(\d{1,2}):(\d{2})/.exec(timeStr);
   if (!match) return dateIso;
-  d.setUTCHours(Number(match[1]), Number(match[2]), 0, 0);
+  const SGT_OFFSET_HOURS = 8;
+  d.setUTCHours(Number(match[1]) - SGT_OFFSET_HOURS, Number(match[2]), 0, 0);
   return d.toISOString();
+}
+
+/** eventsh's `description` can be rich HTML (some organizers' events were
+ * authored with a rich-text editor there — confirmed against real data:
+ * "Nexus Tech Expo 2026"'s description is literally `<p>...<strong>...`).
+ * This app renders both `summary` and `description` as plain React text
+ * (`{event.summary}` / `<p>{event.description}</p>`, no
+ * dangerouslySetInnerHTML anywhere) — found via a real rendered card
+ * showing literal `<p>`/`<strong>` tags, not assumed. Strips tags and
+ * decodes the handful of entities a rich-text editor is actually likely to
+ * emit, rather than pulling in a full HTML parser for a display-only
+ * cosmetic fix. */
+function stripHtml(input: string): string {
+  if (!input) return "";
+  return input
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function eventshSpeakerToProfile(sp: EventshSpeakerDoc): SpeakerProfile {
@@ -144,8 +181,8 @@ export function fromEventshEvent(raw: EventshEventDoc): EventRow {
     _id: raw._id,
     slug: raw.slug || "",
     title: raw.title || "",
-    summary: raw.description || "", // eventsh has no separate short-excerpt field
-    description: raw.description || "",
+    summary: stripHtml(raw.description || ""), // eventsh has no separate short-excerpt field
+    description: stripHtml(raw.description || ""),
     eventType: raw.eventType || "",
     category: raw.category || "",
     // See combineDateAndTime — eventsh's startDate/endDate are date-only;

@@ -175,15 +175,27 @@ function speakerProfileToEventshSpeaker(s: SpeakerProfileInput, index: number) {
  * timestamp per field (see the matching combineDateAndTime() in
  * events-eventsh-adapter.ts for the read-side half and why this split
  * exists at all — found via a real "end must be after start" failure on
- * the admin edit form, not assumed). Splits using UTC methods so the
- * date portion doesn't shift to a different calendar day depending on the
- * server's local timezone. */
+ * the admin edit form, not assumed).
+ *
+ * Inverse of combineDateAndTime's Singapore-offset handling: this app
+ * displays every date/time in Singapore time regardless of viewer/server
+ * timezone (utils.ts's `formatDateTime`, `timeZone: "Asia/Singapore"`), so
+ * the "HH:mm" eventsh expects has to be the SGT wall-clock reading of this
+ * timestamp, not its raw UTC hours — otherwise a 9am SGT event round-trips
+ * back out as 5pm (found via a real rendered event page after the first,
+ * UTC-only version of this fix; a DB-level check alone didn't render
+ * through the SGT formatter, so it looked correct there). Shift the
+ * instant by +8h first, then read UTC fields off the shifted value — that
+ * also naturally recovers the correct SGT calendar day when the shift
+ * crosses midnight, not just the correct clock digits. */
 function splitDateAndTime(iso: string): { date: string; time: string } {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return { date: iso, time: "" };
+  const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const sgt = new Date(d.getTime() + SGT_OFFSET_MS);
   const pad = (n: number) => String(n).padStart(2, "0");
-  const time = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-  const dateOnly = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const time = `${pad(sgt.getUTCHours())}:${pad(sgt.getUTCMinutes())}`;
+  const dateOnly = new Date(Date.UTC(sgt.getUTCFullYear(), sgt.getUTCMonth(), sgt.getUTCDate()));
   return { date: dateOnly.toISOString(), time };
 }
 
