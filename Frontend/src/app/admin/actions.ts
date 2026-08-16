@@ -351,6 +351,13 @@ export async function saveEvent(
     age: str(formData, `ageRow${i}Age`) || "All Ages",
   })).filter((a) => a.heading);
 
+  // Terms & Conditions for Stall Exhibitors (Phase 9b).
+  const stallTermCount = num(formData, "stallTermCount", 0);
+  const termsAndConditionsforStalls = Array.from({ length: stallTermCount }, (_, i) => ({
+    text: str(formData, `stallTerm${i}Text`),
+    isMandatory: bool(formData, `stallTerm${i}Mandatory`),
+  })).filter((t) => t.text);
+
   const volunteerCount = num(formData, "volunteerCount", 0);
   const volunteers = Array.from({ length: volunteerCount }, (_, i) => ({
     name: str(formData, `volunteer${i}Name`),
@@ -608,6 +615,12 @@ export async function saveEvent(
       bgColor: str(formData, "adBarBgColor") || "#000000",
       textColor: str(formData, "adBarTextColor") || "#ffffff",
     },
+    chatbot: {
+      enabled: bool(formData, "chatbotEnabled"),
+      name: str(formData, "chatbotName"),
+      accentColor: str(formData, "chatbotAccentColor") || "#2563eb",
+    },
+    termsAndConditionsforStalls,
     specialInstructions: str(formData, "specialInstructions"),
     refundPolicy: str(formData, "refundPolicy"),
     termsAndConditions: str(formData, "termsAndConditions"),

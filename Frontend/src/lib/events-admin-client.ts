@@ -25,6 +25,8 @@ import type {
   PositionedSpeakerZone,
   VenueDoor,
   VenueAnnotation,
+  EventChatbot,
+  StallTerm,
 } from "@/lib/events-client";
 
 /** Thrown by every function below — network, auth, or a rejected Backend
@@ -129,6 +131,8 @@ export type EventInput = {
   ageRestrictions?: { heading: string; age: string }[];
   dressCodeTheme?: string;
   adBar?: { visible?: boolean; message?: string; bgColor?: string; textColor?: string };
+  chatbot?: EventChatbot;
+  termsAndConditionsforStalls?: StallTerm[];
   customSections?: CustomSection[];
   image?: string;
   gallery?: string[];
@@ -256,6 +260,7 @@ function toEventshPayload(input: EventInput): Record<string, unknown> {
     speakers: _bareSpeakers, // superseded by speakerProfiles below
     speakerProfiles,
     visitorTypes,
+    termsAndConditionsforStalls,
     ...rest
   } = input;
 
@@ -306,6 +311,14 @@ function toEventshPayload(input: EventInput): Record<string, unknown> {
     category: category || (eventType && eventType !== "general" ? eventType : undefined),
     visitorTypes: visitorTypes?.map(({ soldCount: _soldCount, ...tier }) => tier),
     speakers: (speakerProfiles || []).map((s, i) => speakerProfileToEventshSpeaker(s, i)),
+    // eventsh's DTO item shape nests the text under a self-referential key
+    // (`{ termsAndConditionsforStalls: string }`) rather than a plain `text`
+    // field — renamed here, at the payload boundary, same pattern as the
+    // venue -> location rename above.
+    termsAndConditionsforStalls: termsAndConditionsforStalls?.map((t) => ({
+      termsAndConditionsforStalls: t.text,
+      isMandatory: t.isMandatory,
+    })),
   };
 }
 

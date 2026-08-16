@@ -29,6 +29,19 @@ export type AgendaItem = { time: string; title: string };
 export type CustomSection = { id: string; heading: string; content: string };
 export type AgeRestrictionEntry = { heading: string; age: string };
 export type AdBar = { visible: boolean; message: string; bgColor: string; textColor: string };
+
+/** Public Eventfront chatbot settings (Phase 9b) — eventsh's own DTO shape
+ * (`createEvent.dto.ts`'s `chatbot?: { enabled?, name?, accentColor? }`).
+ * `enabled` shows/hides the floating widget on the public event page;
+ * `name` falls back to "Event Assistant" if blank. */
+export type EventChatbot = { enabled: boolean; name: string; accentColor: string };
+
+/** A single condition a stall/exhibitor must agree to when booking a space
+ * (Phase 9b) — matches eventsh's `termsAndConditionsforStalls` DTO in
+ * substance, renamed to a plain `text` field here rather than the DTO's own
+ * self-referential key name (`{ termsAndConditionsforStalls: string }`);
+ * the rename happens at the payload boundary in toEventshPayload(). */
+export type StallTerm = { text: string; isMandatory: boolean };
 export type SpeakerSocialLinks = {
   linkedin: string;
   instagram: string;
@@ -312,6 +325,8 @@ export type EventRow = {
   dresscode: string;
   dressCodeTheme: string;
   adBar: AdBar;
+  chatbot: EventChatbot;
+  termsAndConditionsforStalls: StallTerm[];
   specialInstructions: string;
   refundPolicy: string;
   termsAndConditions: string;

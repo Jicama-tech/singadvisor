@@ -59,6 +59,8 @@ export interface EventshEventDoc {
   dresscode?: string;
   dressCodeTheme?: string;
   adBar?: { visible?: boolean; message?: string; bgColor?: string; textColor?: string };
+  chatbot?: { enabled?: boolean; name?: string; accentColor?: string };
+  termsAndConditionsforStalls?: { termsAndConditionsforStalls?: string; isMandatory?: boolean }[];
   specialInstructions?: string;
   refundPolicy?: string;
   termsAndConditions?: string;
@@ -261,6 +263,15 @@ export function fromEventshEvent(raw: EventshEventDoc): EventRow {
       bgColor: raw.adBar?.bgColor || "",
       textColor: raw.adBar?.textColor || "",
     },
+    chatbot: {
+      enabled: raw.chatbot?.enabled ?? false,
+      name: raw.chatbot?.name || "",
+      accentColor: raw.chatbot?.accentColor || "",
+    },
+    termsAndConditionsforStalls: (raw.termsAndConditionsforStalls || []).map((t) => ({
+      text: t.termsAndConditionsforStalls || "",
+      isMandatory: t.isMandatory ?? false,
+    })),
     specialInstructions: raw.specialInstructions || "",
     refundPolicy: raw.refundPolicy || "",
     termsAndConditions: raw.termsAndConditions || "",

@@ -150,6 +150,14 @@ function emptyVolunteerRow(): VolunteerRow {
   return { key: nextKey(), name: "", email: "", phoneNumber: "" };
 }
 
+/** Terms & Conditions for Stall Exhibitors (Phase 9b) — a condition an
+ * exhibitor must check off when booking a space, matching eventsh's
+ * Basic Info tab exactly. */
+type StallTermRow = { key: string; text: string; isMandatory: boolean };
+function emptyStallTermRow(): StallTermRow {
+  return { key: nextKey(), text: "", isMandatory: false };
+}
+
 /** Eventsh's "Speaker Space" — a bookable session slot (name/time/price/
  * capacity), distinct from the speaker profile cards above. Genuinely
  * useful on its own as a schedule of slots even without the Space Layout
@@ -455,6 +463,11 @@ export function EventForm({ event }: { event?: EventRow }) {
     email: v.email,
     phoneNumber: v.phoneNumber,
   }));
+  const initialStallTerms: StallTermRow[] = (event?.termsAndConditionsforStalls ?? []).map((t) => ({
+    key: nextKey(),
+    text: t.text,
+    isMandatory: t.isMandatory,
+  }));
   const initialSpeakerSlots: SpeakerSlotRow[] = (event?.speakerSlotTemplates ?? []).map((s) => ({
     key: nextKey(),
     id: s.id,
@@ -625,6 +638,7 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [speakerRows, setSpeakerRows] = useState<SpeakerRow[]>(initialSpeakers);
   const [sponsorRows, setSponsorRows] = useState<SponsorRow[]>(initialSponsors);
   const [volunteerRows, setVolunteerRows] = useState<VolunteerRow[]>(initialVolunteers);
+  const [stallTermRows, setStallTermRows] = useState<StallTermRow[]>(initialStallTerms);
   const [speakerSlotRows, setSpeakerSlotRows] = useState<SpeakerSlotRow[]>(initialSpeakerSlots);
   const [roundTableRows, setRoundTableRows] = useState<RoundTableRow[]>(initialRoundTables);
   const [workshopSessionRows, setWorkshopSessionRows] = useState<WorkshopSessionRow[]>(initialWorkshopSessions);
@@ -736,6 +750,16 @@ export function EventForm({ event }: { event?: EventRow }) {
   }
   function removeVolunteer(key: string) {
     setVolunteerRows((rows) => rows.filter((r) => r.key !== key));
+  }
+
+  function updateStallTerm(key: string, patch: Partial<StallTermRow>) {
+    setStallTermRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addStallTerm() {
+    setStallTermRows((rows) => [...rows, emptyStallTermRow()]);
+  }
+  function removeStallTerm(key: string) {
+    setStallTermRows((rows) => rows.filter((r) => r.key !== key));
   }
 
   function updateSpeakerSlot(key: string, patch: Partial<SpeakerSlotRow>) {
@@ -901,6 +925,7 @@ export function EventForm({ event }: { event?: EventRow }) {
             <input type="hidden" name="speakerCount" value={speakerRows.length} />
             <input type="hidden" name="sponsorCount" value={sponsorRows.length} />
             <input type="hidden" name="volunteerCount" value={volunteerRows.length} />
+            <input type="hidden" name="stallTermCount" value={stallTermRows.length} />
             <input type="hidden" name="speakerSlotCount" value={speakerSlotRows.length} />
             <input type="hidden" name="roundTableCount" value={roundTableRows.length} />
             <input type="hidden" name="workshopSessionCount" value={workshopSessionRows.length} />
@@ -1187,6 +1212,83 @@ export function EventForm({ event }: { event?: EventRow }) {
                       <Icon name="plus" size={16} />
                       Add custom section
                     </Button>
+                  </FormSection>
+
+                  <FormSection
+                    title="Terms &amp; Conditions for Stall Exhibitors"
+                    description="Each condition appears as a checkbox exhibitors must agree to when booking a stall."
+                  >
+                    <div className="flex flex-col gap-3">
+                      {stallTermRows.map((row, i) => (
+                        <div key={row.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                          <input type="hidden" name={`stallTerm${i}Text`} value={row.text} />
+                          <Field label={`Condition ${i + 1}`} htmlFor={`stallTerm${i}-text`}>
+                            <Textarea
+                              id={`stallTerm${i}-text`}
+                              rows={2}
+                              placeholder="e.g. Goods once sold are non-refundable."
+                              value={row.text}
+                              onChange={(e) => updateStallTerm(row.key, { text: e.target.value })}
+                            />
+                          </Field>
+                          <div className="mt-2 flex items-center justify-between">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+                              <input
+                                type="checkbox"
+                                name={`stallTerm${i}Mandatory`}
+                                checked={row.isMandatory}
+                                onChange={(e) => updateStallTerm(row.key, { isMandatory: e.target.checked })}
+                                className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                              />
+                              Mandatory — exhibitor must accept to proceed
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeStallTerm(row.key)}
+                              className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                            >
+                              <Icon name="x" size={14} />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <Button type="button" variant="secondary" onClick={addStallTerm}>
+                      <Icon name="plus" size={16} />
+                      Add condition
+                    </Button>
+                  </FormSection>
+
+                  <FormSection
+                    title="Event chatbot"
+                    description="A floating AI chat on your public event page that answers visitor questions using this event's details."
+                  >
+                    <Toggle
+                      name="chatbotEnabled"
+                      label="Enable chatbot"
+                      defaultChecked={submitted ? values.chatbotEnabled === "on" : (event?.chatbot?.enabled ?? false)}
+                    />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Chatbot name" htmlFor="e-chatbotName" hint="Defaults to “Event Assistant”.">
+                        <Input
+                          id="e-chatbotName"
+                          name="chatbotName"
+                          maxLength={40}
+                          placeholder="Event Assistant"
+                          defaultValue={values.chatbotName ?? event?.chatbot?.name}
+                        />
+                      </Field>
+                      <Field label="Theme colour" htmlFor="e-chatbotAccentColor">
+                        <Input
+                          id="e-chatbotAccentColor"
+                          name="chatbotAccentColor"
+                          type="color"
+                          className="h-11 p-1"
+                          defaultValue={values.chatbotAccentColor ?? event?.chatbot?.accentColor ?? "#2563eb"}
+                        />
+                      </Field>
+                    </div>
                   </FormSection>
                 </div>
               </TabsContent>
