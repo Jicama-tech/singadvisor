@@ -52,7 +52,12 @@ export function EventsNestedNav() {
 
   return (
     <nav
-      className="flex shrink-0 flex-col gap-0.5 border-[var(--border-subtle)] p-3 lg:sticky lg:top-8 lg:max-h-[calc(100vh-5rem)] lg:w-56 lg:overflow-y-auto lg:border-r"
+      // top-24 (6rem = the header's own h-16/4rem + the original 2rem gap)
+      // clears AdminShell's now-also-sticky header instead of sitting behind
+      // it; max-height trims the same 6rem off the top plus a matching 2rem
+      // at the bottom so the nav's own scroll (once there are enough tabs to
+      // need it) never runs under the header or off the bottom of the screen.
+      className="flex shrink-0 flex-col gap-0.5 border-[var(--border-subtle)] p-3 lg:sticky lg:top-24 lg:z-20 lg:max-h-[calc(100vh-8rem)] lg:w-56 lg:overflow-y-auto lg:border-r"
       aria-label="Organizer dashboard"
     >
       <p className="hidden px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] lg:block">

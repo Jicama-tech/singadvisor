@@ -164,7 +164,12 @@ export function AdminShell({
 
       {/* ---- Main ------------------------------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center gap-3 border-b border-[var(--border-subtle)] surface-raised px-4 lg:px-8">
+        {/* Sticky so it stays in view while `main` scrolls, matching the
+            primary sidebar and (now offset to clear this) the Events
+            nested nav. z-30 keeps it above ordinary scrolling content;
+            the primary sidebar (a separate column, never visually
+            overlaps this) doesn't need the same treatment. */}
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border-subtle)] surface-raised px-4 lg:px-8">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
