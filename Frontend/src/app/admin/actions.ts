@@ -238,20 +238,6 @@ export async function saveEvent(
       values: collectValues(formData),
     };
 
-  // Agenda rows arrive as "9:00 am | Registration" one per line.
-  const agenda = str(formData, "agenda")
-    .split("\n")
-    .map((line) => {
-      const [time, ...rest] = line.split("|");
-      return { time: time?.trim() ?? "", title: rest.join("|").trim() };
-    })
-    .filter((row) => row.time && row.title);
-
-  const speakers = str(formData, "speakers")
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   const tags = str(formData, "tags")
     .split(",")
     .map((s) => s.trim())
@@ -273,19 +259,20 @@ export async function saveEvent(
       .filter(([, v]) => v),
   );
 
+  // Module toggles — mirrors eventsh-v1's Venue-tab "Event Sections"
+  // switches, gating which of this form's own tabs are shown. No
+  // `food`/`parking`/`wifi`/etc. "Amenities" keys here — those are real,
+  // declared fields on eventsh's own `features` schema, but its own
+  // CreateEventForm never exposes any UI to set them (confirmed: no
+  // "Amenities" text anywhere in that file), so this form doesn't either,
+  // matching what an eventsh Organizer actually sees. No `hasVolunteers`
+  // either — eventsh's Volunteers tab is unconditionally shown and its
+  // schema doesn't declare that key at all (see event.schema.ts's
+  // `features` type).
   const features = Object.fromEntries(
     [
-      "food",
-      "parking",
-      "wifi",
-      "photography",
-      "security",
-      "accessibility",
-      // Module toggles — mirrors eventsh-v1's Venue-tab "Event Sections"
-      // switches, gating which of this form's own tabs are shown.
       "hasSpeakers",
       "hasSponsors",
-      "hasVolunteers",
       "hasRoundTables",
       "hasWorkshops",
       "hasSpaces",
@@ -630,10 +617,7 @@ export async function saveEvent(
     reelLinks,
     socialMedia,
     status: (str(formData, "status") || "draft") as "draft" | "published" | "cancelled",
-    speakers,
     speakerProfiles,
-    agenda,
-    currency: str(formData, "currency") || "SGD",
     published: bool(formData, "published"),
     featured: bool(formData, "featured"),
     visitorTypes,

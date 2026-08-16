@@ -352,15 +352,6 @@ function emptyScheduledSpaceRow(): ScheduledSpaceRow {
 
 const AGE_OPTIONS = ["All Ages", "13+", "16+", "18+", "21+"];
 
-const FEATURE_FLAGS: { key: string; label: string }[] = [
-  { key: "food", label: "Food provided" },
-  { key: "parking", label: "Parking available" },
-  { key: "wifi", label: "Wi-Fi" },
-  { key: "photography", label: "Photography" },
-  { key: "security", label: "Security on site" },
-  { key: "accessibility", label: "Wheelchair accessible" },
-];
-
 /** Small standalone form for bulk-generating equal time slots (eventsh's
  * "Slot AI" tool) — a top-level component, not nested inside EventForm, so
  * its own local input state doesn't get wiped by every EventForm re-render. */
@@ -405,17 +396,18 @@ function SlotGenerator({
 
 /**
  * Every field eventsh-v1's own admin event form exposes, grouped into the
- * same tab-wise layout its own form uses (Basic Info / Media / Visitors /
- * Venue, ...) — the field set and organization are ported from there, but
- * every input here is SingAdvisor's own `FormSection`/`Field`/`Toggle`
- * design system, not eventsh's UI. Tabs eventsh-v1 has that depend on
- * domains not built yet in this port (Volunteers, Seating, Spaces,
- * Speakers-as-applications, Workshops, Round Tables, Sponsors, Schedule,
- * Space Layout — see the event-ops port plan's later phases) are
- * deliberately not reproduced: a tab with no working Backend behind it would
- * be worse than not showing it. "Programme" and "Policies & extras" are this
- * form's own grouping for fields the Backend already models (event.entity.ts)
- * that eventsh-v1 splits differently across its much larger Basic Info tab.
+ * SAME tab-wise layout its own form uses (Basic Info / Media / Visitors /
+ * Volunteers / Venue / [Speakers] / [Sponsors] / [Round Tables] /
+ * [Workshops] / [Spaces] / [Schedule] / [Space Layout]) — a real, direct
+ * field-by-field/tab-by-tab match against eventsh-v1's own CreateEventForm.tsx
+ * (Phase 9), not this form's own earlier ad-hoc grouping. Every input here is
+ * still SingAdvisor's own `FormSection`/`Field`/`Toggle` design system, not
+ * eventsh's shadcn/Radix UI — structural parity (same tabs, same fields, same
+ * data), not a visual clone. Volunteers is unconditionally shown, matching
+ * eventsh exactly (its own tab has no Event Sections gate either). "Seating"
+ * (eventsh's cinema/concert-row module) is the one remaining real gap,
+ * deliberately not built — it depends on the Space Layout canvas's "draw row"
+ * bulk-seat tool, which Phase 8g's own scope explicitly left out of its MVP.
  */
 export function EventForm({ event }: { event?: EventRow }) {
   const initialTiers: TierRow[] =
@@ -656,9 +648,6 @@ export function EventForm({ event }: { event?: EventRow }) {
   const [hasSponsors, setHasSponsors] = useState(
     Boolean(event?.features?.hasSponsors) || (event?.sponsorTypes.length ?? 0) > 0,
   );
-  const [hasVolunteers, setHasVolunteers] = useState(
-    Boolean(event?.features?.hasVolunteers) || (event?.volunteers.length ?? 0) > 0,
-  );
   const [hasRoundTables, setHasRoundTables] = useState(
     Boolean(event?.features?.hasRoundTables) || (event?.roundTableTemplates.length ?? 0) > 0,
   );
@@ -883,13 +872,10 @@ export function EventForm({ event }: { event?: EventRow }) {
     );
   }
 
-  const agendaLines = (event?.agenda ?? []).map((a) => `${a.time} | ${a.title}`).join("\n");
-  const speakersLines = (event?.speakers ?? []).join("\n");
   const tagsLine = (event?.tags ?? []).join(", ");
   const galleryLines = (event?.gallery ?? []).join("\n");
   const reelLines = (event?.reelLinks ?? []).join("\n");
   const social = event?.socialMedia ?? {};
-  const features = event?.features ?? {};
 
   return (
     <AdminForm
@@ -936,20 +922,22 @@ export function EventForm({ event }: { event?: EventRow }) {
 
             <Tabs defaultValue="basic">
               <TabsList>
+                {/* Fixed tabs, in eventsh's own order (Basic Info, Media,
+                    Visitors, Volunteers, Venue) — Volunteers is unconditional
+                    there too, not gated by an Event Sections switch, matched
+                    here for the same reason. */}
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                <TabsTrigger value="schedule">Schedule &amp; Venue</TabsTrigger>
-                <TabsTrigger value="tickets">Tickets</TabsTrigger>
                 <TabsTrigger value="media">Media</TabsTrigger>
-                <TabsTrigger value="programme">Programme</TabsTrigger>
+                <TabsTrigger value="tickets">Visitors</TabsTrigger>
+                <TabsTrigger value="volunteers">Volunteers</TabsTrigger>
+                <TabsTrigger value="schedule">Venue</TabsTrigger>
                 {hasSpeakers && <TabsTrigger value="speakers">Speakers</TabsTrigger>}
                 {hasSponsors && <TabsTrigger value="sponsors">Sponsors</TabsTrigger>}
-                {hasVolunteers && <TabsTrigger value="volunteers">Volunteers</TabsTrigger>}
                 {hasRoundTables && <TabsTrigger value="roundtables">Round Tables</TabsTrigger>}
                 {hasWorkshops && <TabsTrigger value="workshops">Workshops</TabsTrigger>}
                 {hasSpaces && <TabsTrigger value="spaces">Spaces</TabsTrigger>}
-                {hasScheduledSpaces && <TabsTrigger value="schedule-spaces">Scheduled Spaces</TabsTrigger>}
+                {hasScheduledSpaces && <TabsTrigger value="schedule-spaces">Schedule</TabsTrigger>}
                 {hasSpaceLayout && <TabsTrigger value="space-layout">Space Layout</TabsTrigger>}
-                <TabsTrigger value="policies">Policies &amp; extras</TabsTrigger>
               </TabsList>
 
               {/* ---- Basic Info ------------------------------------------------ */}
@@ -1015,51 +1003,209 @@ export function EventForm({ event }: { event?: EventRow }) {
                       defaultChecked={submitted ? values.featured === "on" : (event?.featured ?? false)}
                     />
                   </FormSection>
+
+                  {/* Dates/venue/address + social links live here, matching
+                      eventsh's own single "Event Information" card — this
+                      form previously split them across "Schedule & Venue"
+                      and part of "Media". */}
+                  <FormSection title="When and where">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Starts" htmlFor="e-starts" required error={errors.startsAt}>
+                        <Input
+                          id="e-starts"
+                          name="startsAt"
+                          type="datetime-local"
+                          required
+                          defaultValue={values.startsAt ?? toLocalInput(event?.startDate)}
+                        />
+                      </Field>
+                      <Field label="Ends" htmlFor="e-ends" required error={errors.endsAt}>
+                        <Input
+                          id="e-ends"
+                          name="endsAt"
+                          type="datetime-local"
+                          required
+                          defaultValue={values.endsAt ?? toLocalInput(event?.endDate)}
+                        />
+                      </Field>
+                      <Field label="Location" htmlFor="e-location" hint="City/area, e.g. Singapore.">
+                        <Input id="e-location" name="location" defaultValue={values.location ?? event?.location} />
+                      </Field>
+                      <Field label="Venue" htmlFor="e-venue" error={errors.venue}>
+                        <Input id="e-venue" name="venue" defaultValue={values.venue ?? event?.venue} />
+                      </Field>
+                    </div>
+
+                    <Field label="Full address" htmlFor="e-address" error={errors.address}>
+                      <Input id="e-address" name="address" defaultValue={values.address ?? event?.address} />
+                    </Field>
+                  </FormSection>
+
+                  <FormSection title="Social links">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Facebook" htmlFor="e-facebook">
+                        <Input id="e-facebook" name="facebook" defaultValue={values.facebook ?? social.facebook} />
+                      </Field>
+                      <Field label="Instagram" htmlFor="e-instagram">
+                        <Input id="e-instagram" name="instagram" defaultValue={values.instagram ?? social.instagram} />
+                      </Field>
+                    </div>
+                    {/* Twitter/LinkedIn inputs are removed to match eventsh's
+                        own Basic Info tab exactly (it only exposes Facebook
+                        and Instagram) — but a value already saved on an
+                        existing event is preserved via these hidden fields
+                        rather than silently cleared on next save. */}
+                    <input type="hidden" name="twitter" value={social.twitter ?? ""} />
+                    <input type="hidden" name="linkedin" value={social.linkedin ?? ""} />
+                  </FormSection>
+
+                  {/* Matches eventsh's Basic Info "Event Settings" card —
+                      age/dress code, policies and custom sections all live
+                      here, not on their own tab. */}
+                  <FormSection title="Event settings">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Age restriction" htmlFor="e-ageRestriction" hint="General default, e.g. 18+, All ages">
+                        <Input id="e-ageRestriction" name="ageRestriction" defaultValue={values.ageRestriction ?? event?.ageRestriction} />
+                      </Field>
+                      <Field label="Dress code" htmlFor="e-dresscode">
+                        <Input id="e-dresscode" name="dresscode" defaultValue={values.dresscode ?? event?.dresscode} />
+                      </Field>
+                    </div>
+                    <Field label="Dress code theme" htmlFor="e-dressCodeTheme" hint="e.g. Great Gatsby, All White, Bollywood Retro">
+                      <Input id="e-dressCodeTheme" name="dressCodeTheme" defaultValue={values.dressCodeTheme ?? event?.dressCodeTheme} />
+                    </Field>
+
+                    <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-[var(--text-primary)]">Custom age restrictions</p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            A different age limit per purpose — e.g. &quot;Vendors&quot;, &quot;Round Tables&quot;.
+                          </p>
+                        </div>
+                        <Button type="button" variant="secondary" size="sm" onClick={addAgeRow}>
+                          <Icon name="plus" size={14} />
+                          Add
+                        </Button>
+                      </div>
+                      {ageRows.length === 0 ? (
+                        <p className="mt-3 text-xs text-[var(--text-muted)]">
+                          None added. The general Age restriction above applies to everyone.
+                        </p>
+                      ) : (
+                        <div className="mt-3 flex flex-col gap-2">
+                          {ageRows.map((row, i) => (
+                            <div key={row.key} className="flex items-center gap-2">
+                              <input type="hidden" name={`ageRow${i}Heading`} value={row.heading} />
+                              <input type="hidden" name={`ageRow${i}Age`} value={row.age} />
+                              <Input
+                                placeholder="Heading (e.g. Vendors)"
+                                value={row.heading}
+                                onChange={(e) => updateAgeRow(row.key, { heading: e.target.value })}
+                                className="flex-1"
+                              />
+                              <Select
+                                value={row.age}
+                                onChange={(e) => updateAgeRow(row.key, { age: e.target.value })}
+                                className="w-32 shrink-0"
+                              >
+                                {AGE_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </Select>
+                              <button
+                                type="button"
+                                onClick={() => removeAgeRow(row.key)}
+                                className="shrink-0 text-[var(--text-muted)] hover:text-red-600"
+                                aria-label="Remove"
+                              >
+                                <Icon name="x" size={16} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <Field label="Special instructions" htmlFor="e-specialInstructions">
+                      <Textarea
+                        id="e-specialInstructions"
+                        name="specialInstructions"
+                        rows={3}
+                        defaultValue={values.specialInstructions ?? event?.specialInstructions}
+                      />
+                    </Field>
+                    <Field label="Refund policy" htmlFor="e-refundPolicy">
+                      <Textarea id="e-refundPolicy" name="refundPolicy" rows={3} defaultValue={values.refundPolicy ?? event?.refundPolicy} />
+                    </Field>
+                    <Field label="Terms and conditions" htmlFor="e-termsAndConditions">
+                      <Textarea
+                        id="e-termsAndConditions"
+                        name="termsAndConditions"
+                        rows={4}
+                        defaultValue={values.termsAndConditions ?? event?.termsAndConditions}
+                      />
+                    </Field>
+                  </FormSection>
+
+                  <FormSection title="Custom sections" description="Extra free-form blocks shown on the event page — FAQs, sponsor info, anything else.">
+                    <div className="flex flex-col gap-4">
+                      {sections.map((section, i) => (
+                        <div key={section.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                          <input type="hidden" name={`section${i}Heading`} value={section.heading} />
+                          <input type="hidden" name={`section${i}Content`} value={section.content} />
+                          <div className="flex flex-col gap-3">
+                            <Field label="Heading" htmlFor={`section${i}-heading`}>
+                              <Input
+                                id={`section${i}-heading`}
+                                value={section.heading}
+                                onChange={(e) => updateSection(section.key, { heading: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Content" htmlFor={`section${i}-content`}>
+                              <RichTextEditor
+                                value={section.content}
+                                onChange={(html) => updateSection(section.key, { content: html })}
+                                placeholder="Write this section's content…"
+                              />
+                            </Field>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeSection(section.key)}
+                            className="mt-3 flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                          >
+                            <Icon name="x" size={14} />
+                            Remove section
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <Button type="button" variant="secondary" onClick={addSection}>
+                      <Icon name="plus" size={16} />
+                      Add custom section
+                    </Button>
+                  </FormSection>
                 </div>
               </TabsContent>
 
-              {/* ---- Schedule & Venue ------------------------------------------ */}
+              {/* ---- Venue (Event Sections module toggles only — dates/
+                  location/address moved to Basic Info, matching eventsh's
+                  own "Venue" tab exactly: it's the spatial/module config,
+                  not scheduling) ------------------------------------------ */}
               <TabsContent value="schedule" className="mt-6">
-                <FormSection title="When and where">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Starts" htmlFor="e-starts" required error={errors.startsAt}>
-                      <Input
-                        id="e-starts"
-                        name="startsAt"
-                        type="datetime-local"
-                        required
-                        defaultValue={values.startsAt ?? toLocalInput(event?.startDate)}
-                      />
-                    </Field>
-                    <Field label="Ends" htmlFor="e-ends" required error={errors.endsAt}>
-                      <Input
-                        id="e-ends"
-                        name="endsAt"
-                        type="datetime-local"
-                        required
-                        defaultValue={values.endsAt ?? toLocalInput(event?.endDate)}
-                      />
-                    </Field>
-                    <Field label="Location" htmlFor="e-location" hint="City/area, e.g. Singapore.">
-                      <Input id="e-location" name="location" defaultValue={values.location ?? event?.location} />
-                    </Field>
-                    <Field label="Venue" htmlFor="e-venue" error={errors.venue}>
-                      <Input id="e-venue" name="venue" defaultValue={values.venue ?? event?.venue} />
-                    </Field>
-                  </div>
-
-                  <Field label="Full address" htmlFor="e-address" error={errors.address}>
-                    <Input id="e-address" name="address" defaultValue={values.address ?? event?.address} />
-                  </Field>
-                </FormSection>
-
                 <FormSection
                   title="Event modules"
                   description="Turn on the extras this event actually uses — its tab appears once switched on. Off by default so the form doesn't show tabs with nothing in them."
                 >
                   <input type="hidden" name="feature_hasSpeakers" value={hasSpeakers ? "on" : ""} />
                   <input type="hidden" name="feature_hasSponsors" value={hasSponsors ? "on" : ""} />
-                  <input type="hidden" name="feature_hasVolunteers" value={hasVolunteers ? "on" : ""} />
+                  {/* Volunteers has no toggle here, and no feature_hasVolunteers
+                      hidden field either — matches eventsh exactly, whose
+                      Volunteers tab is always visible AND whose own schema
+                      doesn't declare a hasVolunteers module flag at all. */}
                   <input type="hidden" name="feature_hasRoundTables" value={hasRoundTables ? "on" : ""} />
                   <input type="hidden" name="feature_hasWorkshops" value={hasWorkshops ? "on" : ""} />
                   <input type="hidden" name="feature_hasSpaces" value={hasSpaces ? "on" : ""} />
@@ -1091,20 +1237,6 @@ export function EventForm({ event }: { event?: EventRow }) {
                         <span className="block text-sm font-medium text-[var(--text-primary)]">Sponsors</span>
                         <span className="block text-xs text-[var(--text-muted)]">
                           Sponsorship tiers with a public &quot;Become a sponsor&quot; application form.
-                        </span>
-                      </span>
-                    </label>
-                    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
-                      <input
-                        type="checkbox"
-                        checked={hasVolunteers}
-                        onChange={(e) => setHasVolunteers(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-[var(--text-primary)]">Volunteers</span>
-                        <span className="block text-xs text-[var(--text-muted)]">
-                          A contact list for door/scanner access — name, email, phone.
                         </span>
                       </span>
                     </label>
@@ -1188,14 +1320,10 @@ export function EventForm({ event }: { event?: EventRow }) {
                   title="Ticket tiers"
                   description="Each tier is a separately priced, separately capped ticket type — e.g. General Admission, VIP. Quantities sold against a tier are preserved automatically when you edit it here."
                 >
-                  <Field label="Currency" htmlFor="e-currency" className="max-w-32">
-                    <Select id="e-currency" name="currency" defaultValue={values.currency ?? event?.currency ?? "SGD"}>
-                      <option value="SGD">SGD</option>
-                      <option value="USD">USD</option>
-                      <option value="INR">INR</option>
-                    </Select>
-                  </Field>
-
+                  {/* No currency selector — eventsh has no per-event currency
+                      field either (it derives currency from the Organizer's
+                      own country); price labels below still show the read-side
+                      event?.currency for context, just not editable here. */}
                   <div className="flex flex-col gap-4">
                     {tiers.map((tier, i) => (
                       <div key={tier.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
@@ -1377,46 +1505,10 @@ export function EventForm({ event }: { event?: EventRow }) {
                     <Field label="Reel / video links" htmlFor="e-reelLinks" hint="One link per line.">
                       <Textarea id="e-reelLinks" name="reelLinks" rows={3} defaultValue={values.reelLinks ?? reelLines} />
                     </Field>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="Facebook" htmlFor="e-facebook">
-                        <Input id="e-facebook" name="facebook" defaultValue={values.facebook ?? social.facebook} />
-                      </Field>
-                      <Field label="Instagram" htmlFor="e-instagram">
-                        <Input id="e-instagram" name="instagram" defaultValue={values.instagram ?? social.instagram} />
-                      </Field>
-                      <Field label="Twitter / X" htmlFor="e-twitter">
-                        <Input id="e-twitter" name="twitter" defaultValue={values.twitter ?? social.twitter} />
-                      </Field>
-                      <Field label="LinkedIn" htmlFor="e-linkedin">
-                        <Input id="e-linkedin" name="linkedin" defaultValue={values.linkedin ?? social.linkedin} />
-                      </Field>
-                    </div>
+                    {/* Social links moved to Basic Info, matching eventsh's
+                        own placement (its Event Information card, not Media). */}
                   </FormSection>
                 </div>
-              </TabsContent>
-
-              {/* ---- Programme --------------------------------------------------- */}
-              <TabsContent value="programme" className="mt-6">
-                <FormSection title="Programme">
-                  <Field label="Speakers" htmlFor="e-speakers" hint="One name per line." error={errors.speakers}>
-                    <Textarea id="e-speakers" name="speakers" rows={4} defaultValue={values.speakers ?? speakersLines} />
-                  </Field>
-                  <Field
-                    label="Agenda"
-                    htmlFor="e-agenda"
-                    hint="One row per line, formatted as: time | item"
-                    error={errors.agenda}
-                  >
-                    <Textarea
-                      id="e-agenda"
-                      name="agenda"
-                      rows={6}
-                      defaultValue={values.agenda ?? agendaLines}
-                      placeholder={"9:00 am | Registration\n9:30 am | Opening session"}
-                    />
-                  </Field>
-                </FormSection>
               </TabsContent>
 
               {/* ---- Speakers (eventsh-v1's "Speakers" tab, minus the venue-zone
@@ -2717,152 +2809,15 @@ export function EventForm({ event }: { event?: EventRow }) {
                 </FormSection>
               </TabsContent>
 
-              {/* ---- Policies & extras -------------------------------------------- */}
-              <TabsContent value="policies" className="mt-6">
-                <div className="flex flex-col gap-6">
-                  <FormSection title="Attendee info">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="Age restriction" htmlFor="e-ageRestriction" hint="General default, e.g. 18+, All ages">
-                        <Input id="e-ageRestriction" name="ageRestriction" defaultValue={values.ageRestriction ?? event?.ageRestriction} />
-                      </Field>
-                      <Field label="Dress code" htmlFor="e-dresscode">
-                        <Input id="e-dresscode" name="dresscode" defaultValue={values.dresscode ?? event?.dresscode} />
-                      </Field>
-                    </div>
-                    <Field label="Dress code theme" htmlFor="e-dressCodeTheme" hint="e.g. Great Gatsby, All White, Bollywood Retro">
-                      <Input id="e-dressCodeTheme" name="dressCodeTheme" defaultValue={values.dressCodeTheme ?? event?.dressCodeTheme} />
-                    </Field>
-
-                    <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium text-[var(--text-primary)]">Custom age restrictions</p>
-                          <p className="text-xs text-[var(--text-muted)]">
-                            A different age limit per purpose — e.g. &quot;Vendors&quot;, &quot;Round Tables&quot;.
-                          </p>
-                        </div>
-                        <Button type="button" variant="secondary" size="sm" onClick={addAgeRow}>
-                          <Icon name="plus" size={14} />
-                          Add
-                        </Button>
-                      </div>
-                      {ageRows.length === 0 ? (
-                        <p className="mt-3 text-xs text-[var(--text-muted)]">
-                          None added. The general Age restriction above applies to everyone.
-                        </p>
-                      ) : (
-                        <div className="mt-3 flex flex-col gap-2">
-                          {ageRows.map((row, i) => (
-                            <div key={row.key} className="flex items-center gap-2">
-                              <input type="hidden" name={`ageRow${i}Heading`} value={row.heading} />
-                              <input type="hidden" name={`ageRow${i}Age`} value={row.age} />
-                              <Input
-                                placeholder="Heading (e.g. Vendors)"
-                                value={row.heading}
-                                onChange={(e) => updateAgeRow(row.key, { heading: e.target.value })}
-                                className="flex-1"
-                              />
-                              <Select
-                                value={row.age}
-                                onChange={(e) => updateAgeRow(row.key, { age: e.target.value })}
-                                className="w-32 shrink-0"
-                              >
-                                {AGE_OPTIONS.map((opt) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
-                                ))}
-                              </Select>
-                              <button
-                                type="button"
-                                onClick={() => removeAgeRow(row.key)}
-                                className="shrink-0 text-[var(--text-muted)] hover:text-red-600"
-                                aria-label="Remove"
-                              >
-                                <Icon name="x" size={16} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <Field label="Special instructions" htmlFor="e-specialInstructions">
-                      <Textarea
-                        id="e-specialInstructions"
-                        name="specialInstructions"
-                        rows={3}
-                        defaultValue={values.specialInstructions ?? event?.specialInstructions}
-                      />
-                    </Field>
-                    <Field label="Refund policy" htmlFor="e-refundPolicy">
-                      <Textarea id="e-refundPolicy" name="refundPolicy" rows={3} defaultValue={values.refundPolicy ?? event?.refundPolicy} />
-                    </Field>
-                    <Field label="Terms and conditions" htmlFor="e-termsAndConditions">
-                      <Textarea
-                        id="e-termsAndConditions"
-                        name="termsAndConditions"
-                        rows={4}
-                        defaultValue={values.termsAndConditions ?? event?.termsAndConditions}
-                      />
-                    </Field>
-                  </FormSection>
-
-                  <FormSection title="Amenities">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {FEATURE_FLAGS.map((f) => (
-                        <Toggle
-                          key={f.key}
-                          name={`feature_${f.key}`}
-                          label={f.label}
-                          defaultChecked={
-                            submitted ? values[`feature_${f.key}`] === "on" : Boolean(features[f.key])
-                          }
-                        />
-                      ))}
-                    </div>
-                  </FormSection>
-
-                  <FormSection title="Custom sections" description="Extra free-form blocks shown on the event page — FAQs, sponsor info, anything else.">
-                    <div className="flex flex-col gap-4">
-                      {sections.map((section, i) => (
-                        <div key={section.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
-                          <input type="hidden" name={`section${i}Heading`} value={section.heading} />
-                          <input type="hidden" name={`section${i}Content`} value={section.content} />
-                          <div className="flex flex-col gap-3">
-                            <Field label="Heading" htmlFor={`section${i}-heading`}>
-                              <Input
-                                id={`section${i}-heading`}
-                                value={section.heading}
-                                onChange={(e) => updateSection(section.key, { heading: e.target.value })}
-                              />
-                            </Field>
-                            <Field label="Content" htmlFor={`section${i}-content`}>
-                              <RichTextEditor
-                                value={section.content}
-                                onChange={(html) => updateSection(section.key, { content: html })}
-                                placeholder="Write this section's content…"
-                              />
-                            </Field>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeSection(section.key)}
-                            className="mt-3 flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
-                          >
-                            <Icon name="x" size={14} />
-                            Remove section
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <Button type="button" variant="secondary" onClick={addSection}>
-                      <Icon name="plus" size={16} />
-                      Add custom section
-                    </Button>
-                  </FormSection>
-                </div>
-              </TabsContent>
+              {/* Policies & extras (age/dress code, custom age restrictions,
+                  special instructions, refund policy, terms & conditions,
+                  custom sections, and "Amenities") deleted as its own tab —
+                  the real content moved into Basic Info's "Event settings"
+                  section, matching eventsh's own placement exactly. Amenities
+                  itself was dropped outright: real, schema-declared fields on
+                  eventsh (food/parking/wifi/photography/security/
+                  accessibility), but its own CreateEventForm never exposes
+                  any UI to set them either. */}
             </Tabs>
           </div>
         );
