@@ -602,7 +602,16 @@ export async function saveEvent(
   }
 
   const input = {
-    slug: str(formData, "slug") || undefined,
+    // Auto-generate from the title when left blank — matches the field's
+    // own hint text ("Leave blank to generate from the title") and the
+    // same pattern trainings/careers/etc. already use in this file, but
+    // events never actually did this: `str(formData, "slug") || undefined`
+    // sent a real `undefined` through, and eventsh's own backend does NOT
+    // auto-generate a slug either (`slug: normalizedSlug || undefined` in
+    // its events.service.ts) — so a blank slug field silently produced an
+    // event with no slug at all, breaking its public page entirely (found
+    // live: a real "Nexus" event's /events/[slug] page 500'd).
+    slug: slugify(str(formData, "slug") || title) || undefined,
     title,
     summary: str(formData, "summary"),
     description: str(formData, "description"),
