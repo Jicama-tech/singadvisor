@@ -1,7 +1,38 @@
-import type { ReactNode } from "react";
-import type { FormState } from "@/lib/form-state";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { collectValues, emptyFormState, type FormState } from "@/lib/form-state";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+
+/**
+ * React-18 replacement for the Next app's `useActionState(action, initial)`
+ * + `<form action>` pattern: returns { state, pending, onSubmit } where
+ * onSubmit is the form's submit handler (preventDefault → FormData → action
+ * → FormState), keeping the exact same "keep what you typed" values echo.
+ */
+export function useClientAction(action: (formData: FormData) => Promise<FormState>) {
+  const [state, setState] = useState<FormState>(emptyFormState);
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setPending(true);
+    try {
+      const result = await action(formData);
+      setState({ ...result, values: result.values ?? collectValues(formData) });
+    } catch (err) {
+      setState({
+        ok: false,
+        message: err instanceof Error ? err.message : "Something went wrong.",
+        values: collectValues(formData),
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return { state, pending, onSubmit };
+}
 
 /**
  * Submit button reflecting the form's pending state. React 19's useFormStatus

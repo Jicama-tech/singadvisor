@@ -152,7 +152,7 @@ export function AdminShell({
         >
           {collapsed ? (
             <Link
-              href="/admin"
+              to="/admin"
               title="SingAdvisor Admin"
               className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--accent-soft)] font-[family-name:var(--font-display)] text-sm font-semibold text-[var(--accent-on-soft)]"
             >
@@ -160,7 +160,7 @@ export function AdminShell({
             </Link>
           ) : (
             <>
-              <Link href="/admin" className="font-[family-name:var(--font-display)] text-lg font-semibold">
+              <Link to="/admin" className="font-[family-name:var(--font-display)] text-lg font-semibold">
                 SingAdvisor
               </Link>
               <span className="ml-2 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-[var(--accent-on-soft)]">
@@ -194,7 +194,7 @@ export function AdminShell({
           </button>
 
           <Link
-            href="/"
+            to="/"
             target="_blank"
             className="ml-auto flex items-center gap-2 text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
           >
@@ -247,7 +247,7 @@ function NavLink({
 }) {
   return (
     <Link
-      href={href}
+      to={href}
       aria-current={active ? "page" : undefined}
       // The label still needs to reach assistive tech and hover users when
       // collapsed — `title` covers both without permanently reserving the

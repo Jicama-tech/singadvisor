@@ -38,7 +38,7 @@ export function PillarsSection({
             return (
               <Link
                 key={nav.href}
-                href={nav.href}
+                to={nav.href}
                 className="group -mx-4 flex items-start gap-4 rounded-lg px-4 py-6 transition-colors hover:bg-[var(--surface-sunken)]"
               >
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-on-soft)]">
@@ -69,7 +69,7 @@ export function PillarsSection({
           {content.items.map((pillar, i) => {
             const nav = PILLAR_NAV[i];
             return (
-              <Link key={nav.href} href={nav.href} className="group">
+              <Link key={nav.href} to={nav.href} className="group">
                 <Card interactive className="h-full">
                   <CardBody className="gap-5 p-8">
                     <div className="flex items-center justify-between">
@@ -110,7 +110,7 @@ export function PillarsSection({
         {content.items.map((pillar, i) => {
           const nav = PILLAR_NAV[i];
           return (
-            <Link key={nav.href} href={nav.href} className="group">
+            <Link key={nav.href} to={nav.href} className="group">
               <Card interactive className="h-full">
                 <CardBody className="gap-4">
                   <span className="grid h-12 w-12 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent-on-soft)] transition-transform duration-300 group-hover:scale-110">

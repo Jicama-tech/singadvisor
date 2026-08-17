@@ -59,7 +59,7 @@ export function EventCard({ event }: { event: EventCardData }) {
 
       <CardBody>
         <h3 className="text-lg leading-snug">
-          <Link href={`/events/${event.slug}`} className="after:absolute after:inset-0">
+          <Link to={`/events/${event.slug}`} className="after:absolute after:inset-0">
             {event.title}
           </Link>
         </h3>

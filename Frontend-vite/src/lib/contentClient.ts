@@ -159,11 +159,22 @@ export async function fetchTrainings(): Promise<TrainingDoc[]> {
   }
 }
 
+/** The Backend populates the trainer INTO the `trainerId` field (populate
+ * keeps the field's own name) — normalize it into the `trainer` key the
+ * page components expect. */
+function normalizeTraining(raw: TrainingDoc): TrainingDoc {
+  const trainerId = raw.trainerId as unknown;
+  if (trainerId && typeof trainerId === "object" && "name" in (trainerId as object)) {
+    return { ...raw, trainer: trainerId as TrainingDoc["trainer"] };
+  }
+  return raw;
+}
+
 export async function fetchTrainingBySlug(slug: string): Promise<TrainingDoc | null> {
   try {
     const res = await fetch(`${__API_URL__}/trainings/${encodeURIComponent(slug)}`);
     if (!res.ok) return null;
-    return (await res.json()) as TrainingDoc;
+    return normalizeTraining((await res.json()) as TrainingDoc);
   } catch {
     return null;
   }
@@ -219,11 +230,20 @@ export async function fetchPosts(): Promise<PostDoc[]> {
   }
 }
 
+/** Same normalize as normalizeTraining, for the blog post's `authorId`. */
+function normalizePost(raw: PostDoc): PostDoc {
+  const authorId = raw.authorId as unknown;
+  if (authorId && typeof authorId === "object" && "name" in (authorId as object)) {
+    return { ...raw, author: authorId as PostDoc["author"] };
+  }
+  return raw;
+}
+
 export async function fetchPostBySlug(slug: string): Promise<PostDoc | null> {
   try {
     const res = await fetch(`${__API_URL__}/blog/${encodeURIComponent(slug)}`);
     if (!res.ok) return null;
-    return (await res.json()) as PostDoc;
+    return normalizePost((await res.json()) as PostDoc);
   } catch {
     return null;
   }

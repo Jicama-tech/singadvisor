@@ -63,7 +63,7 @@ export function Footer() {
                 {col.links.map((link) => (
                   <li key={link.href + link.label}>
                     <Link
-                      href={link.href}
+                      to={link.href}
                       // -my-1 py-1 enlarges the touch target to ~25px without
                       // altering the visual rhythm of the list.
                       className="-my-1 inline-block py-1 text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"

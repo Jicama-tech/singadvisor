@@ -18,7 +18,7 @@ export function BlogSection({
   const header = (
     <div className="flex flex-wrap items-end justify-between gap-6">
       <SectionHeader eyebrow={content.eyebrow} title={content.title} description={content.description} />
-      <ButtonLink href={content.ctaHref} variant="secondary">
+      <ButtonLink to={content.ctaHref} variant="secondary">
         {content.ctaLabel}
         <Icon name="arrow-right" size={16} />
       </ButtonLink>
@@ -33,7 +33,7 @@ export function BlogSection({
           {items.map((post) => (
             <li key={post.slug}>
               <Link
-                href={`/blog/${post.slug}`}
+                to={`/blog/${post.slug}`}
                 className="group flex flex-wrap items-center justify-between gap-3 py-4 transition-colors hover:text-[var(--accent)]"
               >
                 <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--accent)]">

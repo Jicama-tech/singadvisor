@@ -31,7 +31,7 @@ export function ConsultancySection({
             {services.map((s) => (
               <li key={s.id}>
                 <Link
-                  href={`/consultancy/${s.slug}`}
+                  to={`/consultancy/${s.slug}`}
                   className="group flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] py-3 transition-colors hover:text-[var(--accent)]"
                 >
                   <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--accent)]">
@@ -46,7 +46,7 @@ export function ConsultancySection({
               </li>
             ))}
           </ul>
-          <ButtonLink href={content.ctaHref} className="mt-8">
+          <ButtonLink to={content.ctaHref} className="mt-8">
             {content.ctaLabel}
             <Icon name="arrow-right" size={16} />
           </ButtonLink>
@@ -82,7 +82,7 @@ export function ConsultancySection({
               {services.map((s) => (
                 <Link
                   key={s.id}
-                  href={`/consultancy/${s.slug}`}
+                  to={`/consultancy/${s.slug}`}
                   className="group rounded-xl border border-[var(--border-subtle)] p-5 transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-[var(--shadow-lift)]"
                 >
                   <span className="block font-medium text-[var(--text-primary)] group-hover:text-[var(--accent)]">
@@ -94,7 +94,7 @@ export function ConsultancySection({
                 </Link>
               ))}
             </div>
-            <ButtonLink href={content.ctaHref} className="mt-8">
+            <ButtonLink to={content.ctaHref} className="mt-8">
               {content.ctaLabel}
               <Icon name="arrow-right" size={16} />
             </ButtonLink>
@@ -129,7 +129,7 @@ export function ConsultancySection({
             {services.map((s) => (
               <li key={s.id}>
                 <Link
-                  href={`/consultancy/${s.slug}`}
+                  to={`/consultancy/${s.slug}`}
                   className="group flex items-start gap-3 rounded-xl p-3 transition-colors hover:bg-[var(--surface)]"
                 >
                   <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent-on-soft)]">
@@ -146,7 +146,7 @@ export function ConsultancySection({
             ))}
           </ul>
 
-          <ButtonLink href={content.ctaHref} className="mt-8">
+          <ButtonLink to={content.ctaHref} className="mt-8">
             {content.ctaLabel}
             <Icon name="arrow-right" size={16} />
           </ButtonLink>

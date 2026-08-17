@@ -123,7 +123,7 @@ export function StatTile({
 
   return (
     <Link
-      href={href}
+      to={href}
       className={cn(
         classes,
         "group block transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-[var(--shadow-lift)]",
@@ -142,10 +142,25 @@ export function StatTile({
   );
 }
 
-export function AdminEmpty({ message }: { message: string }) {
+export function AdminEmpty({
+  message,
+  title,
+  description,
+}: {
+  message?: string;
+  title?: string;
+  description?: string;
+}) {
   return (
-    <p className="px-4 py-16 text-center text-sm text-[var(--text-secondary)]">
-      {message}
-    </p>
+    <div className="px-4 py-16 text-center">
+      {title && (
+        <h2 className="text-lg font-medium text-[var(--text-primary)]">{title}</h2>
+      )}
+      {(message || description) && (
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          {message ?? description}
+        </p>
+      )}
+    </div>
   );
 }

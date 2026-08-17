@@ -30,7 +30,7 @@ export function CareersSection({
   const header = (
     <div className="flex flex-wrap items-end justify-between gap-6">
       <SectionHeader eyebrow={content.eyebrow} title={content.title} description={content.description} />
-      <ButtonLink href={content.ctaHref} variant="secondary">
+      <ButtonLink to={content.ctaHref} variant="secondary">
         {content.ctaLabel}
         <Icon name="arrow-right" size={16} />
       </ButtonLink>
@@ -45,7 +45,7 @@ export function CareersSection({
           {items.map((job) => (
             <li key={job.slug}>
               <Link
-                href={`/careers/${job.slug}`}
+                to={`/careers/${job.slug}`}
                 className="group flex flex-wrap items-center justify-between gap-3 py-4 transition-colors hover:text-[var(--accent)]"
               >
                 <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--accent)]">
@@ -75,7 +75,7 @@ export function CareersSection({
           {items.map((job) => {
             const salary = formatSalaryRange(job.salaryMin, job.salaryMax, job.currency);
             return (
-              <Link key={job.slug} href={`/careers/${job.slug}`} className="group">
+              <Link key={job.slug} to={`/careers/${job.slug}`} className="group">
                 <Card interactive className="h-full">
                   <CardBody className="gap-3">
                     <Badge tone="accent">{job.department}</Badge>
@@ -105,7 +105,7 @@ export function CareersSection({
           return (
             <li key={job.slug}>
               <Link
-                href={`/careers/${job.slug}`}
+                to={`/careers/${job.slug}`}
                 className="group flex flex-wrap items-center gap-4 rounded-[var(--radius-card)] border border-[var(--border-subtle)] surface-raised p-5 transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-[var(--shadow-lift)]"
               >
                 <div className="min-w-0 flex-1">

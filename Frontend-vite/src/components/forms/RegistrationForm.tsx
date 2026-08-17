@@ -1,8 +1,7 @@
 
-import { useActionState } from "react";
+
 import { registerForEvent, registerForTraining } from "@/app/actions";
-import { emptyFormState } from "@/lib/form-state";
-import { FormError, FormSuccess, SubmitButton } from "@/components/forms/FormShell";
+import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 
 type Props =
@@ -11,7 +10,7 @@ type Props =
 
 export function RegistrationForm(props: Props) {
   const action = props.kind === "training" ? registerForTraining : registerForEvent;
-  const [state, formAction] = useActionState(action, emptyFormState);
+  const { state, pending, onSubmit } = useClientAction(action);
 
   if (state.ok && state.message) return <FormSuccess message={state.message} />;
 
@@ -19,7 +18,7 @@ export function RegistrationForm(props: Props) {
   const verb = props.kind === "training" ? "Reserve my place" : "Register";
 
   return (
-    <form action={formAction} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name={idField} value={props.id} />
 
       <FormError state={state} />

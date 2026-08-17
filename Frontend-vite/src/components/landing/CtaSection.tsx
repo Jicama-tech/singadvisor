@@ -18,8 +18,8 @@ export function CtaSection({
           </h2>
           <p className="max-w-lg text-[var(--text-secondary)]">{content.description}</p>
           <div className="flex flex-wrap justify-center gap-3">
-            <ButtonLink href={content.primaryCtaHref}>{content.primaryCtaLabel}</ButtonLink>
-            <ButtonLink href={content.secondaryCtaHref} variant="secondary">
+            <ButtonLink to={content.primaryCtaHref}>{content.primaryCtaLabel}</ButtonLink>
+            <ButtonLink to={content.secondaryCtaHref} variant="secondary">
               {content.secondaryCtaLabel}
             </ButtonLink>
           </div>
@@ -38,12 +38,12 @@ export function CtaSection({
           </h2>
           <p className="max-w-xl text-lg text-white/70">{content.description}</p>
           <div className="flex flex-wrap justify-center gap-4">
-            <ButtonLink href={content.primaryCtaHref} size="lg">
+            <ButtonLink to={content.primaryCtaHref} size="lg">
               {content.primaryCtaLabel}
               <Icon name="arrow-right" size={18} />
             </ButtonLink>
             <ButtonLink
-              href={content.secondaryCtaHref}
+              to={content.secondaryCtaHref}
               size="lg"
               variant="secondary"
               className="border-white/25 bg-transparent text-white hover:border-white hover:bg-white/10 hover:text-white"
@@ -63,11 +63,11 @@ export function CtaSection({
         <h2 className="max-w-2xl text-3xl text-white md:text-4xl">{content.title}</h2>
         <p className="max-w-xl text-white/70">{content.description}</p>
         <div className="flex flex-wrap justify-center gap-3">
-          <ButtonLink href={content.primaryCtaHref} size="lg">
+          <ButtonLink to={content.primaryCtaHref} size="lg">
             {content.primaryCtaLabel}
           </ButtonLink>
           <ButtonLink
-            href={content.secondaryCtaHref}
+            to={content.secondaryCtaHref}
             size="lg"
             variant="secondary"
             className="border-white/25 bg-transparent text-white hover:border-white hover:bg-white/10 hover:text-white"

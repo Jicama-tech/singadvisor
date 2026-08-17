@@ -73,7 +73,7 @@ export default function LandingSectionEdit() {
     events: EventCardData[];
     careers: JobListItem[];
     blog: PostCardData[];
-    services: { slug: string; title: string }[];
+    services: { id: string; slug: string; title: string; summary: string }[];
     trainingCount: number;
   }>({ trainings: [], events: [], careers: [], blog: [], services: [], trainingCount: 0 });
 
@@ -133,7 +133,7 @@ export default function LandingSectionEdit() {
                 ? { name: p.author.name, photo: p.author.photo }
                 : null,
             })),
-          services: services.slice(0, 4).map((s) => ({ slug: s.slug, title: s.title })),
+          services: services.slice(0, 4).map((s) => ({ id: s._id, slug: s.slug, title: s.title, summary: s.summary })),
           trainingCount: trainings.length,
         });
       } catch {

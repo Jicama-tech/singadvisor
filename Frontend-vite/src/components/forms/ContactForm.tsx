@@ -1,8 +1,7 @@
 
-import { useActionState } from "react";
+
 import { submitContact } from "@/app/actions";
-import { emptyFormState } from "@/lib/form-state";
-import { FormError, FormSuccess, SubmitButton } from "@/components/forms/FormShell";
+import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 
 const SUBJECTS = [
@@ -14,12 +13,12 @@ const SUBJECTS = [
 ];
 
 export function ContactForm() {
-  const [state, action] = useActionState(submitContact, emptyFormState);
+  const { state, pending, onSubmit } = useClientAction(submitContact);
 
   if (state.ok && state.message) return <FormSuccess message={state.message} />;
 
   return (
-    <form action={action} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
       <FormError state={state} />
 
       <div className="grid gap-4 sm:grid-cols-2">

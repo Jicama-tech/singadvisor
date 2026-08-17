@@ -1,8 +1,7 @@
 
-import { useActionState } from "react";
+
 import { submitEnquiry } from "@/app/actions";
-import { emptyFormState } from "@/lib/form-state";
-import { FormError, FormSuccess, SubmitButton } from "@/components/forms/FormShell";
+import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { COMPANY_SIZES } from "@/lib/constants";
 
@@ -13,12 +12,12 @@ export function EnquiryForm({
   services: { id: string; title: string }[];
   defaultServiceId?: string;
 }) {
-  const [state, action] = useActionState(submitEnquiry, emptyFormState);
+  const { state, pending, onSubmit } = useClientAction(submitEnquiry);
 
   if (state.ok && state.message) return <FormSuccess message={state.message} />;
 
   return (
-    <form action={action} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
       <FormError state={state} />
 
       <div className="grid gap-4 sm:grid-cols-2">

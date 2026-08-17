@@ -33,11 +33,11 @@ export function HeroSection({
           </p>
 
           <div className="mt-2 flex flex-wrap justify-center gap-3">
-            <ButtonLink href={content.primaryCtaHref} size="lg">
+            <ButtonLink to={content.primaryCtaHref} size="lg">
               {primaryLabel}
               <Icon name="arrow-right" size={18} />
             </ButtonLink>
-            <ButtonLink href={content.secondaryCtaHref} size="lg" variant="secondary">
+            <ButtonLink to={content.secondaryCtaHref} size="lg" variant="secondary">
               {content.secondaryCtaLabel}
             </ButtonLink>
           </div>
@@ -81,12 +81,12 @@ export function HeroSection({
               </p>
 
               <div className="mt-10 flex flex-wrap gap-4">
-                <ButtonLink href={content.primaryCtaHref} size="lg">
+                <ButtonLink to={content.primaryCtaHref} size="lg">
                   {primaryLabel}
                   <Icon name="arrow-right" size={18} />
                 </ButtonLink>
                 <ButtonLink
-                  href={content.secondaryCtaHref}
+                  to={content.secondaryCtaHref}
                   size="lg"
                   variant="secondary"
                   className="border-white/25 bg-white/10 text-white backdrop-blur hover:border-white hover:bg-white/20 hover:text-white"
@@ -146,12 +146,12 @@ export function HeroSection({
           </p>
 
           <div className="mt-9 flex flex-wrap gap-3">
-            <ButtonLink href={content.primaryCtaHref} size="lg">
+            <ButtonLink to={content.primaryCtaHref} size="lg">
               {primaryLabel}
               <Icon name="arrow-right" size={18} />
             </ButtonLink>
             <ButtonLink
-              href={content.secondaryCtaHref}
+              to={content.secondaryCtaHref}
               size="lg"
               variant="secondary"
               className="border-white/25 bg-white/10 text-white backdrop-blur hover:border-white hover:bg-white/20 hover:text-white"

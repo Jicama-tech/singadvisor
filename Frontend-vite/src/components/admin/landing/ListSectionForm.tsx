@@ -36,7 +36,7 @@ export function ListSectionForm({
 }: {
   content: ListContent;
   variant: LandingVariant;
-  action: (prev: FormState, formData: FormData) => Promise<FormState>;
+  action: (formData: FormData) => Promise<FormState>;
   managedElsewhereLabel: string;
   kind: ListKind;
   items: TrainingCardData[] | EventCardData[] | JobListItem[] | PostCardData[];

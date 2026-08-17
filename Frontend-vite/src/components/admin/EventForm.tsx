@@ -2044,7 +2044,7 @@ export function EventForm({
                 >
                   {event?._id && (
                     <Link
-                      href={`/admin/events/${event._id}/sponsors`}
+                      to={`/admin/events/${event._id}/sponsors`}
                       className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[var(--accent)] hover:underline"
                     >
                       Review sponsor applications

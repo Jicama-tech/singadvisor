@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/lib/utils";
 import type { SponsorType } from "@/lib/events-client";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "";
+const BACKEND_URL = __API_URL__;
 
 type Status = "idle" | "submitting" | "success" | "error";
 

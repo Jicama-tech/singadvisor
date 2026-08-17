@@ -1,22 +1,10 @@
-
-import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
 import { subscribe } from "@/app/actions";
-import { emptyFormState } from "@/lib/form-state";
+import { useClientAction } from "@/components/forms/FormShell";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" size="sm" disabled={pending}>
-      {pending ? "…" : "Join"}
-    </Button>
-  );
-}
-
 export function NewsletterForm() {
-  const [state, action] = useActionState(subscribe, emptyFormState);
+  const { state, pending, onSubmit } = useClientAction(subscribe);
 
   if (state.ok) {
     return (
@@ -30,7 +18,7 @@ export function NewsletterForm() {
   }
 
   return (
-    <form action={action} className="flex flex-col gap-2">
+    <form onSubmit={onSubmit} className="flex flex-col gap-2">
       <label htmlFor="newsletter-email" className="sr-only">
         Email address
       </label>
@@ -43,7 +31,9 @@ export function NewsletterForm() {
           placeholder="you@company.com"
           className="min-w-0"
         />
-        <SubmitButton />
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? "…" : "Join"}
+        </Button>
       </div>
       {(state.errors?.email || state.message) && (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">

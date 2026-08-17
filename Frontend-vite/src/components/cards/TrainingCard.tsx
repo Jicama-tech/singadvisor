@@ -37,7 +37,7 @@ export function TrainingCard({ training }: { training: TrainingCardData }) {
         <h3 className="text-lg leading-snug">
           {/* Stretched link keeps the whole card clickable without nesting
               interactive elements. */}
-          <Link href={`/trainings/${training.slug}`} className="after:absolute after:inset-0">
+          <Link to={`/trainings/${training.slug}`} className="after:absolute after:inset-0">
             {training.title}
           </Link>
         </h3>

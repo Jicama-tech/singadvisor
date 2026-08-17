@@ -18,7 +18,7 @@ export function TrainingsSection({
   const header = (
     <div className="flex flex-wrap items-end justify-between gap-6">
       <SectionHeader eyebrow={content.eyebrow} title={content.title} description={content.description} />
-      <ButtonLink href={content.ctaHref} variant="secondary">
+      <ButtonLink to={content.ctaHref} variant="secondary">
         {content.ctaLabel}
         <Icon name="arrow-right" size={16} />
       </ButtonLink>
@@ -33,7 +33,7 @@ export function TrainingsSection({
           {items.map((t) => (
             <li key={t.slug}>
               <Link
-                href={`/trainings/${t.slug}`}
+                to={`/trainings/${t.slug}`}
                 className="group flex flex-wrap items-center justify-between gap-3 py-4 transition-colors hover:text-[var(--accent)]"
               >
                 <div>

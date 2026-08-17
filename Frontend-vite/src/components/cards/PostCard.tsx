@@ -47,7 +47,7 @@ export function PostCard({
       <CardBody className={featured ? "gap-3 p-7" : undefined}>
         <h3 className={featured ? "text-2xl leading-snug" : "text-lg leading-snug"}>
           {/* Stretched link keeps the whole card clickable. */}
-          <Link href={`/blog/${post.slug}`} className="after:absolute after:inset-0">
+          <Link to={`/blog/${post.slug}`} className="after:absolute after:inset-0">
             {post.title}
           </Link>
         </h3>

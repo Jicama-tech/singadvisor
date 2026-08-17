@@ -72,7 +72,7 @@ export function EventsNestedNav() {
           return (
             <li key={tab.href} className="shrink-0 lg:shrink">
               <Link
-                href={tab.href}
+                to={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",

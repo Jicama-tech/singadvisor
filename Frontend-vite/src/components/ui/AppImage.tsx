@@ -9,6 +9,9 @@ type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> & {
    * caller that passed fill already does, since they were written for
    * next/image). */
   fill?: boolean;
+  /** next/image's priority/eager-loading flag — accepted for API
+   * compatibility and ignored (plain img uses loading="lazy"). */
+  priority?: boolean;
 };
 
 /**
@@ -18,7 +21,7 @@ type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> & {
  * URLs directly, which the optimizer rejected. Same call-site API as before,
  * including `fill`.
  */
-export function AppImage({ src, fill, className, alt, ...props }: Props) {
+export function AppImage({ src, fill, className, alt, priority: _priority, ...props }: Props) {
   return (
     <img
       src={withBasePath(src)}

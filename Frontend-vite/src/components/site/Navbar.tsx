@@ -57,7 +57,7 @@ export function Navbar() {
         className="container-page flex h-18 items-center justify-between gap-4"
       >
         <Link
-          href="/"
+          to="/"
           className="flex shrink-0 items-center"
           aria-label="SingAdvisor home"
         >
@@ -83,7 +83,7 @@ export function Navbar() {
           {NAV.map((item) => (
             <li key={item.href}>
               <Link
-                href={item.href}
+                to={item.href}
                 aria-current={isActive(item.href) ? "page" : undefined}
                 className={cn(
                   "relative rounded-full px-4 py-2 text-[0.9375rem] font-medium transition-colors",
@@ -108,7 +108,7 @@ export function Navbar() {
               display utility wins is decided by stylesheet order, not class
               order — so the button would stay visible on mobile. */}
           <span className="hidden sm:contents">
-            <ButtonLink href="/contact" size="sm">
+            <ButtonLink to="/contact" size="sm">
               Get in touch
             </ButtonLink>
           </span>
@@ -134,7 +134,7 @@ export function Navbar() {
             {NAV.map((item) => (
               <li key={item.href}>
                 <Link
-                  href={item.href}
+                  to={item.href}
                   aria-current={isActive(item.href) ? "page" : undefined}
                   className={cn(
                     "flex items-center justify-between rounded-xl px-3 py-3 text-base font-medium transition-colors",
@@ -149,7 +149,7 @@ export function Navbar() {
               </li>
             ))}
             <li className="mt-2 px-3">
-              <ButtonLink href="/contact" className="w-full">
+              <ButtonLink to="/contact" className="w-full">
                 Get in touch
               </ButtonLink>
             </li>

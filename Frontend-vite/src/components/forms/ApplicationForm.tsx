@@ -1,8 +1,7 @@
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { submitApplication } from "@/app/actions";
-import { emptyFormState } from "@/lib/form-state";
-import { FormError, FormSuccess, SubmitButton } from "@/components/forms/FormShell";
+import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import {
@@ -17,7 +16,7 @@ export function ApplicationForm({
   jobId: string;
   jobTitle: string;
 }) {
-  const [state, action] = useActionState(submitApplication, emptyFormState);
+  const { state, pending, onSubmit } = useClientAction(submitApplication);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,7 +43,7 @@ export function ApplicationForm({
   if (state.ok && state.message) return <FormSuccess message={state.message} />;
 
   return (
-    <form action={action} className="flex flex-col gap-5" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
       <input type="hidden" name="jobId" value={jobId} />
 
       <FormError state={state} />
