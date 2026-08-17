@@ -120,27 +120,36 @@ export default function AdminOverview() {
         </div>
       </Panel>
 
-      <Panel className="p-6">
-        <h2 className="text-lg">Quick links</h2>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {[
-            ["/admin/trainings/new", "New training"],
-            ["/admin/events/new", "New event"],
-            ["/admin/consultancy/new", "New consultancy service"],
-            ["/admin/careers/new", "New job posting"],
-            ["/admin/blog/new", "New blog post"],
-            ["/admin/landing", "Edit landing page"],
-          ].map(([href, label]) => (
-            <Link
-              key={href}
-              to={href}
-              className="rounded-lg border border-[var(--border-subtle)] px-4 py-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-            >
-              {label} →
-            </Link>
-          ))}
-        </div>
-      </Panel>
+      {(() => {
+        // Operators see only the quick links their access tabs allow (the
+        // same keys the sidebar uses); admins see all of them.
+        const allowed = user.tabs;
+        const links = [
+          ["/admin/trainings/new", "New training", "trainings"],
+          ["/admin/events/new", "New event", "events"],
+          ["/admin/consultancy/new", "New consultancy service", "consultancy"],
+          ["/admin/careers/new", "New job posting", "careers"],
+          ["/admin/blog/new", "New blog post", "blog"],
+          ["/admin/landing", "Edit landing page", "landing"],
+        ].filter((entry) => !allowed || allowed.includes(entry[2] as string));
+        if (links.length === 0) return null;
+        return (
+          <Panel className="p-6">
+            <h2 className="text-lg">Quick links</h2>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {links.map(([href, label]) => (
+                <Link
+                  key={href}
+                  to={href}
+                  className="rounded-lg border border-[var(--border-subtle)] px-4 py-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  {label} →
+                </Link>
+              ))}
+            </div>
+          </Panel>
+        );
+      })()}
     </div>
   );
 }

@@ -18,7 +18,7 @@ export function HeroSection({
   if (variant === "minimal") {
     return (
       <section className="border-b border-[var(--border-subtle)] surface-raised">
-        <div className="container-page flex flex-col items-center gap-6 py-20 text-center md:py-28">
+        <div className="container-page flex flex-col items-center gap-6 pb-20 pt-10 text-center md:pb-28 md:pt-14">
           <span className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-soft)] px-4 py-1.5 text-xs font-medium text-[var(--accent-on-soft)]">
             <Icon name="map-pin" size={14} />
             {content.eyebrow}
@@ -63,8 +63,8 @@ export function HeroSection({
           <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-ink-950)] via-[var(--color-ink-950)]/70 to-[var(--color-ink-950)]/30" />
         </div>
 
-        <div className="container-page relative py-28 md:py-40">
-          <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-end">
+        <div className="container-page relative pb-28 pt-14 md:pb-40 md:pt-20">
+          <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
             <div className="animate-[var(--animate-fade-up)]">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white ring-1 ring-inset ring-white/20 backdrop-blur">
                 <Icon name="map-pin" size={14} />
@@ -129,7 +129,7 @@ export function HeroSection({
         <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-ink-950)] via-[var(--color-ink-950)]/85 to-[var(--color-ink-950)]/40" />
       </div>
 
-      <div className="container-page relative py-24 md:py-36">
+      <div className="container-page relative pb-24 pt-10 md:pb-36 md:pt-14">
         <div className="max-w-2xl animate-[var(--animate-fade-up)]">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white ring-1 ring-inset ring-white/20 backdrop-blur">
             <Icon name="map-pin" size={14} />

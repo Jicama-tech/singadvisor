@@ -7,20 +7,44 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
 import { cn } from "@/lib/utils";
+import { fetchLandingSections } from "@/lib/landing-client";
 
+// Each entry optionally maps to a landing-page section — when that section
+// is set to Hidden in the admin's Landing page, the matching navbar link
+// hides too (so the public nav and the homepage always agree). "about" has
+// no section (it is always visible).
 const NAV = [
-  { href: "/trainings", label: "Trainings" },
-  { href: "/events", label: "Events" },
-  { href: "/consultancy", label: "Consultancy" },
-  { href: "/careers", label: "Careers" },
-  { href: "/blog", label: "Blog" },
-  { href: "/about", label: "About" },
+  { href: "/trainings", label: "Trainings", section: "trainings" },
+  { href: "/events", label: "Events", section: "events" },
+  { href: "/consultancy", label: "Consultancy", section: "consultancy" },
+  { href: "/careers", label: "Careers", section: "careers" },
+  { href: "/blog", label: "Blog", section: "blog" },
+  { href: "/about", label: "About", section: null },
 ] as const;
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [hiddenSections, setHiddenSections] = useState<Set<string> | null>(null);
   const { pathname } = useLocation();
+
+  // Landing-section visibility drives which links show. Fail-open: when the
+  // fetch fails (or the list is empty) nothing is hidden.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const sections = await fetchLandingSections();
+      if (cancelled || sections.length === 0) return;
+      const visible = new Set(sections.map((s) => s.key));
+      const hidden = new Set(
+        (["trainings", "events", "consultancy", "careers", "blog"] as const).filter((k) => !visible.has(k)),
+      );
+      setHiddenSections(hidden);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Close the mobile sheet whenever the route changes.
   useEffect(() => setOpen(false), [pathname]);
@@ -42,6 +66,8 @@ export function Navbar() {
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
+
+  const visibleNav = NAV.filter((item) => !hiddenSections || !item.section || !hiddenSections.has(item.section));
 
   return (
     <header
@@ -80,7 +106,7 @@ export function Navbar() {
         </Link>
 
         <ul className="hidden items-center gap-1 lg:flex">
-          {NAV.map((item) => (
+          {visibleNav.map((item) => (
             <li key={item.href}>
               <Link
                 to={item.href}
@@ -131,7 +157,7 @@ export function Navbar() {
           className="border-t border-[var(--border-subtle)] bg-[var(--surface)] lg:hidden"
         >
           <ul className="container-page flex flex-col py-3">
-            {NAV.map((item) => (
+            {visibleNav.map((item) => (
               <li key={item.href}>
                 <Link
                   to={item.href}

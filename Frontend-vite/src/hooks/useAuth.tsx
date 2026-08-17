@@ -20,6 +20,8 @@ export interface User {
   email: string;
   name: string;
   role: string;
+  /** Operator only — the main-sidebar keys this account may see. */
+  tabs?: string[];
 }
 
 interface AuthContextType {
@@ -37,11 +39,11 @@ const TOKEN_KEY = "token";
 
 function decodeUser(token: string): User | null {
   try {
-    const decoded = jwtDecode<{ sub: string; email: string; name: string; role: string; exp: number }>(
+    const decoded = jwtDecode<{ sub: string; email: string; name: string; role: string; exp: number; tabs?: string[] }>(
       token,
     );
     if (decoded.exp && decoded.exp < Date.now() / 1000) return null;
-    return { sub: decoded.sub, email: decoded.email, name: decoded.name, role: decoded.role };
+    return { sub: decoded.sub, email: decoded.email, name: decoded.name, role: decoded.role, tabs: decoded.tabs };
   } catch {
     return null;
   }
