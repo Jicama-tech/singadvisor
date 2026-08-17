@@ -5,6 +5,8 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { ConfirmTicketDto } from './dto/confirm-ticket.dto';
 import { ClaimFreeTicketDto } from './dto/claim-free-ticket.dto';
 import { SetTicketStatusDto } from './dto/set-ticket-status.dto';
+import { CreatePaynowOrderDto } from './dto/create-paynow-order.dto';
+import { ConfirmPaynowDto } from './dto/confirm-paynow.dto';
 
 @Controller('tickets')
 export class TicketsController {
@@ -27,6 +29,19 @@ export class TicketsController {
   @Post('free')
   claimFree(@Body() dto: ClaimFreeTicketDto) {
     return this.ticketsService.claimFreeTicket(dto);
+  }
+
+  /** PayNow checkout step 1 — public, returns the dynamic QR to scan. */
+  @Post('checkout/paynow')
+  createPaynowOrder(@Body() dto: CreatePaynowOrderDto) {
+    return this.ticketsService.createPaynowOrder(dto);
+  }
+
+  /** PayNow checkout step 2 — the buyer asserts "I have paid" (trust model,
+   * same as eventsh's own buyer flow). Idempotent per order. */
+  @Post('paynow-confirm')
+  confirmPaynow(@Body() dto: ConfirmPaynowDto) {
+    return this.ticketsService.confirmPaynow(dto);
   }
 
   @Get('admin')

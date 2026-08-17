@@ -6,14 +6,17 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { join } from 'path';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Ticket, TicketDocument } from './entities/ticket.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ConfirmTicketDto } from './dto/confirm-ticket.dto';
 import { ClaimFreeTicketDto } from './dto/claim-free-ticket.dto';
+import { CreatePaynowOrderDto } from './dto/create-paynow-order.dto';
+import { ConfirmPaynowDto } from './dto/confirm-paynow.dto';
 import { RazorpayService } from './razorpay.service';
+import { PaynowService } from '../paynow/paynow.service';
 import { MailService } from '../mail/mail.service';
 
 type ConfirmInput = {
@@ -61,6 +64,7 @@ export class TicketsService {
   constructor(
     @InjectModel(Ticket.name) private readonly ticketModel: Model<TicketDocument>,
     private readonly razorpay: RazorpayService,
+    private readonly paynow: PaynowService,
     private readonly mail: MailService,
   ) {}
 
@@ -148,7 +152,7 @@ export class TicketsService {
       orderId: order.id,
       amount: order.amount,
       currency: order.currency,
-      keyId: this.razorpay.publicKeyId,
+      keyId: await this.razorpay.publicKeyId(),
       eventId: String(event._id),
       tierId: tier.id,
       quantity: dto.quantity,
@@ -157,7 +161,7 @@ export class TicketsService {
 
   /** The client-confirm path — called immediately after Checkout.js resolves. */
   async confirmTicket(dto: ConfirmTicketDto) {
-    const valid = this.razorpay.verifyPaymentSignature({
+    const valid = await this.razorpay.verifyPaymentSignature({
       orderId: dto.razorpay_order_id,
       paymentId: dto.razorpay_payment_id,
       signature: dto.razorpay_signature,
@@ -197,6 +201,112 @@ export class TicketsService {
       razorpayPaymentId: 'free',
       method: 'free',
     });
+  }
+
+  /** Step 1 of PayNow checkout — server-generated dynamic QR (amount
+   * embedded, non-editable) to the Settings-configured UEN, with a
+   * short 12-char reference the admin cross-checks the bank transfer
+   * against. Writes the audit doc in 'pending' state; the buyer confirms
+   * via confirmPaynow below (trust model — same as eventsh's own flow). */
+  async createPaynowOrder(dto: CreatePaynowOrderDto) {
+    const { event, tier } = await this.fetchEventshTier(dto.eventId, dto.tierId);
+    if (tier.maxCount - tier.soldCount < dto.quantity) {
+      throw new BadRequestException('Not enough tickets available');
+    }
+    if (tier.price <= 0) {
+      throw new BadRequestException('This tier is free — no payment needed');
+    }
+
+    const amountMinorUnits = Math.round(tier.price * dto.quantity * 100);
+    const paynowRef = randomBytes(6).toString('hex').toUpperCase(); // 12 chars — fits TLV62's 25-char cap and is easy to read off a bank statement
+    const currency = event.currency || 'SGD';
+    const amountMajor = amountMinorUnits / 100;
+
+    const { qr } = await this.paynow.generateQr(amountMajor, paynowRef, currency);
+
+    const audit = await this.ticketModel.create({
+      ticketId: `TKT-PN-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`,
+      eventId: dto.eventId,
+      eventTitle: event.title,
+      eventDate: event.startDate,
+      eventTime: event.time || '',
+      eventVenue: event.location || '',
+      customerName: dto.customerName,
+      customerEmail: dto.customerEmail,
+      customerPhone: dto.customerPhone ?? '',
+      ticketDetails: [
+        { ticketType: tier.name, quantity: dto.quantity, price: tier.price, tierId: tier.id, seatIds: [] },
+      ],
+      totalAmount: amountMinorUnits,
+      currency,
+      status: 'pending',
+      purchaseDate: new Date(),
+      qrCodeUrl: '',
+      paynowRef,
+      payment: {
+        razorpayOrderId: `paynow-${paynowRef}`,
+        razorpayPaymentId: '',
+        amount: amountMinorUnits,
+        method: 'paynow',
+      },
+    });
+
+    return {
+      orderId: String(audit._id),
+      paynowRef,
+      amount: amountMinorUnits,
+      amountMajor,
+      currency,
+      qrDataUrl: qr,
+      eventId: String(event._id),
+      tierId: tier.id,
+      quantity: dto.quantity,
+    };
+  }
+
+  /** Step 2 — the buyer asserts "I have paid". Creates the real ticket in
+   * eventsh (paymentConfirmed: true — eventsh's trust model, no PayNow
+   * callback exists anywhere), then flips the audit doc to confirmed.
+   * Idempotent: a repeat call for the same order returns the already-issued
+   * ticket. */
+  async confirmPaynow(dto: ConfirmPaynowDto) {
+    const audit = await this.ticketModel
+      .findById(dto.orderId)
+      .where('payment.method', 'paynow')
+      .exec();
+    if (!audit) throw new NotFoundException('PayNow order not found');
+    if (audit.payment.verifiedAt) return audit; // already confirmed — idempotent
+
+    const { event, tier } = await this.fetchEventshTier(String(audit.eventId), audit.ticketDetails[0]?.tierId || '');
+    if (tier.maxCount - tier.soldCount < audit.ticketDetails[0]?.quantity) {
+      throw new BadRequestException('Not enough tickets available');
+    }
+
+    // The real ticket lives in eventsh — same creation path the Razorpay
+    // confirm uses, so the payload/error handling never drift.
+    const created = await this.createEventshTicket(
+      {
+        eventId: String(audit.eventId),
+        tierId: tier.id,
+        quantity: audit.ticketDetails[0]?.quantity ?? 1,
+        customerName: audit.customerName,
+        customerEmail: audit.customerEmail,
+        customerPhone: audit.customerPhone,
+        razorpayOrderId: `paynow-${audit.paynowRef}`,
+        razorpayPaymentId: 'paynow',
+        method: 'paynow',
+      },
+      audit.ticketId,
+      event,
+      tier,
+    );
+
+    audit.status = 'confirmed';
+    audit.payment.verifiedAt = new Date();
+    audit.payment.razorpayPaymentId = 'paynow';
+    audit.eventshTicketId = String(created.ticketId || '');
+    await audit.save();
+    return audit;
   }
 
   /** The async fallback path — called from the Razorpay webhook, reconstructs

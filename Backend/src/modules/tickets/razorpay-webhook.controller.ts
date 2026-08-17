@@ -28,7 +28,7 @@ export class RazorpayWebhookController {
     if (typeof signature !== 'string' || !req.rawBody) {
       throw new BadRequestException('Missing signature or body');
     }
-    if (!this.razorpay.verifyWebhookSignature(req.rawBody, signature)) {
+    if (!(await this.razorpay.verifyWebhookSignature(req.rawBody, signature))) {
       throw new BadRequestException('Invalid webhook signature');
     }
 

@@ -21,6 +21,8 @@ import { RegistrationsModule } from './modules/registrations/registrations.modul
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 import { SubscribersModule } from './modules/subscribers/subscribers.module';
 import { EventshProxyModule } from './modules/eventsh-proxy/eventsh-proxy.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { PaynowModule } from './modules/paynow/paynow.module';
 
 @Module({
   imports: [
@@ -49,6 +51,8 @@ import { EventshProxyModule } from './modules/eventsh-proxy/eventsh-proxy.module
     ContactMessagesModule,
     SubscribersModule,
     EventshProxyModule,
+    SettingsModule,
+    PaynowModule,
     // Events' own follow-on modules (rsvp, coupons, stalls) land here too,
     // per the event-ops port plan.
   ],

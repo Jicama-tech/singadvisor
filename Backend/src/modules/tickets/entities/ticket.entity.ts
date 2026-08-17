@@ -45,7 +45,10 @@ export class TicketPayment {
   @Prop({ type: Number, required: true })
   amount!: number; // minor units, matches what was actually charged
 
-  /** 'razorpay' for real purchases, 'legacy-migrated' for the one-off Prisma import. */
+  /** 'razorpay' for card purchases, 'paynow' for PayNow QR purchases
+   * (trust-verified — the buyer asserts "I have paid", same model as
+   * eventsh itself), 'free' for zero-price tiers, 'legacy-migrated' for
+   * the one-off Prisma import. */
   @Prop({ type: String, default: 'razorpay' })
   method!: string;
 }
@@ -112,6 +115,17 @@ export class Ticket {
 
   @Prop({ type: TicketPaymentSchema, required: true })
   payment!: TicketPayment;
+
+  /** PayNow reference shown in the QR's bill-number field (TLV62) — the
+   * admin cross-checks the buyer's bank transfer against this. */
+  @Prop({ type: String })
+  paynowRef?: string;
+
+  /** The ticket's Mongo _id on eventsh (its system of record) — lets the
+   * admin Participants view join this audit doc onto the eventsh ticket
+   * row to surface payment method/verification. */
+  @Prop({ type: String })
+  eventshTicketId?: string;
 }
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MailModule } from '../mail/mail.module';
+import { SettingsModule } from '../settings/settings.module';
+import { PaynowModule } from '../paynow/paynow.module';
 import { Ticket, TicketSchema } from './entities/ticket.entity';
 import { TicketsController } from './tickets.controller';
 import { RazorpayWebhookController } from './razorpay-webhook.controller';
@@ -15,6 +17,8 @@ import { RazorpayService } from './razorpay.service';
     // local Event model anymore; tickets.service.ts now fetches event/tier
     // data from eventsh directly (fetchEventshEvent/fetchEventshTier).
     MailModule,
+    SettingsModule,
+    PaynowModule,
   ],
   controllers: [TicketsController, RazorpayWebhookController],
   providers: [TicketsService, RazorpayService],
