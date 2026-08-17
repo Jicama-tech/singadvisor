@@ -11,7 +11,7 @@ app's two-piece deployment (Frontend-vite SPA + NestJS Backend).
 mkdir -p /home/singadvisor && cd /home/singadvisor
 git clone git@github.com:<you>/singadvisor.git
 cd singadvisor
-git checkout development
+git checkout main
 ```
 
 ### Secrets files (NEVER committed — create on the server only)
@@ -65,7 +65,7 @@ In GitHub → repo Settings → Webhooks:
 - Secret: the same `WEBHOOK_SECRET`
 - Events: just `push`
 
-From now on every push to **`development`** auto-deploys only the changed
+From now on every push to **`main`** auto-deploys only the changed
 side: `Frontend-vite/` files → SPA build; `Backend/` files → backend build
 + `pm2 restart singadvisor-backend`.
 

@@ -26,12 +26,12 @@ log() {
 }
 
 sync_repo() {
-  # Hard-reset to origin/development so runtime-generated files (uploads,
+  # Hard-reset to origin/main so runtime-generated files (uploads,
   # résumés) never block the pull. Anything not committed will be discarded —
   # this server is a deployment target, not a workspace. Gitignored files
   # (.env, .env.production, uploads/, resumes/) survive `git clean -fd`.
-  git fetch origin development 2>&1 | tee -a "$LOG"
-  git reset --hard origin/development 2>&1 | tee -a "$LOG"
+  git fetch origin main 2>&1 | tee -a "$LOG"
+  git reset --hard origin/main 2>&1 | tee -a "$LOG"
   git clean -fd 2>&1 | tee -a "$LOG"
 }
 
