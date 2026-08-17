@@ -16,14 +16,14 @@ export type AdminCounts = {
   messages: number;
 };
 
-const CONTENT_NAV: { href: string; label: string; icon: IconName }[] = [
-  { href: "/admin/landing", label: "Landing page", icon: "layout" },
-  { href: "/admin/trainings", label: "Trainings", icon: "sparkles" },
-  { href: "/admin/events", label: "Events", icon: "calendar" },
-  { href: "/admin/consultancy", label: "Consultancy", icon: "compass" },
-  { href: "/admin/careers", label: "Careers", icon: "briefcase" },
-  { href: "/admin/blog", label: "Blog", icon: "pencil" },
-  { href: "/admin/settings", label: "Settings", icon: "settings" },
+const CONTENT_NAV: { href: string; label: string; icon: IconName; tab: string }[] = [
+  { href: "/admin/landing", label: "Landing page", icon: "layout", tab: "landing" },
+  { href: "/admin/trainings", label: "Trainings", icon: "sparkles", tab: "trainings" },
+  { href: "/admin/events", label: "Events", icon: "calendar", tab: "events" },
+  { href: "/admin/consultancy", label: "Consultancy", icon: "compass", tab: "consultancy" },
+  { href: "/admin/careers", label: "Careers", icon: "briefcase", tab: "careers" },
+  { href: "/admin/blog", label: "Blog", icon: "pencil", tab: "blog" },
+  { href: "/admin/settings", label: "Settings", icon: "settings", tab: "settings" },
 ];
 
 const INBOX_NAV: {
@@ -31,32 +31,39 @@ const INBOX_NAV: {
   label: string;
   icon: IconName;
   key: keyof AdminCounts;
+  tab: string;
 }[] = [
   {
     href: "/admin/registrations",
     label: "Registrations",
     icon: "users",
     key: "registrations",
+    tab: "registrations",
   },
-  { href: "/admin/enquiries", label: "Enquiries", icon: "inbox", key: "enquiries" },
+  { href: "/admin/enquiries", label: "Enquiries", icon: "inbox", key: "enquiries", tab: "enquiries" },
   {
     href: "/admin/applications",
     label: "Applications",
     icon: "briefcase",
     key: "applications",
+    tab: "applications",
   },
-  { href: "/admin/messages", label: "Messages", icon: "mail", key: "messages" },
+  { href: "/admin/messages", label: "Messages", icon: "mail", key: "messages", tab: "messages" },
 ];
 
 export function AdminShell({
   user,
   counts,
   children,
+  allowedTabs,
   mainClassName,
 }: {
   user: { name: string; email: string; role: string };
   counts: AdminCounts;
   children: React.ReactNode;
+  /** Operator-only: the tab keys this account may see. Undefined = an
+   * admin (owner/editor), who sees everything. */
+  allowedTabs?: string[];
   /** Overrides the default content padding — pages that render their own
    * secondary sidebar (EventsShell/LandingShell) pass "p-0" so the sidebar
    * sits flush against the primary one instead of leaving a double-width
@@ -93,9 +100,11 @@ export function AdminShell({
   const nav = (
     <nav className="flex flex-col gap-6" aria-label="Admin">
       <div>
-        <NavLink href="/admin" icon="activity" active={pathname === "/admin"} collapsed={collapsed}>
-          Overview
-        </NavLink>
+        {(!allowedTabs || allowedTabs.includes("overview")) && (
+          <NavLink href="/admin" icon="activity" active={pathname === "/admin"} collapsed={collapsed}>
+            Overview
+          </NavLink>
+        )}
       </div>
 
       <div>
@@ -105,7 +114,7 @@ export function AdminShell({
           </p>
         )}
         <ul className="flex flex-col gap-0.5">
-          {CONTENT_NAV.map((item) => (
+          {CONTENT_NAV.filter((item) => !allowedTabs || allowedTabs.includes(item.tab)).map((item) => (
             <li key={item.href}>
               <NavLink href={item.href} icon={item.icon} active={isActive(item.href)} collapsed={collapsed}>
                 {item.label}
@@ -122,7 +131,7 @@ export function AdminShell({
           </p>
         )}
         <ul className="flex flex-col gap-0.5">
-          {INBOX_NAV.map((item) => (
+          {INBOX_NAV.filter((item) => !allowedTabs || allowedTabs.includes(item.tab)).map((item) => (
             <li key={item.href}>
               <NavLink
                 href={item.href}

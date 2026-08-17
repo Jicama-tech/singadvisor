@@ -23,6 +23,7 @@ import { SubscribersModule } from './modules/subscribers/subscribers.module';
 import { EventshProxyModule } from './modules/eventsh-proxy/eventsh-proxy.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { PaynowModule } from './modules/paynow/paynow.module';
+import { OperatorsModule } from './modules/operators/operators.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { PaynowModule } from './modules/paynow/paynow.module';
     EventshProxyModule,
     SettingsModule,
     PaynowModule,
+    OperatorsModule,
     // Events' own follow-on modules (rsvp, coupons, stalls) land here too,
     // per the event-ops port plan.
   ],

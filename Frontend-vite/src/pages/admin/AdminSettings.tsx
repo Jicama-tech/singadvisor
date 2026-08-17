@@ -6,6 +6,9 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { OperatorsPanel } from "@/components/admin/OperatorsPanel";
+import { ProfilePanel } from "@/components/admin/ProfilePanel";
 
 /**
  * The single Settings tab (main sidebar). Three sections:
@@ -236,7 +239,18 @@ export default function AdminSettings() {
         </p>
       )}
 
-      {/* ---- Payments ------------------------------------------------------ */}
+      {/* ---- Settings sub-tabs (eventsh's organizer Settings structure:
+         Payments / Email / Operators / Profile — Subscription & Membership
+         are eventsh-platform concepts that don't apply to SingAdvisor) ---- */}
+      <Tabs defaultValue="payments">
+        <TabsList aria-label="Settings sections">
+          <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="email">Email</TabsTrigger>
+          <TabsTrigger value="operators">Operators</TabsTrigger>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+        </TabsList>
+
+      <TabsContent value="payments">
       <Panel className="p-6">
         <h2 className="text-lg">Payments</h2>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
@@ -317,7 +331,33 @@ export default function AdminSettings() {
         </form>}
       </Panel>
 
+      {/* ---- Billing ------------------------------------------------------- */}
+      <Panel className="p-6">
+        <h2 className="text-lg">Billing snapshot</h2>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          What the event platform reports about this account — the same figures its Super Admin sees.
+        </p>
+        <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+          <div className="rounded-xl bg-[var(--surface-sunken)] p-4">
+            <p className="text-2xl font-semibold text-[var(--text-primary)]">{stats?.events ?? "—"}</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Events</p>
+          </div>
+          <div className="rounded-xl bg-[var(--surface-sunken)] p-4">
+            <p className="text-2xl font-semibold text-[var(--text-primary)]">{stats?.ticketsSold ?? "—"}</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Tickets sold</p>
+          </div>
+          <div className="rounded-xl bg-[var(--surface-sunken)] p-4">
+            <p className="text-2xl font-semibold text-[var(--text-primary)]">
+              {stats ? formatRevenue(stats.revenue, stats.revenueCurrency) : "—"}
+            </p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Ticket revenue</p>
+          </div>
+        </div>
+      </Panel>
+      </TabsContent>
+
       {/* ---- Email --------------------------------------------------------- */}
+      <TabsContent value="email">
       <Panel className="p-6">
         <h2 className="text-lg">Email</h2>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
@@ -384,30 +424,24 @@ export default function AdminSettings() {
           </form>
         )}
       </Panel>
+      </TabsContent>
 
-      {/* ---- Billing ------------------------------------------------------- */}
-      <Panel className="p-6">
-        <h2 className="text-lg">Billing snapshot</h2>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          What the event platform reports about this account — the same figures its Super Admin sees.
-        </p>
-        <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-          <div className="rounded-xl bg-[var(--surface-sunken)] p-4">
-            <p className="text-2xl font-semibold text-[var(--text-primary)]">{stats?.events ?? "—"}</p>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">Events</p>
-          </div>
-          <div className="rounded-xl bg-[var(--surface-sunken)] p-4">
-            <p className="text-2xl font-semibold text-[var(--text-primary)]">{stats?.ticketsSold ?? "—"}</p>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">Tickets sold</p>
-          </div>
-          <div className="rounded-xl bg-[var(--surface-sunken)] p-4">
-            <p className="text-2xl font-semibold text-[var(--text-primary)]">
-              {stats ? formatRevenue(stats.revenue, stats.revenueCurrency) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">Ticket revenue</p>
-          </div>
-        </div>
-      </Panel>
+      {/* ---- Operators ----------------------------------------------------- */}
+      <TabsContent value="operators">
+        <OperatorsPanel />
+      </TabsContent>
+
+      {/* ---- Profile ------------------------------------------------------- */}
+      <TabsContent value="profile">
+        <ProfilePanel
+          name={user.name}
+          email={user.email}
+          onMessage={setMessage}
+          onError={setError}
+        />
+      </TabsContent>
+
+      </Tabs>
     </div>
   );
 }

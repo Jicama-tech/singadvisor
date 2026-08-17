@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
@@ -25,6 +25,26 @@ export class AdminService {
 
   async touchLastLogin(id: string) {
     await this.adminUserModel.updateOne({ _id: id }, { lastLoginAt: new Date() }).exec();
+  }
+
+  /** Settings → Profile: the logged-in admin's own name. */
+  async updateOwnProfile(id: string, name: string) {
+    const updated = await this.adminUserModel
+      .findByIdAndUpdate(id, { name }, { new: true })
+      .exec();
+    if (!updated) throw new NotFoundException('Admin not found');
+    return this.sanitize(updated);
+  }
+
+  /** Settings → Profile: verify the current password, then set a new one. */
+  async changeOwnPassword(id: string, currentPassword: string, newPassword: string) {
+    const doc = await this.findById(id);
+    if (!doc) throw new NotFoundException('Admin not found');
+    const valid = await bcrypt.compare(currentPassword, doc.passwordHash);
+    if (!valid) throw new BadRequestException('Current password is incorrect');
+    doc.passwordHash = await bcrypt.hash(newPassword, HASH_ROUNDS);
+    await doc.save();
+    return { ok: true };
   }
 
   /** Never returns passwordHash — only used by AdminController's list route. */
