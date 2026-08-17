@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#08111f" />
+    <title>SingAdvisor — Training, events, consultancy and careers</title>
+    <!-- Static baseline OG tags; per-page values are set client-side via
+         react-helmet-async (accepted SEO tradeoff of the SPA migration). -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SingAdvisor" />
+    <meta property="og:title" content="SingAdvisor — Training, events, consultancy and careers" />
+    <meta name="description" content="Training, events, consultancy and careers — built around people." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Set the theme class before paint so there is no flash of the wrong
+         theme (port of the inline script the Next layout.tsx carried). -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

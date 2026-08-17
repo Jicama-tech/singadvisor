@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>http://localhost:3200</loc></url>
+  <url><loc>http://localhost:3200/about</loc></url>
+  <url><loc>http://localhost:3200/contact</loc></url>
+  <url><loc>http://localhost:3200/events</loc></url>
+  <url><loc>http://localhost:3200/trainings</loc></url>
+  <url><loc>http://localhost:3200/consultancy</loc></url>
+  <url><loc>http://localhost:3200/careers</loc></url>
+  <url><loc>http://localhost:3200/blog</loc></url>
+  <url><loc>http://localhost:3200/trainings/manage-time</loc></url>
+  <url><loc>http://localhost:3200/trainings/manage-money</loc></url>
+  <url><loc>http://localhost:3200/trainings/manage-health</loc></url>
+  <url><loc>http://localhost:3200/trainings/manage-emotion</loc></url>
+  <url><loc>http://localhost:3200/trainings/build-trust-in-teams</loc></url>
+  <url><loc>http://localhost:3200/trainings/leadership-skills</loc></url>
+  <url><loc>http://localhost:3200/trainings/communication-skills</loc></url>
+  <url><loc>http://localhost:3200/trainings/career-transitions</loc></url>
+  <url><loc>http://localhost:3200/consultancy/learning-strategy</loc></url>
+  <url><loc>http://localhost:3200/consultancy/leadership-development</loc></url>
+  <url><loc>http://localhost:3200/consultancy/team-effectiveness</loc></url>
+  <url><loc>http://localhost:3200/consultancy/workplace-wellbeing</loc></url>
+  <url><loc>http://localhost:3200/careers/marketing-intern</loc></url>
+  <url><loc>http://localhost:3200/careers/operations-executive</loc></url>
+  <url><loc>http://localhost:3200/careers/client-partnerships-manager</loc></url>
+  <url><loc>http://localhost:3200/careers/learning-experience-designer</loc></url>
+  <url><loc>http://localhost:3200/careers/senior-corporate-trainer</loc></url>
+  <url><loc>http://localhost:3200/blog/training-that-survives-monday</loc></url>
+  <url><loc>http://localhost:3200/blog/four-questions-before-hiring-a-consultant</loc></url>
+  <url><loc>http://localhost:3200/blog/what-we-look-for-when-hiring-facilitators</loc></url>
+  <url><loc>http://localhost:3200/blog/running-events-people-return-to</loc></url>
+  <url><loc>http://localhost:3200/blog/time-management-advice-that-fails-students</loc></url>
+  <url><loc>http://localhost:3200/blog/measuring-wellbeing-programmes</loc></url>
+  <url><loc>http://localhost:3200/blog/hard-conversation-repair</loc></url>
+</urlset>
