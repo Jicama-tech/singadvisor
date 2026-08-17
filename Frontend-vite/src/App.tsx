@@ -253,14 +253,6 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/events/:id"
-          element={
-            <RequireAdmin>
-              <EventEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
           path="/admin/events/participants"
           element={
             <RequireAdmin>
@@ -268,11 +260,97 @@ export default function App() {
             </RequireAdmin>
           }
         />
+        {/* The 10 known "Organizer dashboard" placeholder tabs are declared
+            explicitly BEFORE :id — otherwise /admin/events/chatbot (etc.)
+            would match the :id edit route and try to fetch an event with
+            that literal id (a real bug found during cutover QA: the edit
+            page rendered "Event not found" on every placeholder tab).
+            ObjectIds never collide with these names. */}
         <Route
-          path="/admin/events/:tab"
+          path="/admin/events/chatbot"
           element={
             <RequireAdmin>
-              <EventsPlaceholder />
+              <EventsPlaceholder tab="chatbot" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/analytics"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="analytics" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/kiosk"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="kiosk" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/platform-fees"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="platform-fees" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/crm"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="crm" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/feedback"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="feedback" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/membership"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="membership" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/support"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="support" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/eventfront"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="eventfront" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/settings"
+          element={
+            <RequireAdmin>
+              <EventsPlaceholder tab="settings" />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/events/:id"
+          element={
+            <RequireAdmin>
+              <EventEdit />
             </RequireAdmin>
           }
         />

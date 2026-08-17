@@ -85,6 +85,30 @@ export class EventshProxyController {
   /** Everything else — same method, same path suffix, JSON body passthrough. */
   @All('*')
   async forward(@Req() req: Request, @Res() res: ExpressResponse) {
+    // eventsh's coupon list throws a 404 ("No coupons found") when the list
+    // is empty rather than returning an empty array. The SPA handles that
+    // status correctly, but a 404 in the browser console reads as a broken
+    // page — normalize it here so an empty list is a clean 200 with no data.
+    if (
+      req.method === 'GET' &&
+      /^\/coupons\/organizer\/[0-9a-f]{24}$/.test(req.originalUrl.replace(/^\/eventsh/, ''))
+    ) {
+      const { url, organizerId } = this.config();
+      try {
+        const upstream = await fetch(`${url}${req.originalUrl.replace(/^\/eventsh/, '')}`);
+        if (upstream.status === 404) {
+          res.status(200).json({ success: true, data: [] });
+          return;
+        }
+        const data = Buffer.from(await upstream.arrayBuffer());
+        res.status(upstream.status);
+        res.set('Content-Type', upstream.headers.get('content-type') ?? 'application/json');
+        res.send(data);
+        return;
+      } catch (cause) {
+        throw new BadGatewayException(`eventsh is unreachable: ${(cause as Error).message}`);
+      }
+    }
     const { url, organizerId, apiKey } = this.config();
 
     const suffix = req.originalUrl.replace(/^\/eventsh/, '') || '/';
