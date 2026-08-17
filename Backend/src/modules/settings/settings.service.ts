@@ -103,8 +103,8 @@ export class SettingsService {
     // UEN is the anchor of the PayNow QR — a config with only a mobile
     // number is fine, but a malformed UEN must never reach the QR builder.
     const newUEN = (update.companyUEN as string) ?? current.companyUEN;
-    if (newUEN && !/^\d{9}[A-Z]$/.test(newUEN)) {
-      throw new BadRequestException('UEN must be 9 digits followed by one uppercase letter');
+    if (newUEN && !/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{8,10}$/.test(newUEN)) {
+      throw new BadRequestException('UEN must be 8-10 letters/digits, e.g. 202012345K or T08LL1234K');
     }
 
     await this.model.updateOne({ key: SINGLETON_KEY }, { $set: update }).exec();

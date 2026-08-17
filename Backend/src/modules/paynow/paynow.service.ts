@@ -57,7 +57,12 @@ export class PaynowService {
 
     const payloadHeader = this.tlv('00', '01') + this.tlv('01', '12');
 
-    const proxyType = /^\d{9}[A-Z]$/.test(payeeId) ? '2' : '0';
+    // UEN vs mobile proxy: UENs come in several formats (12345678A,
+    // 202012345K, T08LL1234K...) — classify by shape instead: a +65 mobile
+    // or a bare 8-digit number is a phone (proxy 0), anything else is a UEN
+    // (proxy 2).
+    const isMobile = /^\+?65/.test(payeeId) || /^\d{8}$/.test(payeeId.replace(/\s/g, ''));
+    const proxyType = isMobile ? '0' : '2';
     const proxyValue = payeeId.replace(/[\s+]/g, '');
     const merchantAccountInfo = this.tlv(
       '26',

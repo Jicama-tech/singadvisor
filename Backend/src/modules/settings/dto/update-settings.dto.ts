@@ -15,9 +15,11 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   @ValidateIf((o: UpdateSettingsDto) => o.companyUEN !== '')
-  // Case-insensitive: users commonly type the letter lowercase — the service
+  // Accepts every real Singapore UEN format: 12345678A (pre-2009
+  // businesses), 202012345K (post-2009), 202312345K (local companies),
+  // T08LL1234K (other entities). Case-insensitive — the service
   // normalizes to uppercase before persisting.
-  @Matches(/^\d{9}[A-Za-z]$/, { message: 'UEN must be 9 digits followed by one letter (e.g. 202012345K)' })
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{8,10}$/, { message: 'UEN must be 8-10 letters/digits, e.g. 202012345K or T08LL1234K' })
   companyUEN?: string;
 
   @IsOptional()

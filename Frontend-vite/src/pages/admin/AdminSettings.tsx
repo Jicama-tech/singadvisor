@@ -250,7 +250,7 @@ export default function AdminSettings() {
             <Field label="Company name" htmlFor="s-company" hint="Shown as the payee on the QR">
               <Input id="s-company" name="companyName" defaultValue={settings?.companyName} />
             </Field>
-            <Field label="Company UEN" htmlFor="s-uen" hint="9 digits + 1 letter, e.g. 202012345K">
+            <Field label="Company UEN" htmlFor="s-uen" hint="e.g. 202012345K, 12345678A or T08LL1234K">
               <Input id="s-uen" name="companyUEN" defaultValue={settings?.companyUEN} placeholder="202012345K" />
             </Field>
             <Field label="PayNow mobile (fallback)" htmlFor="s-mobile" hint="Used only when no UEN is set">
