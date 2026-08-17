@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { PageHeading } from "@/components/admin/AdminUI";
 import { PostForm } from "@/components/admin/PostForm";
 import { savePost } from "@/adminActions";
@@ -67,10 +66,6 @@ export default function BlogEdit() {
   };
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
       <div className="flex flex-col gap-8">
         <PageHeading
           title={id ? "Edit post" : "New post"}
@@ -78,6 +73,5 @@ export default function BlogEdit() {
         />
         {loaded && <PostForm post={post} authors={authors} action={onSubmit} />}
       </div>
-    </AdminShell>
   );
 }

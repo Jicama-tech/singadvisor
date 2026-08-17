@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { PageHeading } from "@/components/admin/AdminUI";
 import { ServiceForm } from "@/components/admin/ServiceForm";
 import { saveService } from "@/adminActions";
@@ -58,10 +57,6 @@ export default function ConsultancyEdit() {
   };
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
       <div className="flex flex-col gap-8">
         <PageHeading
           title={id ? "Edit service" : "New service"}
@@ -69,6 +64,5 @@ export default function ConsultancyEdit() {
         />
         {loaded && <ServiceForm service={service} action={onSubmit} />}
       </div>
-    </AdminShell>
   );
 }

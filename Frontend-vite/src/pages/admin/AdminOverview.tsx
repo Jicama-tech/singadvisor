@@ -1,5 +1,4 @@
 import { useAuth } from "@/hooks/useAuth";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { PageHeading, StatTile, Panel, AdminEmpty } from "@/components/admin/AdminUI";
 import { Link } from "react-router-dom";
 
@@ -14,10 +13,6 @@ export default function AdminOverview() {
   if (!user) return null;
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
       <div className="flex flex-col gap-8">
         <PageHeading
           title="Overview"
@@ -58,6 +53,5 @@ export default function AdminOverview() {
           description="Registrations, enquiries, applications and messages will surface here once their pages are ported."
         />
       </div>
-    </AdminShell>
   );
 }

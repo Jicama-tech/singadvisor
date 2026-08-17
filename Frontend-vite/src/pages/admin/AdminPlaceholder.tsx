@@ -1,5 +1,4 @@
 import { useAuth } from "@/hooks/useAuth";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { PageHeading, AdminEmpty } from "@/components/admin/AdminUI";
 
 /**
@@ -12,10 +11,6 @@ export default function AdminPlaceholder({ title }: { title: string }) {
   if (!user) return null;
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
       <div className="flex flex-col gap-8">
         <PageHeading title={title} description="This page is being ported to the new dashboard." />
         <AdminEmpty
@@ -23,6 +18,5 @@ export default function AdminPlaceholder({ title }: { title: string }) {
           description={`The ${title} page is part of the dashboard migration and is not wired up yet.`}
         />
       </div>
-    </AdminShell>
   );
 }

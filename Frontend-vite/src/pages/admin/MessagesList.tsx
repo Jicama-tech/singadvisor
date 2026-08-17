@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminEmpty, PageHeading, Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/Badge";
 import { toggleMessageHandled } from "@/adminActions";
@@ -29,10 +28,6 @@ export default function MessagesList() {
   if (!user) return null;
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
       <div className="flex flex-col gap-8">
         <PageHeading
           title="Messages"
@@ -100,6 +95,5 @@ export default function MessagesList() {
           )}
         </Panel>
       </div>
-    </AdminShell>
   );
 }

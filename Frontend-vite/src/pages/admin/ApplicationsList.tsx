@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminEmpty, PageHeading, Panel } from "@/components/admin/AdminUI";
 import { StatusSelect } from "@/components/admin/StatusSelect";
 import { Badge } from "@/components/ui/Badge";
@@ -65,10 +64,6 @@ export default function ApplicationsList() {
     : (applications ?? []);
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
       <div className="flex flex-col gap-8">
         <PageHeading
           title="Job applications"
@@ -182,6 +177,5 @@ export default function ApplicationsList() {
           </div>
         )}
       </div>
-    </AdminShell>
   );
 }

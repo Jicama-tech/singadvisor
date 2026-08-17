@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { PageHeading } from "@/components/admin/AdminUI";
 import { JobForm } from "@/components/admin/JobForm";
 import { saveJob } from "@/adminActions";
@@ -62,10 +61,6 @@ export default function CareerEdit() {
   };
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
       <div className="flex flex-col gap-8">
         <PageHeading
           title={id ? "Edit posting" : "New posting"}
@@ -73,6 +68,5 @@ export default function CareerEdit() {
         />
         {loaded && <JobForm job={job} action={onSubmit} />}
       </div>
-    </AdminShell>
   );
 }

@@ -1,18 +1,19 @@
-import { lazy, Suspense, type ReactNode } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { lazy, Suspense } from "react";
+import { Route, Routes } from "react-router-dom";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 
 /**
  * Classic React Router v6 JSX routing, all inline — mirroring eventsh-v1's
  * frontend/src/App.tsx conventions (React.lazy per page, one top-level
  * Suspense). eventsh branches its route tree per role; SingAdvisor has
- * exactly one role, so this is a single tree with a RequireAdmin wrapper
- * modeled on eventsh's RequireUserRole.
+ * exactly one role, so the whole admin dashboard nests under a single
+ * guarded AdminLayout route (the guard lives there, modeled on eventsh's
+ * RequireUserRole).
  */
 
 // ---- admin pages -----------------------------------------------------------
 const AdminLogin = lazy(() => import("@/pages/admin/AdminLogin"));
+const AdminLayout = lazy(() => import("@/components/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("@/pages/admin/AdminOverview"));
 const TrainingsList = lazy(() => import("@/pages/admin/TrainingsList"));
 const TrainingEdit = lazy(() => import("@/pages/admin/TrainingEdit"));
@@ -49,18 +50,6 @@ const BlogIndex = lazy(() => import("@/pages/public/BlogIndex"));
 const BlogDetail = lazy(() => import("@/pages/public/BlogDetail"));
 const NotFoundPage = lazy(() => import("@/pages/public/NotFoundPage"));
 
-/** Single guarded wrapper (eventsh's RequireUserRole, minus the multi-role
- * switch): unauthenticated → /admin/login with a ?next= return path. */
-function RequireAdmin({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
-  const location = useLocation();
-  if (loading) return <LoadingScreen />;
-  if (!user) {
-    const next = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/admin/login?next=${next}`} replace />;
-  }
-  return <>{children}</>;
-}
 
 export default function App() {
   return (
@@ -83,277 +72,50 @@ export default function App() {
 
         {/* ---- admin dashboard -------------------------------------------- */}
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route
-          path="/admin"
-          element={
-            <RequireAdmin>
-              <AdminOverview />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/trainings"
-          element={
-            <RequireAdmin>
-              <TrainingsList />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/trainings/new"
-          element={
-            <RequireAdmin>
-              <TrainingEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/trainings/:id"
-          element={
-            <RequireAdmin>
-              <TrainingEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/consultancy"
-          element={
-            <RequireAdmin>
-              <ConsultancyList />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/consultancy/new"
-          element={
-            <RequireAdmin>
-              <ConsultancyEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/consultancy/:id"
-          element={
-            <RequireAdmin>
-              <ConsultancyEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/careers"
-          element={
-            <RequireAdmin>
-              <CareersList />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/careers/new"
-          element={
-            <RequireAdmin>
-              <CareerEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/careers/:id"
-          element={
-            <RequireAdmin>
-              <CareerEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/blog"
-          element={
-            <RequireAdmin>
-              <BlogList />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/blog/new"
-          element={
-            <RequireAdmin>
-              <BlogEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/blog/:id"
-          element={
-            <RequireAdmin>
-              <BlogEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/landing"
-          element={
-            <RequireAdmin>
-              <LandingAdmin />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/landing/:key"
-          element={
-            <RequireAdmin>
-              <LandingSectionEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/registrations"
-          element={
-            <RequireAdmin>
-              <RegistrationsList />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/enquiries"
-          element={
-            <RequireAdmin>
-              <EnquiriesList />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/applications"
-          element={
-            <RequireAdmin>
-              <ApplicationsList />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/messages"
-          element={
-            <RequireAdmin>
-              <MessagesList />
-            </RequireAdmin>
-          }
-        />
-        {/* Events dashboard (organizer-style nested nav) */}
-        <Route
-          path="/admin/events"
-          element={
-            <RequireAdmin>
-              <EventsList />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/new"
-          element={
-            <RequireAdmin>
-              <EventEdit />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/participants"
-          element={
-            <RequireAdmin>
-              <ParticipantsList />
-            </RequireAdmin>
-          }
-        />
-        {/* The 10 known "Organizer dashboard" placeholder tabs are declared
-            explicitly BEFORE :id — otherwise /admin/events/chatbot (etc.)
-            would match the :id edit route and try to fetch an event with
-            that literal id (a real bug found during cutover QA: the edit
-            page rendered "Event not found" on every placeholder tab).
-            ObjectIds never collide with these names. */}
-        <Route
-          path="/admin/events/chatbot"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="chatbot" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/analytics"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="analytics" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/kiosk"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="kiosk" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/platform-fees"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="platform-fees" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/crm"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="crm" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/feedback"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="feedback" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/membership"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="membership" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/support"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="support" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/eventfront"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="eventfront" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/settings"
-          element={
-            <RequireAdmin>
-              <EventsPlaceholder tab="settings" />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/admin/events/:id"
-          element={
-            <RequireAdmin>
-              <EventEdit />
-            </RequireAdmin>
-          }
-        />
+        {/* Single persistent layout route: AdminLayout (the guarded shell)
+            mounts once and every tab below swaps only the <Outlet/> content,
+            so the sidebar/header never remount between tabs. */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminOverview />} />
+          <Route path="landing" element={<LandingAdmin />} />
+          <Route path="landing/:key" element={<LandingSectionEdit />} />
+          <Route path="trainings" element={<TrainingsList />} />
+          <Route path="trainings/new" element={<TrainingEdit />} />
+          <Route path="trainings/:id" element={<TrainingEdit />} />
+          <Route path="consultancy" element={<ConsultancyList />} />
+          <Route path="consultancy/new" element={<ConsultancyEdit />} />
+          <Route path="consultancy/:id" element={<ConsultancyEdit />} />
+          <Route path="careers" element={<CareersList />} />
+          <Route path="careers/new" element={<CareerEdit />} />
+          <Route path="careers/:id" element={<CareerEdit />} />
+          <Route path="blog" element={<BlogList />} />
+          <Route path="blog/new" element={<BlogEdit />} />
+          <Route path="blog/:id" element={<BlogEdit />} />
+          <Route path="registrations" element={<RegistrationsList />} />
+          <Route path="enquiries" element={<EnquiriesList />} />
+          <Route path="applications" element={<ApplicationsList />} />
+          <Route path="messages" element={<MessagesList />} />
+          <Route path="events" element={<EventsList />} />
+          <Route path="events/new" element={<EventEdit />} />
+          <Route path="events/participants" element={<ParticipantsList />} />
+          {/* The 10 known "Organizer dashboard" placeholder tabs are declared
+              explicitly BEFORE :id — otherwise /admin/events/chatbot (etc.)
+              would match the :id edit route and try to fetch an event with
+              that literal id (a real bug found during cutover QA: the edit
+              page rendered "Event not found" on every placeholder tab).
+              ObjectIds never collide with these names. */}
+          <Route path="events/chatbot" element={<EventsPlaceholder tab="chatbot" />} />
+          <Route path="events/analytics" element={<EventsPlaceholder tab="analytics" />} />
+          <Route path="events/kiosk" element={<EventsPlaceholder tab="kiosk" />} />
+          <Route path="events/platform-fees" element={<EventsPlaceholder tab="platform-fees" />} />
+          <Route path="events/crm" element={<EventsPlaceholder tab="crm" />} />
+          <Route path="events/feedback" element={<EventsPlaceholder tab="feedback" />} />
+          <Route path="events/membership" element={<EventsPlaceholder tab="membership" />} />
+          <Route path="events/support" element={<EventsPlaceholder tab="support" />} />
+          <Route path="events/eventfront" element={<EventsPlaceholder tab="eventfront" />} />
+          <Route path="events/settings" element={<EventsPlaceholder tab="settings" />} />
+          <Route path="events/:id" element={<EventEdit />} />
+        </Route>
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

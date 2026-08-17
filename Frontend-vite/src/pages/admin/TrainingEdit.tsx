@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { PageHeading } from "@/components/admin/AdminUI";
 import { TrainingForm } from "@/components/admin/TrainingForm";
 import { saveTraining } from "@/adminActions";
@@ -76,10 +75,6 @@ export default function TrainingEdit() {
   };
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
       <div className="flex flex-col gap-8">
         <PageHeading
           title={id ? "Edit training" : "New training"}
@@ -87,6 +82,5 @@ export default function TrainingEdit() {
         />
         {loaded && <TrainingForm training={training} trainers={trainers} action={onSubmit} />}
       </div>
-    </AdminShell>
   );
 }

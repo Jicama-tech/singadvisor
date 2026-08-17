@@ -51,10 +51,16 @@ export function AdminShell({
   user,
   counts,
   children,
+  mainClassName,
 }: {
   user: { name: string; email: string; role: string };
   counts: AdminCounts;
   children: React.ReactNode;
+  /** Overrides the default content padding — pages that render their own
+   * secondary sidebar (EventsShell/LandingShell) pass "p-0" so the sidebar
+   * sits flush against the primary one instead of leaving a double-width
+   * whitespace gutter; those shells pad their own columns internally. */
+  mainClassName?: string;
 }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -225,7 +231,7 @@ export function AdminShell({
           </div>
         )}
 
-        <main className="flex-1 p-4 lg:p-8">{children}</main>
+        <main className={cn("flex-1", mainClassName ?? "p-4 lg:p-8")}>{children}</main>
       </div>
     </div>
   );
