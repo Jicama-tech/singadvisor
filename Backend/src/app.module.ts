@@ -10,6 +10,16 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { EventsModule } from './modules/events/events.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { SponsorsModule } from './modules/sponsors/sponsors.module';
+// Content domains migrated off the Frontend's Prisma DB (Phase 10a of the
+// Vite-SPA migration — a browser app cannot query Prisma directly, so each
+// of these now exposes a real HTTP API here instead).
+import { TrainingsModule } from './modules/trainings/trainings.module';
+import { ConsultancyModule } from './modules/consultancy/consultancy.module';
+import { CareersModule } from './modules/careers/careers.module';
+import { BlogModule } from './modules/blog/blog.module';
+import { RegistrationsModule } from './modules/registrations/registrations.module';
+import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
+import { SubscribersModule } from './modules/subscribers/subscribers.module';
 
 @Module({
   imports: [
@@ -30,10 +40,15 @@ import { SponsorsModule } from './modules/sponsors/sponsors.module';
     EventsModule,
     TicketsModule,
     SponsorsModule,
-    // Remaining domain modules land here per the modernization proposal
-    // (§5, Phase 1): trainings, blog, consultancy, careers, registrations,
-    // contact, files. Events' own follow-on modules (rsvp, coupons, stalls)
-    // land here too, per the event-ops port plan.
+    TrainingsModule,
+    ConsultancyModule,
+    CareersModule,
+    BlogModule,
+    RegistrationsModule,
+    ContactMessagesModule,
+    SubscribersModule,
+    // Events' own follow-on modules (rsvp, coupons, stalls) land here too,
+    // per the event-ops port plan.
   ],
   controllers: [AppController],
   providers: [AppService],

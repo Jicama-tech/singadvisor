@@ -12,7 +12,8 @@
     "lint": "eslint '{src,test}/**/*.ts' --fix",
     "seed:admin": "tsx scripts/seed-admin.ts",
     "seed:landing": "tsx scripts/seed-landing.ts",
-    "import:events": "tsx scripts/import-events.ts"
+    "import:events": "tsx scripts/import-events.ts",
+    "import:content": "tsx scripts/import-content.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

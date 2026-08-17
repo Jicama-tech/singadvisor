@@ -81,6 +81,36 @@ export class UploadsController {
     return { url: `/uploads/events/${file.filename}` };
   }
 
+  /** Cover images for trainings/services/jobs/blog posts — guarded, images
+   * only. The current admin forms for these domains use plain URL text
+   * inputs, but this route exists so the SPA port can adopt real
+   * cropped-upload widgets (CroppedImageField) without inventing a fourth
+   * one-off upload path when it does. */
+  @Post('content')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: join(process.cwd(), 'uploads', 'content'),
+        filename: (_req, file, cb) => {
+          cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`);
+        },
+      }),
+      limits: { fileSize: MAX_SIZE_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_IMAGE_MIME.test(file.mimetype)) {
+          cb(new BadRequestException('Only JPEG/PNG/WebP/GIF images are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadContentImage(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return { url: `/uploads/content/${file.filename}` };
+  }
+
   /**
    * Sponsor logos and payment-proof screenshots — deliberately PUBLIC, no
    * guard. Unlike `landing`/`events` above, the uploader here is an

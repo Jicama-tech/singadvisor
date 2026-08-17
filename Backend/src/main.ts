@@ -18,6 +18,11 @@ async function bootstrap() {
   mkdirSync(join(process.cwd(), 'uploads', 'tickets'), { recursive: true });
   mkdirSync(join(process.cwd(), 'uploads', 'events'), { recursive: true });
   mkdirSync(join(process.cwd(), 'uploads', 'sponsors'), { recursive: true });
+  mkdirSync(join(process.cwd(), 'uploads', 'content'), { recursive: true });
+  // Résumés are personal data — deliberately NOT under `uploads/` (which
+  // useStaticAssets serves to the world below); careers.service.ts streams
+  // them only through its guarded route.
+  mkdirSync(process.env.RESUME_DIR ?? join(process.cwd(), 'resumes'), { recursive: true });
 
   // `rawBody: true` keeps the raw request bytes available on `req.rawBody`
   // (alongside the normal parsed `req.body`) — needed by the Razorpay
