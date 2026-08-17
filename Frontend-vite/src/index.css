@@ -1,0 +1,217 @@
+@import "tailwindcss";
+
+/* Inter + Fraunces — previously injected by next/font in layout.tsx; a Vite
+   SPA has no next/font, so the same families load via plain @import and the
+   tokens below stay identical. */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap");
+
+/* Dark mode is driven by a class on <html>, set before paint by the inline
+   script in index.html so there is no flash of the wrong theme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens
+   Ink navy as the structural colour, teal as the action colour, amber as a
+   sparing highlight. Every surface/text pairing below meets WCAG AA.
+--------------------------------------------------------------------------- */
+@theme {
+  /* Inter/Fraunces are loaded by the @import at the top of this file. */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+
+  --color-ink-50: #f4f7fb;
+  --color-ink-100: #e6ecf5;
+  --color-ink-200: #c8d6e8;
+  --color-ink-300: #9ab2d1;
+  --color-ink-400: #6688b4;
+  --color-ink-500: #446799;
+  --color-ink-600: #33507c;
+  --color-ink-700: #2a4064;
+  --color-ink-800: #1c2c47;
+  --color-ink-900: #101d33;
+  --color-ink-950: #08111f;
+
+  --color-teal-50: #eefbf6;
+  --color-teal-100: #d3f5e7;
+  --color-teal-200: #a9ead2;
+  --color-teal-300: #71d8b7;
+  --color-teal-400: #3cbe98;
+  --color-teal-500: #1aa27e;
+  --color-teal-600: #0d8266;
+  --color-teal-700: #0b6853;
+  --color-teal-800: #0b5343;
+  --color-teal-900: #0a4438;
+  --color-teal-950: #042720;
+
+  --color-amber-accent: #e8a33d;
+
+  --radius-card: 1rem;
+
+  --shadow-soft: 0 1px 2px rgb(8 17 31 / 0.04), 0 8px 24px -12px
+    rgb(8 17 31 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(8 17 31 / 0.06), 0 20px 40px -20px
+    rgb(8 17 31 / 0.28);
+
+  --animate-fade-up: fade-up 0.5s ease-out both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Semantic surface variables — the only colours components should reach for.
+   Redefined wholesale under .dark so nothing has a light-only definition.
+--------------------------------------------------------------------------- */
+:root {
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: var(--color-ink-50);
+  --surface-inverse: var(--color-ink-950);
+  --border-subtle: var(--color-ink-100);
+  --border-strong: var(--color-ink-200);
+  --text-primary: var(--color-ink-950);
+  --text-secondary: var(--color-ink-600);
+  --text-muted: var(--color-ink-500);
+  --text-inverse: #ffffff;
+  --accent: var(--color-teal-600);
+  --accent-hover: var(--color-teal-700);
+  /* Text/icon colour that sits ON --accent. Flips in dark mode, where the
+     accent becomes light enough that white text fails contrast. */
+  --accent-foreground: #ffffff;
+  --accent-soft: var(--color-teal-50);
+  --accent-on-soft: var(--color-teal-800);
+  --ring: var(--color-teal-500);
+}
+
+.dark {
+  --surface: var(--color-ink-950);
+  --surface-raised: #0e1b2f;
+  --surface-sunken: #060d18;
+  --surface-inverse: #ffffff;
+  --border-subtle: #1b2c46;
+  --border-strong: #274063;
+  --text-primary: #eef3fa;
+  --text-secondary: #a8bcd6;
+  --text-muted: #8298b6;
+  --text-inverse: var(--color-ink-950);
+  --accent: var(--color-teal-400);
+  --accent-hover: var(--color-teal-300);
+  --accent-foreground: var(--color-ink-950);
+  --accent-soft: #0b2b26;
+  --accent-on-soft: var(--color-teal-200);
+  --ring: var(--color-teal-400);
+}
+
+@layer base {
+  * {
+    border-color: var(--border-subtle);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--surface);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* One consistent focus ring for keyboard users across every interactive
+     element, including the ones browsers style inconsistently. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: var(--color-teal-200);
+    color: var(--color-ink-950);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .surface {
+    background-color: var(--surface);
+  }
+  .surface-raised {
+    background-color: var(--surface-raised);
+  }
+  .surface-sunken {
+    background-color: var(--surface-sunken);
+  }
+  .text-primary {
+    color: var(--text-primary);
+  }
+  .text-secondary {
+    color: var(--text-secondary);
+  }
+  .text-muted {
+    color: var(--text-muted);
+  }
+  .border-subtle {
+    border-color: var(--border-subtle);
+  }
+  .border-strong {
+    border-color: var(--border-strong);
+  }
+
+  /* Page gutter — one definition so every section lines up. */
+  .container-page {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 80rem;
+    padding-inline: 1.25rem;
+  }
+  @media (min-width: 768px) {
+    .container-page {
+      padding-inline: 2rem;
+    }
+  }
+
+  .prose-body p {
+    color: var(--text-secondary);
+    line-height: 1.75;
+  }
+  .prose-body p + p {
+    margin-top: 1.125rem;
+  }
+}

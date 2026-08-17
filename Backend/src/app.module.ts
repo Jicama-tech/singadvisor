@@ -20,6 +20,7 @@ import { BlogModule } from './modules/blog/blog.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 import { SubscribersModule } from './modules/subscribers/subscribers.module';
+import { EventshProxyModule } from './modules/eventsh-proxy/eventsh-proxy.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { SubscribersModule } from './modules/subscribers/subscribers.module';
     RegistrationsModule,
     ContactMessagesModule,
     SubscribersModule,
+    EventshProxyModule,
     // Events' own follow-on modules (rsvp, coupons, stalls) land here too,
     // per the event-ops port plan.
   ],
