@@ -12,6 +12,12 @@ import { cn } from "@/lib/utils";
  * shadcn/Radix components. Only Events/Coupons and Participants are real so
  * far; the rest render a "Coming soon" placeholder (see the /admin/events/*
  * placeholder pages) so the full tab list is genuinely browsable today.
+ *
+ * Collapse behavior: full-width (labels) on the Events/Coupons parent tab,
+ * icon-only once any tab has been clicked — the user picked where they're
+ * going, so the sidebar gives the content pane the width back. Labels
+ * remain reachable via `title` tooltips (same convention AdminShell's own
+ * collapsed mode uses).
  */
 const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: "/admin/events/chatbot", label: "Chatbot", icon: "message-circle" },
@@ -49,6 +55,10 @@ export function EventsNestedNav() {
   const isActive = (href: string) =>
     href === "/admin/events" ? pathname === href : pathname.startsWith(href);
 
+  // Full labels on the parent Events/Coupons tab; icon-only once any other
+  // tab is open (see the component comment).
+  const collapsed = pathname !== "/admin/events";
+
   return (
     <nav
       // top-24 (6rem = the header's own h-16/4rem + the original 2rem gap)
@@ -56,12 +66,17 @@ export function EventsNestedNav() {
       // it; max-height trims the same 6rem off the top plus a matching 2rem
       // at the bottom so the nav's own scroll (once there are enough tabs to
       // need it) never runs under the header or off the bottom of the screen.
-      className="flex shrink-0 flex-col gap-0.5 border-[var(--border-subtle)] p-3 lg:sticky lg:top-24 lg:z-20 lg:max-h-[calc(100vh-8rem)] lg:w-56 lg:overflow-y-auto lg:border-r"
+      className={cn(
+        "flex shrink-0 flex-col gap-0.5 border-[var(--border-subtle)] p-3 transition-[width] duration-200 lg:sticky lg:top-24 lg:z-20 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:border-r",
+        collapsed ? "lg:w-16" : "lg:w-56",
+      )}
       aria-label="Organizer dashboard"
     >
-      <p className="hidden px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] lg:block">
-        Organizer dashboard
-      </p>
+      {!collapsed && (
+        <p className="hidden px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] lg:block">
+          Organizer dashboard
+        </p>
+      )}
       {/* Desktop: a vertical secondary sidebar. Mobile: a horizontal
           scrollable strip (same collapse-to-row pattern EventForm.tsx's own
           in-page Tabs already use for narrow screens), since a third nested
@@ -74,15 +89,17 @@ export function EventsNestedNav() {
               <Link
                 to={tab.href}
                 aria-current={active ? "page" : undefined}
+                title={collapsed ? tab.label : undefined}
                 className={cn(
                   "flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  collapsed && "lg:justify-center lg:px-0",
                   active
                     ? "bg-[var(--accent-soft)] text-[var(--accent-on-soft)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]",
                 )}
               >
                 <Icon name={tab.icon} size={16} className="shrink-0" />
-                <span>{tab.label}</span>
+                {!collapsed && <span>{tab.label}</span>}
               </Link>
             </li>
           );

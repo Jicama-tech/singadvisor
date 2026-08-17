@@ -33,30 +33,41 @@ export function isLandingDashboardRoute(pathname: string): boolean {
 export function LandingNestedNav() {
   const { pathname } = useLocation();
 
+  // Full labels on the "All sections" overview; icon-only once a section
+  // tab has been clicked — same collapse convention as EventsNestedNav.
+  const collapsed = pathname !== "/admin/landing";
+
   return (
     <nav
       // Same sticky geometry as EventsNestedNav — clears the sticky header
       // (top-24) and keeps its own scroll inside the viewport.
-      className="flex shrink-0 flex-col gap-0.5 border-[var(--border-subtle)] p-3 lg:sticky lg:top-24 lg:z-20 lg:max-h-[calc(100vh-8rem)] lg:w-56 lg:overflow-y-auto lg:border-r"
+      className={
+        "flex shrink-0 flex-col gap-0.5 border-[var(--border-subtle)] p-3 transition-[width] duration-200 lg:sticky lg:top-24 lg:z-20 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:border-r " +
+        (collapsed ? "lg:w-16" : "lg:w-56")
+      }
       aria-label="Landing page sections"
     >
-      <p className="hidden px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] lg:block">
-        Landing page
-      </p>
+      {!collapsed && (
+        <p className="hidden px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] lg:block">
+          Landing page
+        </p>
+      )}
       <ul className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden">
         <li className="shrink-0 lg:shrink">
           <Link
             to="/admin/landing"
             aria-current={pathname === "/admin/landing" ? "page" : undefined}
+            title={collapsed ? "All sections" : undefined}
             className={cn(
               "flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              collapsed && "lg:justify-center lg:px-0",
               pathname === "/admin/landing"
                 ? "bg-[var(--accent-soft)] text-[var(--accent-on-soft)]"
                 : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]",
             )}
           >
             <Icon name="layers" size={16} className="shrink-0" />
-            <span>All sections</span>
+            {!collapsed && <span>All sections</span>}
           </Link>
         </li>
         {SECTION_TABS.map((tab) => {
@@ -66,15 +77,17 @@ export function LandingNestedNav() {
               <Link
                 to={tab.href}
                 aria-current={active ? "page" : undefined}
+                title={collapsed ? tab.label : undefined}
                 className={cn(
                   "flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  collapsed && "lg:justify-center lg:px-0",
                   active
                     ? "bg-[var(--accent-soft)] text-[var(--accent-on-soft)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]",
                 )}
               >
                 <Icon name={tab.icon} size={16} className="shrink-0" />
-                <span>{tab.label}</span>
+                {!collapsed && <span>{tab.label}</span>}
               </Link>
             </li>
           );
