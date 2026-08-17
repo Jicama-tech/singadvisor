@@ -1,7 +1,7 @@
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import { formatPrice } from "@/lib/utils";
 import type { VisitorType } from "@/lib/events-client";
 
@@ -29,6 +29,23 @@ function loadRazorpayCheckout(): Promise<void> {
   return checkoutScriptPromise;
 }
 
+/** Buyer-facing payment-method availability (GET /settings/public). */
+type PayMethods = {
+  paynowEnabled: boolean;
+  paynowPayeeId: string;
+  paynowPayeeName: string;
+  razorpayEnabled: boolean;
+};
+
+type PaynowOrder = {
+  orderId: string;
+  paynowRef: string;
+  amount: number; // minor units
+  amountMajor: number;
+  currency: string;
+  qrDataUrl: string;
+};
+
 type Status = "idle" | "submitting" | "success" | "error";
 
 export function TicketPurchaseForm({
@@ -51,10 +68,42 @@ export function TicketPurchaseForm({
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [ticketId, setTicketId] = useState("");
+  const [payMethods, setPayMethods] = useState<PayMethods | null>(null);
+  const [method, setMethod] = useState<"razorpay" | "paynow" | null>(null);
+  const [paynowOrder, setPaynowOrder] = useState<PaynowOrder | null>(null);
+  const [paynowConfirming, setPaynowConfirming] = useState(false);
 
   const tier = activeTiers.find((t) => t.id === tierId);
   const remaining = tier ? tier.maxCount - tier.soldCount : 0;
   const isFree = (tier?.price ?? 0) <= 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/settings/public`);
+        if (res.ok && !cancelled) setPayMethods((await res.json()) as PayMethods);
+      } catch {
+        /* no methods — the form shows the "being set up" notice */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Which methods are actually usable for this (paid) purchase.
+  const enabledMethods: ("razorpay" | "paynow")[] =
+    !payMethods || isFree
+      ? []
+      : [
+          ...(payMethods.razorpayEnabled ? (["razorpay"] as const) : []),
+          ...(payMethods.paynowEnabled ? (["paynow"] as const) : []),
+        ];
+
+  // The explicit pick wins; with only one enabled method the chooser is
+  // not shown, so fall back to that single method.
+  const effectiveMethod = method ?? enabledMethods[0] ?? null;
 
   async function postJson(path: string, body: unknown) {
     const response = await fetch(`${BACKEND_URL}${path}`, {
@@ -86,6 +135,14 @@ export function TicketPurchaseForm({
         const ticket = (await postJson("/tickets/free", base)) as { ticketId: string };
         setTicketId(ticket.ticketId);
         setStatus("success");
+        return;
+      }
+
+      if (effectiveMethod === "paynow") {
+        // Step 1 — server generates the dynamic QR (amount embedded).
+        const order = (await postJson("/tickets/checkout/paynow", base)) as PaynowOrder;
+        setPaynowOrder(order);
+        setStatus("idle");
         return;
       }
 
@@ -131,6 +188,23 @@ export function TicketPurchaseForm({
     }
   }
 
+  async function confirmPaynow() {
+    if (!paynowOrder) return;
+    setPaynowConfirming(true);
+    setError("");
+    try {
+      const ticket = (await postJson("/tickets/paynow-confirm", {
+        orderId: paynowOrder.orderId,
+      })) as { ticketId: string };
+      setTicketId(ticket.ticketId);
+      setStatus("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "We could not confirm the payment — contact us with your payment reference.");
+    } finally {
+      setPaynowConfirming(false);
+    }
+  }
+
   if (status === "success") {
     return (
       <div className="rounded-[var(--radius-card)] surface-sunken p-5 text-center">
@@ -142,6 +216,41 @@ export function TicketPurchaseForm({
     );
   }
 
+  // PayNow step 2 — the QR screen (eventsh's ticketPaymentPage pattern).
+  if (paynowOrder && effectiveMethod === "paynow") {
+    return (
+      <div className="flex flex-col items-center gap-4 rounded-[var(--radius-card)] surface-sunken p-5 text-center">
+        <p className="font-medium text-[var(--text-primary)]">Scan with any PayNow app</p>
+        <img
+          src={paynowOrder.qrDataUrl}
+          alt={`PayNow QR for ${formatPrice(paynowOrder.amount, paynowOrder.currency)}`}
+          className="h-52 w-52 rounded-lg bg-white p-2"
+        />
+        <p className="text-sm text-[var(--text-secondary)]">
+          Paying <span className="font-semibold">{payMethods?.paynowPayeeName}</span>{" "}
+          ({payMethods?.paynowPayeeId}) —{" "}
+          <span className="font-semibold text-[var(--text-primary)]">
+            {formatPrice(paynowOrder.amount, paynowOrder.currency)}
+          </span>
+        </p>
+        <p className="text-xs text-[var(--text-muted)]">
+          Reference: <span className="font-mono">{paynowOrder.paynowRef}</span>
+        </p>
+        <Button onClick={confirmPaynow} disabled={paynowConfirming}>
+          {paynowConfirming ? "Confirming…" : "I have paid"}
+        </Button>
+        <button
+          type="button"
+          onClick={() => setPaynowOrder(null)}
+          className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        >
+          Back
+        </button>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+    );
+  }
+
   if (activeTiers.length === 0) {
     return (
       <p className="text-sm text-[var(--text-secondary)]">
@@ -149,6 +258,9 @@ export function TicketPurchaseForm({
       </p>
     );
   }
+
+  const noMethodAvailable = !!(payMethods && !isFree && enabledMethods.length === 0);
+  const chosenMethod = effectiveMethod;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -162,6 +274,29 @@ export function TicketPurchaseForm({
             ))}
           </Select>
         </Field>
+      )}
+
+      {!isFree && enabledMethods.length > 1 && (
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="text-sm font-medium text-[var(--text-primary)]">Pay with</legend>
+          <div className="flex gap-2">
+            {enabledMethods.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMethod(m)}
+                className={
+                  "flex-1 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors " +
+                  (chosenMethod === m
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-on-soft)]"
+                    : "border-[var(--border-strong)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")
+                }
+              >
+                {m === "paynow" ? "PayNow" : "Card / UPI"}
+              </button>
+            ))}
+          </div>
+        </fieldset>
       )}
 
       <Field label="Quantity" htmlFor="tp-quantity" hint={`${remaining} left`}>
@@ -193,10 +328,23 @@ export function TicketPurchaseForm({
         </p>
       )}
 
-      {error && <p className="text-sm text-[var(--color-danger,#dc2626)]">{error}</p>}
+      {noMethodAvailable && (
+        <p className="flex items-center gap-2 rounded-xl bg-[var(--accent-soft)] px-3 py-2 text-sm text-[var(--accent-on-soft)]">
+          <Icon name="alert" size={15} />
+          Online payment options are being set up — check back soon.
+        </p>
+      )}
 
-      <Button type="submit" disabled={status === "submitting"}>
-        {status === "submitting" ? "Processing…" : isFree ? "Get free ticket" : "Pay and get ticket"}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <Button type="submit" disabled={status === "submitting" || noMethodAvailable}>
+        {status === "submitting"
+          ? "Processing…"
+          : isFree
+            ? "Get free ticket"
+            : chosenMethod === "paynow"
+              ? "Get PayNow QR"
+              : "Pay and get ticket"}
       </Button>
     </form>
   );

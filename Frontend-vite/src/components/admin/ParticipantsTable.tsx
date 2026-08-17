@@ -15,6 +15,21 @@ const STATUS_TONE: Record<TicketRow["status"], "success" | "warn" | "danger" | "
   used: "neutral",
 };
 
+/** One row of this Backend's local payment audit (GET /tickets/admin) —
+ * joined onto the eventsh ticket rows by the shared ticketId. */
+export type AuditTicket = {
+  ticketId: string;
+  payment?: { method?: string; verifiedAt?: string; razorpayPaymentId?: string };
+  paynowRef?: string;
+};
+
+const METHOD_LABEL: Record<string, string> = {
+  razorpay: "Card / UPI",
+  paynow: "PayNow",
+  free: "Free",
+  "legacy-migrated": "Legacy",
+};
+
 /** The Visitors view from eventsh's EventAttendees.tsx (Exhibitors/Speakers/
  * Round Tables/Workshop/Sponsors/Scheduled Spaces sub-tabs are explicitly
  * out of scope for this pass — see the Phase 6d plan notes). Filtering is
@@ -22,9 +37,11 @@ const STATUS_TONE: Record<TicketRow["status"], "success" | "warn" | "danger" | "
  * already returns the organizer's full ticket list unfiltered. */
 export function ParticipantsTable({
   tickets,
+  auditByTicketId,
   onMutate,
 }: {
   tickets: TicketRow[];
+  auditByTicketId: Map<string, AuditTicket>;
   onMutate: () => Promise<void>;
 }) {
   const [search, setSearch] = useState("");
@@ -102,6 +119,7 @@ export function ParticipantsTable({
                 <Th>Tickets</Th>
                 <Th>Amount</Th>
                 <Th>Status</Th>
+                <Th>Payment</Th>
                 <Th>Attendance</Th>
                 <Th>Purchased</Th>
                 <Th className="text-right">Actions</Th>
@@ -139,6 +157,28 @@ export function ParticipantsTable({
                   </Td>
                   <Td>
                     <Badge tone={STATUS_TONE[t.status]}>{t.status}</Badge>
+                  </Td>
+                  <Td>
+                    {(() => {
+                      const audit = auditByTicketId.get(t.ticketId);
+                      const method = audit?.payment?.method ?? (t.status === "confirmed" ? "razorpay" : "");
+                      if (!method) return <span className="text-[var(--text-muted)]">—</span>;
+                      return (
+                        <span className="flex flex-col gap-0.5">
+                          <Badge tone={method === "paynow" ? "info" : method === "free" ? "neutral" : "accent"}>
+                            {METHOD_LABEL[method] ?? method}
+                          </Badge>
+                          {audit?.paynowRef && (
+                            <span className="font-mono text-xs text-[var(--text-muted)]">{audit.paynowRef}</span>
+                          )}
+                          {audit?.payment?.verifiedAt && (
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {new Date(audit.payment.verifiedAt).toLocaleString()}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                   </Td>
                   <Td>
                     {t.isUsed ? (

@@ -23,6 +23,7 @@ const CONTENT_NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/admin/consultancy", label: "Consultancy", icon: "compass" },
   { href: "/admin/careers", label: "Careers", icon: "briefcase" },
   { href: "/admin/blog", label: "Blog", icon: "pencil" },
+  { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
 
 const INBOX_NAV: {

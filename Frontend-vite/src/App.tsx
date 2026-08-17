@@ -33,6 +33,7 @@ const EventsList = lazy(() => import("@/pages/admin/EventsList"));
 const EventEdit = lazy(() => import("@/pages/admin/EventEdit"));
 const ParticipantsList = lazy(() => import("@/pages/admin/ParticipantsList"));
 const EventsPlaceholder = lazy(() => import("@/pages/admin/EventsPlaceholder"));
+const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
 
 // ---- public pages ----------------------------------------------------------
 const HomePage = lazy(() => import("@/pages/public/HomePage"));
@@ -115,6 +116,7 @@ export default function App() {
           <Route path="events/eventfront" element={<EventsPlaceholder tab="eventfront" />} />
           <Route path="events/settings" element={<EventsPlaceholder tab="settings" />} />
           <Route path="events/:id" element={<EventEdit />} />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
