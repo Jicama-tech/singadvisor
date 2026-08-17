@@ -1,5 +1,6 @@
 
 import { saveJob } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { EMPLOYMENT_TYPES, WORK_MODES } from "@/lib/constants";
@@ -27,10 +28,16 @@ type Job = {
 const toDateInput = (d: Date | null | undefined) =>
   d ? d.toISOString().slice(0, 10) : "";
 
-export function JobForm({ job }: { job?: Job }) {
+export function JobForm({
+  job,
+  action = saveJob,
+}: {
+  job?: Job;
+  action?: (formData: FormData) => Promise<FormState | void>;
+}) {
   return (
     <AdminForm
-      action={saveJob}
+      action={action}
       id={job?.id}
       cancelHref="/admin/careers"
       submitLabel={job ? "Save changes" : "Create posting"}

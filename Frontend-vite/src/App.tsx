@@ -23,6 +23,7 @@ const CareerEdit = lazy(() => import("@/pages/admin/CareerEdit"));
 const BlogList = lazy(() => import("@/pages/admin/BlogList"));
 const BlogEdit = lazy(() => import("@/pages/admin/BlogEdit"));
 const LandingAdmin = lazy(() => import("@/pages/admin/LandingAdmin"));
+const LandingSectionEdit = lazy(() => import("@/pages/admin/LandingSectionEdit"));
 const RegistrationsList = lazy(() => import("@/pages/admin/RegistrationsList"));
 const EnquiriesList = lazy(() => import("@/pages/admin/EnquiriesList"));
 const ApplicationsList = lazy(() => import("@/pages/admin/ApplicationsList"));
@@ -191,6 +192,14 @@ export default function App() {
           element={
             <RequireAdmin>
               <LandingAdmin />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/landing/:key"
+          element={
+            <RequireAdmin>
+              <LandingSectionEdit />
             </RequireAdmin>
           }
         />

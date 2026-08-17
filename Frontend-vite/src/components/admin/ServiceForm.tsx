@@ -1,5 +1,6 @@
 
 import { saveService } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { ENGAGEMENT_MODELS } from "@/lib/constants";
@@ -22,10 +23,16 @@ type Service = {
 
 const ICONS = ["compass", "users", "activity", "heart", "briefcase", "sparkles"];
 
-export function ServiceForm({ service }: { service?: Service }) {
+export function ServiceForm({
+  service,
+  action = saveService,
+}: {
+  service?: Service;
+  action?: (formData: FormData) => Promise<FormState | void>;
+}) {
   return (
     <AdminForm
-      action={saveService}
+      action={action}
       id={service?.id}
       cancelHref="/admin/consultancy"
       submitLabel={service ? "Save changes" : "Create service"}

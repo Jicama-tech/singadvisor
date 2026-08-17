@@ -1,5 +1,6 @@
 
 import { saveTraining } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { TRAINING_CATEGORIES, TRAINING_FORMATS } from "@/lib/constants";
@@ -28,13 +29,15 @@ type Training = {
 export function TrainingForm({
   training,
   trainers,
+  action = saveTraining,
 }: {
   training?: Training;
   trainers: { id: string; name: string }[];
+  action?: (formData: FormData) => Promise<FormState | void>;
 }) {
   return (
     <AdminForm
-      action={saveTraining}
+      action={action}
       id={training?.id}
       cancelHref="/admin/trainings"
       submitLabel={training ? "Save changes" : "Create training"}

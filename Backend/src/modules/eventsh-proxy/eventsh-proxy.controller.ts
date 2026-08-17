@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { Request, Response } from 'express';
+import { Request, Response as ExpressResponse } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 /**
@@ -54,7 +54,7 @@ export class EventshProxyController {
   )
   async forwardUpload(
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Res() res: Response,
+    @Res() res: ExpressResponse,
   ) {
     const { url, organizerId, apiKey } = this.config();
     if (!file) {
@@ -63,9 +63,9 @@ export class EventshProxyController {
     }
 
     const body = new FormData();
-    body.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname);
+    body.append('file', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname);
 
-    let upstream: Response;
+    let upstream: Awaited<ReturnType<typeof fetch>>;
     try {
       upstream = await fetch(`${url}/uploads/events`, {
         method: 'POST',
@@ -84,7 +84,7 @@ export class EventshProxyController {
 
   /** Everything else — same method, same path suffix, JSON body passthrough. */
   @All('*')
-  async forward(@Req() req: Request, @Res() res: Response) {
+  async forward(@Req() req: Request, @Res() res: ExpressResponse) {
     const { url, organizerId, apiKey } = this.config();
 
     const suffix = req.originalUrl.replace(/^\/eventsh/, '') || '/';
@@ -95,7 +95,7 @@ export class EventshProxyController {
       typeof req.body === 'object' &&
       Object.keys(req.body).length > 0;
 
-    let upstream: Response;
+    let upstream: Awaited<ReturnType<typeof fetch>>;
     try {
       upstream = await fetch(`${url}${suffix}`, {
         method: req.method,

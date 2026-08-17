@@ -1,6 +1,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { saveHeroSection } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection } from "@/components/admin/AdminForm";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { PreviewFrame } from "@/components/admin/landing/PreviewFrame";
@@ -9,10 +10,12 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 import type { HeroContent, LandingVariant } from "@/lib/landing-client";
 
 export function HeroSectionForm({
+  action = saveHeroSection,
   content,
   variant: initialVariant,
   trainingCount,
 }: {
+  action?: (formData: FormData) => Promise<FormState | void>;
   content: HeroContent;
   variant: LandingVariant;
   trainingCount: number;
@@ -44,7 +47,7 @@ export function HeroSectionForm({
   }
 
   return (
-    <AdminForm action={saveHeroSection} cancelHref="/admin/landing" submitLabel="Save changes" wide>
+    <AdminForm action={action} cancelHref="/admin/landing" submitLabel="Save changes" wide>
       {(errors, values) => (
         <div onChange={handleChange} className="flex flex-col gap-6">
           <FormSection title="Style">

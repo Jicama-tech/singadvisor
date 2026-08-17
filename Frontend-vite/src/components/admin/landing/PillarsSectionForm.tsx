@@ -1,6 +1,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { savePillarsSection } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection } from "@/components/admin/AdminForm";
 import { PreviewFrame } from "@/components/admin/landing/PreviewFrame";
 import { VariantPicker } from "@/components/admin/landing/VariantPicker";
@@ -16,9 +17,11 @@ const PILLAR_META = ["Trainings", "Events", "Consultancy", "Careers"] as const;
 const FIELD_PATTERN = /^pillar(\d)(Title|Description)$/;
 
 export function PillarsSectionForm({
+  action = savePillarsSection,
   content,
   variant: initialVariant,
 }: {
+  action?: (formData: FormData) => Promise<FormState | void>;
   content: PillarsContent;
   variant: LandingVariant;
 }) {
@@ -37,7 +40,7 @@ export function PillarsSectionForm({
   }
 
   return (
-    <AdminForm action={savePillarsSection} cancelHref="/admin/landing" submitLabel="Save changes" wide>
+    <AdminForm action={action} cancelHref="/admin/landing" submitLabel="Save changes" wide>
       {(errors, values) => (
         <div onChange={handleChange} className="flex flex-col gap-6">
           <FormSection title="Style">

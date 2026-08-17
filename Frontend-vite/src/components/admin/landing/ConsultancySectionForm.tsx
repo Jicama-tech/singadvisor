@@ -1,6 +1,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { saveConsultancySection } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection } from "@/components/admin/AdminForm";
 import { PreviewFrame } from "@/components/admin/landing/PreviewFrame";
 import { VariantPicker } from "@/components/admin/landing/VariantPicker";
@@ -11,10 +12,12 @@ import type { ConsultancyContent, LandingVariant } from "@/lib/landing-client";
 type Service = { id: string; slug: string; title: string; summary: string };
 
 export function ConsultancySectionForm({
+  action = saveConsultancySection,
   content,
   variant: initialVariant,
   services,
 }: {
+  action?: (formData: FormData) => Promise<FormState | void>;
   content: ConsultancyContent;
   variant: LandingVariant;
   services: Service[];
@@ -38,7 +41,7 @@ export function ConsultancySectionForm({
   }
 
   return (
-    <AdminForm action={saveConsultancySection} cancelHref="/admin/landing" submitLabel="Save changes" wide>
+    <AdminForm action={action} cancelHref="/admin/landing" submitLabel="Save changes" wide>
       {(errors, values) => (
         <div onChange={handleChange} className="flex flex-col gap-6">
           <FormSection title="Style">

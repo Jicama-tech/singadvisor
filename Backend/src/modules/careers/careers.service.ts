@@ -51,8 +51,21 @@ export class CareersService {
     return this.model.find({ published: true }).sort({ createdAt: -1 }).exec();
   }
 
-  findAll() {
-    return this.model.find().sort({ updatedAt: -1 }).exec();
+  /** Admin list: everything, newest edits first, `applicationCount` attached
+   * (the old admin page showed it via Prisma's _count). */
+  async findAll(): Promise<(JobPosting & { applicationCount: number })[]> {
+    const [docs, counts] = await Promise.all([
+      this.model.find().sort({ updatedAt: -1 }).lean().exec(),
+      this.model.db
+        .collection('job-applications')
+        .aggregate([{ $group: { _id: '$jobId', count: { $sum: 1 } } }])
+        .toArray(),
+    ]);
+    const byId = new Map(counts.map((c) => [String(c._id), c.count]));
+    return docs.map((d) => ({
+      ...(d as JobPosting),
+      applicationCount: byId.get(String(d._id)) ?? 0,
+    }));
   }
 
   findById(id: string) {

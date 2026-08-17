@@ -1,5 +1,6 @@
 
 import { savePost } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { BLOG_CATEGORIES } from "@/lib/constants";
@@ -26,13 +27,15 @@ const toDateInput = (d: Date | null | undefined) =>
 export function PostForm({
   post,
   authors,
+  action = savePost,
 }: {
   post?: Post;
   authors: { id: string; name: string }[];
+  action?: (formData: FormData) => Promise<FormState | void>;
 }) {
   return (
     <AdminForm
-      action={savePost}
+      action={action}
       id={post?.id}
       cancelHref="/admin/blog"
       submitLabel={post ? "Save changes" : "Publish article"}

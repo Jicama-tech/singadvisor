@@ -1,6 +1,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { saveStatsSection } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection } from "@/components/admin/AdminForm";
 import { PreviewFrame } from "@/components/admin/landing/PreviewFrame";
 import { VariantPicker } from "@/components/admin/landing/VariantPicker";
@@ -23,9 +24,11 @@ function linesToItems(text: string): StatsContent["items"] {
 }
 
 export function StatsSectionForm({
+  action = saveStatsSection,
   content,
   variant: initialVariant,
 }: {
+  action?: (formData: FormData) => Promise<FormState | void>;
   content: StatsContent;
   variant: LandingVariant;
 }) {
@@ -38,7 +41,7 @@ export function StatsSectionForm({
   }
 
   return (
-    <AdminForm action={saveStatsSection} cancelHref="/admin/landing" submitLabel="Save changes" wide>
+    <AdminForm action={action} cancelHref="/admin/landing" submitLabel="Save changes" wide>
       {(errors, values) => (
         <div onChange={handleChange} className="flex flex-col gap-6">
           <FormSection title="Style">

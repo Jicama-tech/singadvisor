@@ -30,9 +30,23 @@ export class TrainingsService {
     return this.model.find({ published: true }).sort({ sortOrder: 1 }).exec();
   }
 
-  /** Admin list: everything, newest edits first. */
-  findAll() {
-    return this.model.find().sort({ updatedAt: -1 }).exec();
+  /** Admin list: everything, newest edits first, trainer populated and
+   * `registrationCount` attached (one aggregation — the old admin page
+   * displayed both via Prisma's include/_count, the SPA list needs them in
+   * the document). */
+  async findAll(): Promise<(Training & { registrationCount: number; trainer?: { name: string } | null })[]> {
+    const [docs, counts] = await Promise.all([
+      this.model.find().sort({ updatedAt: -1 }).populate('trainerId', 'name').lean().exec(),
+      this.model.db
+        .collection('registrations')
+        .aggregate([{ $group: { _id: '$trainingId', count: { $sum: 1 } } }])
+        .toArray(),
+    ]);
+    const byId = new Map(counts.map((c) => [String(c._id), c.count]));
+    return docs.map((d) => ({
+      ...(d as Training & { trainer?: { name: string } | null }),
+      registrationCount: byId.get(String(d._id)) ?? 0,
+    }));
   }
 
   findById(id: string) {

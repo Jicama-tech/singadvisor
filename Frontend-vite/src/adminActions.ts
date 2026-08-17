@@ -132,9 +132,8 @@ export async function saveTraining(formData: FormData): Promise<FormState> {
   }
 }
 
-export async function deleteTraining(formData: FormData): Promise<void> {
-  const id = str(formData, "id");
-  if (id) await sendJson("DELETE", `/trainings/${id}`);
+export async function deleteTraining(id: string): Promise<void> {
+  await sendJson("DELETE", `/trainings/${id}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -173,9 +172,8 @@ export async function saveService(formData: FormData): Promise<FormState> {
   }
 }
 
-export async function deleteService(formData: FormData): Promise<void> {
-  const id = str(formData, "id");
-  if (id) await sendJson("DELETE", `/consultancy-services/${id}`);
+export async function deleteService(id: string): Promise<void> {
+  await sendJson("DELETE", `/consultancy-services/${id}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -228,9 +226,8 @@ export async function saveJob(formData: FormData): Promise<FormState> {
   }
 }
 
-export async function deleteJob(formData: FormData): Promise<void> {
-  const id = str(formData, "id");
-  if (id) await sendJson("DELETE", `/careers/jobs/${id}`);
+export async function deleteJob(id: string): Promise<void> {
+  await sendJson("DELETE", `/careers/jobs/${id}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -282,36 +279,28 @@ export async function savePost(formData: FormData): Promise<FormState> {
   }
 }
 
-export async function deletePost(formData: FormData): Promise<void> {
-  const id = str(formData, "id");
-  if (id) await sendJson("DELETE", `/blog/${id}`);
+export async function deletePost(id: string): Promise<void> {
+  await sendJson("DELETE", `/blog/${id}`);
 }
 
 // ---------------------------------------------------------------------------
 // Submission status updates
 // ---------------------------------------------------------------------------
 
-export async function updateRegistrationStatus(formData: FormData): Promise<void> {
-  const id = str(formData, "id");
-  const status = str(formData, "status");
-  if (id && status) await sendJson("PATCH", `/registrations/${id}/status`, { status });
+export async function updateRegistrationStatus(id: string, status: string): Promise<void> {
+  await sendJson("PATCH", `/registrations/${id}/status`, { status });
 }
 
-export async function updateEnquiryStatus(formData: FormData): Promise<void> {
-  const id = str(formData, "id");
-  const status = str(formData, "status");
-  if (id && status) await sendJson("PATCH", `/consultancy-enquiries/${id}/status`, { status });
+export async function updateEnquiryStatus(id: string, status: string): Promise<void> {
+  await sendJson("PATCH", `/consultancy-enquiries/${id}/status`, { status });
 }
 
-export async function updateApplicationStatus(formData: FormData): Promise<void> {
-  const id = str(formData, "id");
-  const status = str(formData, "status");
-  if (id && status) await sendJson("PATCH", `/careers/applications/${id}/status`, { status });
+export async function updateApplicationStatus(id: string, status: string): Promise<void> {
+  await sendJson("PATCH", `/careers/applications/${id}/status`, { status });
 }
 
-export async function toggleMessageHandled(formData: FormData): Promise<void> {
-  const id = str(formData, "id");
-  if (id) await sendJson("PATCH", `/contact-messages/${id}/toggle-handled`);
+export async function toggleMessageHandled(id: string): Promise<void> {
+  await sendJson("PATCH", `/contact-messages/${id}/toggle-handled`);
 }
 
 // ---------------------------------------------------------------------------

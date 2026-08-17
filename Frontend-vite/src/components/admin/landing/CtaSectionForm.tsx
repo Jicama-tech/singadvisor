@@ -1,6 +1,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { saveCtaSection } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection } from "@/components/admin/AdminForm";
 import { PreviewFrame } from "@/components/admin/landing/PreviewFrame";
 import { VariantPicker } from "@/components/admin/landing/VariantPicker";
@@ -9,9 +10,11 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 import type { CtaContent, LandingVariant } from "@/lib/landing-client";
 
 export function CtaSectionForm({
+  action = saveCtaSection,
   content,
   variant: initialVariant,
 }: {
+  action?: (formData: FormData) => Promise<FormState | void>;
   content: CtaContent;
   variant: LandingVariant;
 }) {
@@ -24,7 +27,7 @@ export function CtaSectionForm({
   }
 
   return (
-    <AdminForm action={saveCtaSection} cancelHref="/admin/landing" submitLabel="Save changes" wide>
+    <AdminForm action={action} cancelHref="/admin/landing" submitLabel="Save changes" wide>
       {(errors, values) => (
         <div onChange={handleChange} className="flex flex-col gap-6">
           <FormSection title="Style">

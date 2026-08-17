@@ -422,10 +422,18 @@ export function toEventCardData(event: EventRow) {
 const EVENTSH_PUBLIC_URL = __EVENTSH_PUBLIC_URL__;
 const ORGANIZER_ID = __EVENTSH_ORGANIZER_ID__;
 
+// Public reads go through the Backend's unguarded /eventsh-public forwarder
+// (Backend/src/modules/eventsh-proxy/eventsh-public.controller.ts) rather
+// than straight at eventsh: the dedicated instance sends no permissive CORS
+// headers, so a browser fetch against it fails cross-origin. EVENTSH_PUBLIC
+// _URL__ above is still used for IMAGES (plain <img> tags are not subject
+// to CORS). The forwarder is locked to the configured organizer id only.
+const EVENTS_PUBLIC_PROXY = `${__API_URL__}/eventsh-public`;
+
 export async function fetchPublishedEvents(opts: { includePast?: boolean } = {}): Promise<EventRow[]> {
   try {
     const response = await fetch(
-      `${EVENTSH_PUBLIC_URL}/events/organizer/${ORGANIZER_ID}?publicOnly=true`,
+      `${EVENTS_PUBLIC_PROXY}/events/organizer/${ORGANIZER_ID}?publicOnly=true`,
     );
     if (!response.ok) return [];
     const body = (await response.json()) as { data?: EventshEventDoc[] };
@@ -444,7 +452,7 @@ export async function fetchPublishedEvents(opts: { includePast?: boolean } = {})
 export async function fetchEventBySlug(slug: string): Promise<EventRow | null> {
   try {
     const response = await fetch(
-      `${EVENTSH_PUBLIC_URL}/events/organizer/${ORGANIZER_ID}/slug/${encodeURIComponent(slug)}`,
+      `${EVENTS_PUBLIC_PROXY}/events/organizer/${ORGANIZER_ID}/slug/${encodeURIComponent(slug)}`,
     );
     if (!response.ok) return null;
     const body = (await response.json()) as { data?: EventshEventDoc };
