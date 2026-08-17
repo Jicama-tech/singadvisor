@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { AdminShell } from "@/components/admin/AdminShell";
+import LandingShell from "@/components/admin/LandingShell";
 import { AdminEmpty, PageHeading, Panel } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
@@ -65,10 +65,7 @@ export default function LandingAdmin() {
   const ordered = [...(sections ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
+    <LandingShell>
       <div className="flex flex-col gap-8">
         <PageHeading
           title="Landing page"
@@ -150,6 +147,6 @@ export default function LandingAdmin() {
           )}
         </Panel>
       </div>
-    </AdminShell>
+    </LandingShell>
   );
 }

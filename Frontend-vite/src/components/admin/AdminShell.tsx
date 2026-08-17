@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
 import { isEventsDashboardRoute } from "@/components/admin/EventsNestedNav";
+import { isLandingDashboardRoute } from "@/components/admin/LandingNestedNav";
 import { cn } from "@/lib/utils";
 
 export type AdminCounts = {
@@ -80,7 +81,7 @@ export function AdminShell({
   // room for the actual page content. Only the desktop `<aside>` collapses;
   // the mobile menu (a dropdown, not a permanent column) stays full-width
   // since it isn't competing with the nested nav for horizontal space.
-  const collapsed = isEventsDashboardRoute(pathname);
+  const collapsed = isEventsDashboardRoute(pathname) || isLandingDashboardRoute(pathname);
 
   const nav = (
     <nav className="flex flex-col gap-6" aria-label="Admin">

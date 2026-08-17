@@ -49,7 +49,10 @@ export type IconName =
   | "square"
   | "ruler"
   | "download"
-  | "type";
+  | "type"
+  | "layers"
+  | "image"
+  | "grid";
 
 const paths: Record<IconName, string> = {
   "arrow-right": "M5 12h14M13 6l6 6-6 6",
@@ -109,6 +112,11 @@ const paths: Record<IconName, string> = {
     "M3 17L17 3l4 4L7 21l-4-4zM14.5 5.5l2 2M11.5 8.5l2 2M8.5 11.5l2 2M5.5 14.5l2 2",
   download: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 11l5 5 5-5M12 4v12",
   type: "M4 7V4h16v3M9 20h6M12 4v16",
+  // Landing page section nav.
+  layers: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+  image:
+    "M3 3h18v18H3zM3 15l5-5 4 4 3-3 6 6M14 8.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z",
+  grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
 };
 
 export function Icon({

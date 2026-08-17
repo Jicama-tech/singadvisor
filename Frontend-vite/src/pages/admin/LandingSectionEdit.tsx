@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { AdminShell } from "@/components/admin/AdminShell";
+import LandingShell from "@/components/admin/LandingShell";
 import { PageHeading, AdminEmpty } from "@/components/admin/AdminUI";
 import { ConsultancySectionForm } from "@/components/admin/landing/ConsultancySectionForm";
 import { CtaSectionForm } from "@/components/admin/landing/CtaSectionForm";
@@ -68,6 +68,12 @@ export default function LandingSectionEdit() {
   const { key } = useParams();
   const navigate = useNavigate();
   const [section, setSection] = useState<LandingSectionAdminRow | null>(null);
+  // Which tab's row `section` actually belongs to. React renders the new
+  // key BEFORE effects run, so on a client-side tab switch `section` still
+  // holds the previous tab's row for one frame — rendering that frame would
+  // feed the wrong tab's content into the new form and crash it. Gating on
+  // this key makes the mismatch render as blank-while-loading instead.
+  const [sectionKey, setSectionKey] = useState<string | null>(null);
   const [items, setItems] = useState<{
     trainings: TrainingCardData[];
     events: EventCardData[];
@@ -79,6 +85,12 @@ export default function LandingSectionEdit() {
 
   useEffect(() => {
     if (!isLandingSectionKey(key)) return;
+    // Reset the loaded section whenever the tab changes — without this, a
+    // client-side tab switch renders the NEW tab's form against the
+    // PREVIOUS tab's content (e.g. StatsSectionForm mapping over the hero's
+    // content), which crashes the whole shell. A brief blank-while-loading
+    // matches the fresh-page-load behavior.
+    setSection(null);
     let cancelled = false;
     void (async () => {
       try {
@@ -92,6 +104,7 @@ export default function LandingSectionEdit() {
         ]);
         if (cancelled) return;
         setSection(sec);
+        setSectionKey(key);
         setItems({
           trainings: trainings
             .filter((t) => t.featured)
@@ -148,15 +161,12 @@ export default function LandingSectionEdit() {
   if (!user) return null;
   if (!isLandingSectionKey(key)) {
     return (
-      <AdminShell
-        user={{ name: user.name, email: user.email, role: user.role }}
-        counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-      >
+      <LandingShell>
         <AdminEmpty title="Unknown section" message="That landing section does not exist." />
-      </AdminShell>
+      </LandingShell>
     );
   }
-  if (!section) return null;
+  if (!section || sectionKey !== key) return null;
 
   // Navigation on save — the old server actions redirect()ed; the SPA
   // actions return ok and the page navigates.
@@ -168,10 +178,7 @@ export default function LandingSectionEdit() {
     };
 
   return (
-    <AdminShell
-      user={{ name: user.name, email: user.email, role: user.role }}
-      counts={{ registrations: 0, enquiries: 0, applications: 0, messages: 0 }}
-    >
+    <LandingShell>
       <div className="flex flex-col gap-8">
         <PageHeading title={SECTION_LABELS[key]} description="Landing page section" />
 
@@ -249,6 +256,6 @@ export default function LandingSectionEdit() {
           />
         )}
       </div>
-    </AdminShell>
+    </LandingShell>
   );
 }
