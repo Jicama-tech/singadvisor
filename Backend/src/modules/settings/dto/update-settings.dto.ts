@@ -15,7 +15,9 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   @ValidateIf((o: UpdateSettingsDto) => o.companyUEN !== '')
-  @Matches(/^\d{9}[A-Z]$/, { message: 'UEN must be 9 digits followed by one uppercase letter' })
+  // Case-insensitive: users commonly type the letter lowercase — the service
+  // normalizes to uppercase before persisting.
+  @Matches(/^\d{9}[A-Za-z]$/, { message: 'UEN must be 9 digits followed by one letter (e.g. 202012345K)' })
   companyUEN?: string;
 
   @IsOptional()

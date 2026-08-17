@@ -219,7 +219,7 @@ export default function AdminSettings() {
   };
 
   return (
-    <div className="flex max-w-3xl flex-col gap-8">
+    <div className="flex w-full flex-col gap-8">
       <PageHeading
         title="Settings"
         description="Payments, email, and what the platform can see."

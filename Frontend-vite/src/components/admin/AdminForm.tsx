@@ -25,9 +25,9 @@ export function AdminForm({
   id?: string;
   cancelHref: string;
   submitLabel: string;
-  /** Opt out of the default max-w-3xl — for forms with wide content (a live
-   * preview panel) where the usual text-field-readability width just leaves
-   * the rest of the page empty. Leave unset for ordinary field-only forms. */
+  /** Deprecated — content now fills the available width by default (the
+   * user asked for the content pane to always take the whole screen).
+   * Kept for backwards compatibility; no longer changes anything. */
   wide?: boolean;
   children: (
     errors: Record<string, string>,
@@ -69,7 +69,7 @@ export function AdminForm({
   return (
     <form
       onSubmit={onSubmit}
-      className={cn("flex w-full flex-col gap-6", !wide && "max-w-3xl")}
+      className="flex w-full flex-col gap-6"
       noValidate
     >
       {id && <input type="hidden" name="id" value={id} />}
