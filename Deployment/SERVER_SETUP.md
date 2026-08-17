@@ -7,7 +7,9 @@ app's two-piece deployment (Frontend-vite SPA + NestJS Backend).
 ## 1. One-time server setup (as your deploy user)
 
 ```bash
-# Clone once
+# Clone once (on a shared server use your deploy user's home, e.g.
+# /home/eventshadmin — then start the webhook with
+# SINGADVISOR_PROJ=/home/eventshadmin/singadvisor)
 mkdir -p /home/singadvisor && cd /home/singadvisor
 git clone git@github.com:<you>/singadvisor.git
 cd singadvisor
@@ -16,7 +18,8 @@ git checkout main
 
 ### Secrets files (NEVER committed — create on the server only)
 
-**`Backend/.env`** — production values:
+**`Backend/.env`** — production values (add `PORT=4001` if another app on
+the server already occupies 4000; the nginx /api proxy matches this port):
 - `MONGO_URI` (production Mongo)
 - `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRY`
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD`

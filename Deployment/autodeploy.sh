@@ -18,8 +18,9 @@
 
 set -eo pipefail
 
-PROJ="/home/singadvisor/singadvisor"
-LOG="/home/singadvisor/deploy.log"
+# Override on shared servers: SINGADVISOR_PROJ=/home/<user>/singadvisor
+PROJ="${SINGADVISOR_PROJ:-/home/singadvisor/singadvisor}"
+LOG="${PROJ}/../deploy.log"
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG"
