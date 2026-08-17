@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { markTicketAttendanceAction, resendTicketEmailAction } from "@/app/admin/actions";
 import { AdminEmpty, Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/Badge";
-import { SubmitButton } from "@/components/forms/FormShell";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Select } from "@/components/ui/Field";
 import type { TicketRow } from "@/lib/events-admin-client";
@@ -21,7 +20,13 @@ const STATUS_TONE: Record<TicketRow["status"], "success" | "warn" | "danger" | "
  * out of scope for this pass — see the Phase 6d plan notes). Filtering is
  * client-side, same as eventsh's own TicketFilters, since fetchTicketsAdmin
  * already returns the organizer's full ticket list unfiltered. */
-export function ParticipantsTable({ tickets }: { tickets: TicketRow[] }) {
+export function ParticipantsTable({
+  tickets,
+  onMutate,
+}: {
+  tickets: TicketRow[];
+  onMutate: () => Promise<void>;
+}) {
   const [search, setSearch] = useState("");
   const [eventFilter, setEventFilter] = useState("all");
   const [attendanceFilter, setAttendanceFilter] = useState<"all" | "present" | "absent">("all");
@@ -139,12 +144,16 @@ export function ParticipantsTable({ tickets }: { tickets: TicketRow[] }) {
                     {t.isUsed ? (
                       <Badge tone="success">Checked in</Badge>
                     ) : (
-                      <form action={markTicketAttendanceAction}>
-                        <input type="hidden" name="ticketId" value={t.ticketId} />
-                        <SubmitButton pendingLabel="Marking…" className="!h-8 !px-3 !text-xs">
-                          Mark present
-                        </SubmitButton>
-                      </form>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await markTicketAttendanceAction(t.ticketId);
+                          await onMutate();
+                        }}
+                        className="inline-flex h-8 items-center rounded-full bg-[var(--accent)] px-3 text-xs font-medium text-[var(--accent-foreground)] transition-all hover:bg-[var(--accent-hover)]"
+                      >
+                        Mark present
+                      </button>
                     )}
                   </Td>
                   <Td className="whitespace-nowrap text-[var(--text-secondary)]">
@@ -152,16 +161,17 @@ export function ParticipantsTable({ tickets }: { tickets: TicketRow[] }) {
                   </Td>
                   <Td>
                     <div className="flex items-center justify-end">
-                      <form action={resendTicketEmailAction}>
-                        <input type="hidden" name="id" value={t._id} />
-                        <button
-                          type="submit"
-                          aria-label={`Resend ticket email to ${t.customerEmail}`}
-                          className="grid h-8 w-8 place-items-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--accent)]"
-                        >
-                          <Icon name="mail" size={15} />
-                        </button>
-                      </form>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await resendTicketEmailAction(t._id);
+                          await onMutate();
+                        }}
+                        aria-label={`Resend ticket email to ${t.customerEmail}`}
+                        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--accent)]"
+                      >
+                        <Icon name="mail" size={15} />
+                      </button>
                     </div>
                   </Td>
                 </tr>

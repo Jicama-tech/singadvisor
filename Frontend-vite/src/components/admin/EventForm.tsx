@@ -2,6 +2,7 @@
 import { useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import { saveEvent } from "@/app/admin/actions";
+import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { CroppedImageField } from "@/components/admin/CroppedImageField";
@@ -428,7 +429,13 @@ function SlotGenerator({
  * deliberately not built — it depends on the Space Layout canvas's "draw row"
  * bulk-seat tool, which Phase 8g's own scope explicitly left out of its MVP.
  */
-export function EventForm({ event }: { event?: EventRow }) {
+export function EventForm({
+  event,
+  action = saveEvent,
+}: {
+  event?: EventRow;
+  action?: (formData: FormData) => Promise<FormState | void>;
+}) {
   const initialTiers: TierRow[] =
     event && event.visitorTypes.length > 0
       ? event.visitorTypes.map((t) => ({
@@ -923,7 +930,7 @@ export function EventForm({ event }: { event?: EventRow }) {
 
   return (
     <AdminForm
-      action={saveEvent}
+      action={action}
       id={event?._id}
       cancelHref="/admin/events"
       submitLabel={event ? "Save changes" : "Create event"}

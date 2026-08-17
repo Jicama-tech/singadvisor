@@ -22,6 +22,21 @@ import type { LandingSectionKey, LandingVariant } from "@/lib/landing-client";
 import { LANDING_VARIANTS } from "@/lib/landing-client";
 import { collectValues, type FormState } from "@/lib/form-state";
 import { slugify } from "@/lib/utils";
+import {
+  EventsServiceError,
+  createEvent,
+  deleteEvent as deleteEventBackend,
+  fetchEventAdmin,
+  updateEvent as updateEventBackend,
+  uploadEventImage,
+} from "@/lib/events-admin-client";
+import type {
+  PositionedRoundTable,
+  PositionedScheduledSpace,
+  PositionedSpeakerZone,
+  PositionedTable,
+  VenueAnnotation,
+} from "@/lib/events-client";
 
 const str = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -499,3 +514,4 @@ export async function moveLandingSection(formData: FormData): Promise<void> {
   const direction = str(formData, "direction") === "up" ? "up" : "down";
   await patchLandingSectionMove(key, direction);
 }
+export * from "@/eventsActions";

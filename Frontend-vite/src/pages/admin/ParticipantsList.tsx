@@ -1,11 +1,37 @@
+import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import EventsShell from "@/components/admin/EventsShell";
-import { PageHeading, AdminEmpty } from "@/components/admin/AdminUI";
+import { PageHeading } from "@/components/admin/AdminUI";
+import { ParticipantsTable } from "@/components/admin/ParticipantsTable";
+import { fetchTicketsAdmin, type TicketRow } from "@/lib/events-admin-client";
 
 export default function ParticipantsList() {
+  const { user } = useAuth();
+  const [tickets, setTickets] = useState<TicketRow[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      setTickets(await fetchTicketsAdmin());
+    } catch {
+      setTickets([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (!user) return null;
+
   return (
     <EventsShell>
-      <PageHeading title="Participants" description="This page is being ported to the new dashboard." />
-      <AdminEmpty title="Coming soon" description="The Participants tab is part of the dashboard migration and is not wired up yet." />
+      <div className="flex flex-col gap-8">
+        <PageHeading
+          title="Participants"
+          description={`${tickets.length} ticket${tickets.length === 1 ? "" : "s"}`}
+        />
+        <ParticipantsTable tickets={tickets} onMutate={load} />
+      </div>
     </EventsShell>
   );
 }

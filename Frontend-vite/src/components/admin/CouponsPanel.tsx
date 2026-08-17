@@ -1,5 +1,4 @@
-
-import { useActionState, useEffect, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { deleteCouponAction, saveCoupon, toggleCouponActive } from "@/app/admin/actions";
 import { AdminEmpty, Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
 import { DeleteButton } from "@/components/admin/DeleteButton";
@@ -8,25 +7,38 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
-import { emptyFormState } from "@/lib/form-state";
+import { emptyFormState, type FormState } from "@/lib/form-state";
 import type { CouponRow } from "@/lib/events-admin-client";
 import { formatDate } from "@/lib/utils";
 
 /**
  * eventsh's own Coupons tab (CouponsManager.tsx) uses a modal dialog; this
  * app has no Dialog primitive and its own convention is inline
- * expand-in-place forms (nothing in the codebase uses a modal for
- * create/edit) — so "New coupon" / "Edit" open an inline Panel instead,
- * closed again once the save action succeeds.
+ * expand-in-place forms — so "New coupon" / "Edit" open an inline Panel
+ * instead, closed again once the save action succeeds. React 18 port: the
+ * Next version's form actions/useActionState are replaced with onSubmit
+ * handlers; after every mutation the panel calls `onMutate` so the page
+ * refetches the list.
  */
 export function CouponsPanel({
   coupons,
   events,
+  onMutate,
 }: {
   coupons: CouponRow[];
   events: { _id: string; title: string }[];
+  onMutate: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState<CouponRow | "new" | null>(null);
+
+  async function toggle(c: CouponRow) {
+    // toggleCouponActive reads id/active from FormData — build it here.
+    const fd = new FormData();
+    fd.set("id", c._id);
+    fd.set("active", String(!c.isActive));
+    await toggleCouponActive(fd);
+    await onMutate();
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -44,7 +56,10 @@ export function CouponsPanel({
         <CouponForm
           coupon={editing === "new" ? null : editing}
           events={events}
-          onDone={() => setEditing(null)}
+          onDone={async () => {
+            setEditing(null);
+            await onMutate();
+          }}
         />
       )}
 
@@ -86,18 +101,15 @@ export function CouponsPanel({
                       : `${c.eventIds.length} event${c.eventIds.length === 1 ? "" : "s"}`}
                   </Td>
                   <Td>
-                    <form action={toggleCouponActive}>
-                      <input type="hidden" name="id" value={c._id} />
-                      <input type="hidden" name="isActive" value={(!c.isActive).toString()} />
-                      <button
-                        type="submit"
-                        aria-label={`${c.isActive ? "Deactivate" : "Activate"} ${c.code}`}
-                      >
-                        <Badge tone={c.isActive ? "success" : "neutral"}>
-                          {c.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </button>
-                    </form>
+                    <button
+                      type="button"
+                      onClick={() => toggle(c)}
+                      aria-label={`${c.isActive ? "Deactivate" : "Activate"} ${c.code}`}
+                    >
+                      <Badge tone={c.isActive ? "success" : "neutral"}>
+                        {c.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </button>
                   </Td>
                   <Td>
                     <div className="flex items-center justify-end gap-1">
@@ -109,7 +121,14 @@ export function CouponsPanel({
                       >
                         <Icon name="pencil" size={15} />
                       </button>
-                      <DeleteButton id={c._id} action={deleteCouponAction} label={c.code} />
+                      <DeleteButton
+                        id={c._id}
+                        action={async (id) => {
+                          await deleteCouponAction(id);
+                          await onMutate();
+                        }}
+                        label={c.code}
+                      />
                     </div>
                   </Td>
                 </tr>
@@ -129,23 +148,35 @@ function CouponForm({
 }: {
   coupon: CouponRow | null;
   events: { _id: string; title: string }[];
-  onDone: () => void;
+  onDone: () => Promise<void>;
 }) {
-  const [state, formAction] = useActionState(saveCoupon, emptyFormState);
+  const [state, setState] = useState<FormState>(emptyFormState);
+  const [pending, setPending] = useState(false);
   const [discountType, setDiscountType] = useState<"PERCENTAGE" | "FLAT">(
     coupon?.discountType ?? "PERCENTAGE",
   );
 
-  // No redirect here (unlike saveEvent) — this form stays inline on the same
-  // page, so success is "close the form", not "navigate away".
-  useEffect(() => {
-    if (state.ok) onDone();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.ok]);
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setPending(true);
+    try {
+      const result = await saveCoupon(formData);
+      setState(result ?? { ok: true });
+      if (!result || result.ok) await onDone();
+    } catch (err) {
+      setState({
+        ok: false,
+        message: err instanceof Error ? err.message : "Something went wrong.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <Panel className="p-6">
-      <form action={formAction} className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
         {coupon && <input type="hidden" name="id" value={coupon._id} />}
         <FormError state={state} />
 
@@ -266,12 +297,12 @@ function CouponForm({
         </Field>
 
         <div className="flex items-center gap-3">
-          <SubmitButton pendingLabel="Saving…">
+          <SubmitButton pending={pending} pendingLabel="Saving…">
             {coupon ? "Save changes" : "Create coupon"}
           </SubmitButton>
           <button
             type="button"
-            onClick={onDone}
+            onClick={() => void onDone()}
             className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             Cancel
