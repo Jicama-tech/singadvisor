@@ -1,11 +1,11 @@
 /**
  * GitHub Webhook Listener for Auto-Deploy (SingAdvisor) — mirrors
  * eventsh-v1/deployment/webhook-server.js. Listens for pushes to the
- * `development` branch and runs autodeploy.sh for whichever side changed
+ * `main` branch and runs autodeploy.sh for whichever side changed
  * (Backend/ or Frontend-vite/).
  *
  * Setup on server:
- *   1. cd /home/singadvisor/singadvisor/deployment
+ *   1. cd /home/singadvisor/singadvisor/Deployment
  *   2. WEBHOOK_SECRET=your_secret pm2 start webhook-server.js --name singadvisor-webhook
  *   3. Add GitHub webhook: https://<server>/webhook (port 9002)
  *      - Content type: application/json
@@ -60,11 +60,11 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // Only deploy on push to development
-    if (payload.ref !== "refs/heads/development") {
+    // Only deploy on push to main
+    if (payload.ref !== "refs/heads/main") {
       console.log(`[webhook] Ignoring push to ${payload.ref}`);
       res.writeHead(200);
-      res.end("Ignored - not development branch");
+      res.end("Ignored - not main branch");
       return;
     }
 
