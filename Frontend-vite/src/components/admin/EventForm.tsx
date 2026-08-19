@@ -6,9 +6,10 @@ import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { CroppedImageField } from "@/components/admin/CroppedImageField";
-import { VenueCanvas, type CanvasTemplate, type PlacedItem, type VenueConfigState } from "@/components/admin/VenueCanvas";
+import { VenueCanvas, SEAT_SIZE, type CanvasTemplate, type PlacedItem, type VenueConfigState } from "@/components/admin/VenueCanvas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { withEventshUrl } from "@/lib/media-url";
@@ -370,6 +371,20 @@ function emptyScheduledSpaceRow(): ScheduledSpaceRow {
   };
 }
 
+type SeatRowRow = {
+  key: string;
+  id: string;
+  name: string;
+  price: string;
+  color: string;
+};
+function emptySeatRowRow(): SeatRowRow {
+  const key = nextKey(); // non-empty id from creation — see emptySpeakerSlotRow's comment
+  // Violet default: distinct from tables (#6366f1), round tables (#4f46e5),
+  // scheduled spaces (#0ea5e9) and speaker zones (#f59e0b).
+  return { key, id: key, name: "", price: "0", color: "#8b5cf6" };
+}
+
 const AGE_OPTIONS = ["All Ages", "13+", "16+", "18+", "21+"];
 
 /** Small standalone form for bulk-generating equal time slots (eventsh's
@@ -425,9 +440,10 @@ function SlotGenerator({
  * eventsh's shadcn/Radix UI — structural parity (same tabs, same fields, same
  * data), not a visual clone. Volunteers is unconditionally shown, matching
  * eventsh exactly (its own tab has no Event Sections gate either). "Seating"
- * (eventsh's cinema/concert-row module) is the one remaining real gap,
- * deliberately not built — it depends on the Space Layout canvas's "draw row"
- * bulk-seat tool, which Phase 8g's own scope explicitly left out of its MVP.
+ * (eventsh's cinema/concert-row module) is built: Seat Row templates on their
+ * own tab, plus individual seats placed on the Space Layout canvas — only
+ * eventsh's "draw row" bulk-seat tool stays out of scope, matching Phase 8g's
+ * own MVP cut.
  */
 export function EventForm({
   event,
@@ -581,6 +597,14 @@ export function EventForm({
     operatorId: s.operatorId || "",
   }));
 
+  const initialSeatRowRows: SeatRowRow[] = (event?.seatRowTemplates ?? []).map((r) => ({
+    key: nextKey(),
+    id: r.id,
+    name: r.name,
+    price: String(r.price),
+    color: r.color || "#8b5cf6",
+  }));
+
   // Space Layout (Phase 8g). Simplified from eventsh's array-of-venue-
   // configs to a single primary config — this app has no multi-venue
   // concept for one event today.
@@ -644,6 +668,20 @@ export function EventForm({
       isCircle: false,
       color: "#f59e0b",
     })),
+    ...(event?.venueSeats ?? []).map((s) => ({
+      positionId: s.id,
+      templateId: s.rowId,
+      kind: "seat" as const,
+      name: s.name,
+      x: s.x,
+      y: s.y,
+      width: SEAT_SIZE,
+      height: SEAT_SIZE,
+      rotation: s.rotation || 0,
+      isCircle: false,
+      color: s.color || event?.seatRowTemplates?.find((r) => r.id === s.rowId)?.color || "#8b5cf6",
+      seatNumber: s.seatNumber,
+    })),
   ];
 
   // CAD annotations (Phase 8h) — drawn on top of the Space Layout canvas.
@@ -668,6 +706,7 @@ export function EventForm({
   const [tableTemplateRows, setTableTemplateRows] = useState<TableTemplateRow[]>(initialTableTemplates);
   const [addOnItemRows, setAddOnItemRows] = useState<AddOnItemRow[]>(initialAddOnItems);
   const [scheduledSpaceRows, setScheduledSpaceRows] = useState<ScheduledSpaceRow[]>(initialScheduledSpaces);
+  const [seatRowRows, setSeatRowRows] = useState<SeatRowRow[]>(initialSeatRowRows);
   const [venueConfig, setVenueConfig] = useState<VenueConfigState>(initialVenueConfig);
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>(initialPlacedItems);
   const [annotations, setAnnotations] = useState<VenueAnnotation[]>(initialAnnotations);
@@ -697,6 +736,11 @@ export function EventForm({
   );
   const [hasSpaceLayout, setHasSpaceLayout] = useState(
     Boolean(event?.features?.hasSpaceLayout) || initialPlacedItems.length > 0,
+  );
+  const [hasSeating, setHasSeating] = useState(
+    Boolean(event?.features?.hasSeating) ||
+      (event?.seatRowTemplates.length ?? 0) > 0 ||
+      (event?.venueSeats.length ?? 0) > 0,
   );
 
   function updateTier(key: string, patch: Partial<TierRow>) {
@@ -911,6 +955,23 @@ export function EventForm({
     );
   }
 
+  function updateSeatRow(key: string, patch: Partial<SeatRowRow>) {
+    setSeatRowRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+  function addSeatRow() {
+    setSeatRowRows((rows) => [...rows, emptySeatRowRow()]);
+  }
+  function removeSeatRow(key: string) {
+    // Deleting a row also removes its placed seats — eventsh orphans them,
+    // leaving canvas items whose labels/price can never resolve. Deliberate
+    // deviation.
+    const row = seatRowRows.find((r) => r.key === key);
+    setSeatRowRows((rows) => rows.filter((r) => r.key !== key));
+    if (row) {
+      setPlacedItems((items) => items.filter((p) => !(p.kind === "seat" && p.templateId === row.id)));
+    }
+  }
+
   function toggleWorkshopPackageSession(packageKey: string, sessionId: string, checked: boolean) {
     setWorkshopPackageRows((rows) =>
       rows.map((r) =>
@@ -962,14 +1023,36 @@ export function EventForm({
             <input type="hidden" name="tableTemplateCount" value={tableTemplateRows.length} />
             <input type="hidden" name="addOnItemCount" value={addOnItemRows.length} />
             <input type="hidden" name="scheduledSpaceCount" value={scheduledSpaceRows.length} />
+            <input type="hidden" name="seatRowTemplateCount" value={seatRowRows.length} />
             {scheduledSpaceRows.map((s, i) => (
               <input key={s.key} type="hidden" name={`scheduledSpace${i}SlotCount`} value={s.slots.length} />
             ))}
             {/* Space Layout (8g) placements are homogeneous-but-variably-shaped
                 across 4 kinds — JSON is a cleaner fit here than the indexed
-                per-field convention every other repeater in this form uses. */}
+                per-field convention every other repeater in this form uses.
+                Seats split into their own wire-shaped JSON field so the two
+                inputs own disjoint item sets. */}
             <input type="hidden" name="venueConfigJson" value={JSON.stringify(venueConfig)} />
-            <input type="hidden" name="placedItemsJson" value={JSON.stringify(placedItems)} />
+            <input type="hidden" name="placedItemsJson" value={JSON.stringify(placedItems.filter((p) => p.kind !== "seat"))} />
+            <input
+              type="hidden"
+              name="venueSeatsJson"
+              value={JSON.stringify(
+                placedItems
+                  .filter((p) => p.kind === "seat")
+                  .map((p) => ({
+                    id: p.positionId,
+                    rowId: p.templateId,
+                    seatNumber: p.seatNumber,
+                    color: p.color,
+                    name: p.name,
+                    x: p.x,
+                    y: p.y,
+                    rotation: p.rotation,
+                    venueConfigId: "venueConfig1",
+                  })),
+              )}
+            />
             {/* CAD annotations (8h) drawn on the same canvas — flat array,
                 same JSON-field rationale as the two placements fields above. */}
             <input type="hidden" name="venueAnnotationsJson" value={JSON.stringify(annotations)} />
@@ -991,6 +1074,7 @@ export function EventForm({
                 {hasWorkshops && <TabsTrigger value="workshops">Workshops</TabsTrigger>}
                 {hasSpaces && <TabsTrigger value="spaces">Spaces</TabsTrigger>}
                 {hasScheduledSpaces && <TabsTrigger value="schedule-spaces">Schedule</TabsTrigger>}
+                {hasSeating && <TabsTrigger value="seating">Seating</TabsTrigger>}
                 {hasSpaceLayout && <TabsTrigger value="space-layout">Space Layout</TabsTrigger>}
               </TabsList>
 
@@ -1341,6 +1425,7 @@ export function EventForm({
                   <input type="hidden" name="feature_hasWorkshops" value={hasWorkshops ? "on" : ""} />
                   <input type="hidden" name="feature_hasSpaces" value={hasSpaces ? "on" : ""} />
                   <input type="hidden" name="feature_hasScheduledSpaces" value={hasScheduledSpaces ? "on" : ""} />
+                  <input type="hidden" name="feature_hasSeating" value={hasSeating ? "on" : ""} />
                   <input type="hidden" name="feature_hasSpaceLayout" value={hasSpaceLayout ? "on" : ""} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
@@ -1430,6 +1515,20 @@ export function EventForm({
                     <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
                       <input
                         type="checkbox"
+                        checked={hasSeating}
+                        onChange={(e) => setHasSeating(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-[var(--text-primary)]">Seating</span>
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          Cinema/theatre seat rows — define row templates, then place individual seats on the venue map.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-3 hover:border-[var(--accent)]">
+                      <input
+                        type="checkbox"
                         checked={hasSpaceLayout}
                         onChange={(e) => setHasSpaceLayout(e.target.checked)}
                         className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
@@ -1437,7 +1536,7 @@ export function EventForm({
                       <span>
                         <span className="block text-sm font-medium text-[var(--text-primary)]">Space Layout</span>
                         <span className="block text-xs text-[var(--text-muted)]">
-                          Visually place your Spaces/Round Tables/Scheduled Spaces/Speaker slots on a venue map.
+                          Visually place your Spaces/Round Tables/Scheduled Spaces/Speaker slots/Seats on a venue map.
                         </span>
                       </span>
                     </label>
@@ -1856,15 +1955,12 @@ export function EventForm({
                         </div>
 
                         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                          <Field label="WhatsApp number" htmlFor={`speaker${i}-whatsapp`}>
-                            <Input
-                              id={`speaker${i}-whatsapp`}
-                              name={`speaker${i}WhatsApp`}
-                              placeholder="+65 8123 4567"
-                              value={s.whatsApp}
-                              onChange={(e) => updateSpeaker(s.key, { whatsApp: e.target.value })}
-                            />
-                          </Field>
+                          <PhoneField
+                            name={`speaker${i}WhatsApp`}
+                            label="WhatsApp number"
+                            value={s.whatsApp}
+                            onChange={(v) => updateSpeaker(s.key, { whatsApp: v })}
+                          />
                           <Field label="Email" htmlFor={`speaker${i}-email`}>
                             <Input
                               id={`speaker${i}-email`}
@@ -2175,15 +2271,13 @@ export function EventForm({
                             onChange={(e) => updateVolunteer(v.key, { email: e.target.value })}
                           />
                         </Field>
-                        <Field label="Phone" htmlFor={`volunteer${i}-phone`} hint="Optional">
-                          <Input
-                            id={`volunteer${i}-phone`}
-                            name={`volunteer${i}Phone`}
-                            placeholder="+65 8123 4567"
-                            value={v.phoneNumber}
-                            onChange={(e) => updateVolunteer(v.key, { phoneNumber: e.target.value })}
-                          />
-                        </Field>
+                        <PhoneField
+                          name={`volunteer${i}Phone`}
+                          label="Phone"
+                          hint="Optional"
+                          value={v.phoneNumber}
+                          onChange={(next) => updateVolunteer(v.key, { phoneNumber: next })}
+                        />
                         <button
                           type="button"
                           onClick={() => removeVolunteer(v.key)}
@@ -2975,6 +3069,67 @@ export function EventForm({
                 </FormSection>
               </TabsContent>
 
+              {/* ---- Seating (cinema/theatre rows) -------------------------------- */}
+              <TabsContent value="seating" className="mt-6">
+                <div className="flex flex-col gap-6">
+                  <FormSection
+                    title="Seat row templates"
+                    description="Cinema/theatre seat rows — define the row name, per-seat price, and colour, then place individual seats on the Space Layout map."
+                  >
+                    <div className="flex flex-col gap-4">
+                      {seatRowRows.map((r, i) => (
+                        <div key={r.key} className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-4">
+                          <input type="hidden" name={`seatRowTemplate${i}Id`} value={r.id} />
+                          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+                            <Field label="Row name" htmlFor={`seat${i}-name`}>
+                              <Input
+                                id={`seat${i}-name`}
+                                name={`seatRowTemplate${i}Name`}
+                                placeholder="e.g. Row A"
+                                value={r.name}
+                                onChange={(e) => updateSeatRow(r.key, { name: e.target.value })}
+                              />
+                            </Field>
+                            <Field label={`Price per seat (${values.currency ?? event?.currency ?? "SGD"})`} htmlFor={`seat${i}-price`}>
+                              <Input
+                                id={`seat${i}-price`}
+                                name={`seatRowTemplate${i}Price`}
+                                type="number"
+                                min="0"
+                                value={r.price}
+                                onChange={(e) => updateSeatRow(r.key, { price: e.target.value })}
+                              />
+                            </Field>
+                            <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                              Colour
+                              <input
+                                type="color"
+                                name={`seatRowTemplate${i}Color`}
+                                value={r.color}
+                                onChange={(e) => updateSeatRow(r.key, { color: e.target.value })}
+                                className="h-8 w-8 rounded border border-[var(--border-strong)] p-0.5"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeSeatRow(r.key)}
+                              className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-red-600"
+                            >
+                              <Icon name="x" size={14} />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <Button type="button" variant="secondary" onClick={addSeatRow}>
+                      <Icon name="plus" size={16} />
+                      Add seat row
+                    </Button>
+                  </FormSection>
+                </div>
+              </TabsContent>
+
               {/* ---- Space Layout (eventsh-v1's VenueDesigner, scoped port — see
                   VenueCanvas.tsx's own doc comment for exactly what's in/out) ---- */}
               <TabsContent value="space-layout" className="mt-6">
@@ -3029,6 +3184,17 @@ export function EventForm({
                           height: 100,
                           isCircle: false,
                           color: "#f59e0b",
+                        })),
+                      ...seatRowRows
+                        .filter((r) => r.name)
+                        .map((r): CanvasTemplate => ({
+                          templateId: r.id,
+                          kind: "seat",
+                          name: r.name,
+                          width: SEAT_SIZE,
+                          height: SEAT_SIZE,
+                          isCircle: false,
+                          color: r.color,
                         })),
                     ]}
                     placedItems={placedItems}

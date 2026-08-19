@@ -3,6 +3,7 @@
 import { submitEnquiry } from "@/app/actions";
 import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 import { COMPANY_SIZES } from "@/lib/constants";
 
 export function EnquiryForm({
@@ -46,18 +47,13 @@ export function EnquiryForm({
           />
         </Field>
 
-        <Field label="Contact number" htmlFor="enq-phone" required error={state.errors?.phone}>
-          <Input
-            id="enq-phone"
-            defaultValue={state.values?.phone}
-            name="phone"
-            type="tel"
-            required
-            autoComplete="tel"
-            placeholder="+65 9123 4567"
-            aria-invalid={!!state.errors?.phone}
-          />
-        </Field>
+        <PhoneField
+          name="phone"
+          label="Contact number"
+          required
+          defaultValue={state.values?.phone}
+          error={state.errors?.phone}
+        />
 
         <Field label="Company" htmlFor="enq-company" required error={state.errors?.company}>
           <Input

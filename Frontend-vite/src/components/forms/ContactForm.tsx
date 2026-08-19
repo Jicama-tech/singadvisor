@@ -3,6 +3,7 @@
 import { submitContact } from "@/app/actions";
 import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 
 const SUBJECTS = [
   "Training enquiry",
@@ -47,22 +48,13 @@ export function ContactForm() {
           />
         </Field>
 
-        <Field
+        <PhoneField
+          name="phone"
           label="Contact number"
-          htmlFor="c-phone"
           hint="Optional"
+          defaultValue={state.values?.phone}
           error={state.errors?.phone}
-        >
-          <Input
-            id="c-phone"
-            defaultValue={state.values?.phone}
-            name="phone"
-            type="tel"
-            autoComplete="tel"
-            placeholder="+65 9123 4567"
-            aria-invalid={!!state.errors?.phone}
-          />
-        </Field>
+        />
 
         <Field label="Subject" htmlFor="c-subject" required error={state.errors?.subject}>
           <Select

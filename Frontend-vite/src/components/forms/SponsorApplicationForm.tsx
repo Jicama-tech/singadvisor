@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/lib/utils";
 import type { SponsorType } from "@/lib/events-client";
@@ -148,9 +149,7 @@ export function SponsorApplicationForm({
         <Input id="sf-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
 
-      <Field label="Phone" htmlFor="sf-phone" hint="Optional">
-        <Input id="sf-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      </Field>
+      <PhoneField name="phone" label="Phone" hint="Optional" value={phone} onChange={setPhone} />
 
       <Field label="Website" htmlFor="sf-website" hint="Optional">
         <Input id="sf-website" value={website} onChange={(e) => setWebsite(e.target.value)} />

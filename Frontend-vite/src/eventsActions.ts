@@ -27,6 +27,7 @@ import {
 } from "@/lib/events-admin-client";
 import type {
   PositionedRoundTable,
+  PositionedSeat,
   PositionedScheduledSpace,
   PositionedSpeakerZone,
   PositionedTable,
@@ -167,6 +168,7 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
       "hasWorkshops",
       "hasSpaces",
       "hasScheduledSpaces",
+      "hasSeating",
       "hasSpaceLayout",
     ]
       .filter((k) => bool(formData, `feature_${k}`))
@@ -353,6 +355,14 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
     };
   }).filter((s) => s.name);
 
+  const seatRowTemplateCount = num(formData, "seatRowTemplateCount", 0);
+  const seatRowTemplates = Array.from({ length: seatRowTemplateCount }, (_, i) => ({
+    id: str(formData, `seatRowTemplate${i}Id`) || `seat-row-${i + 1}`,
+    name: str(formData, `seatRowTemplate${i}Name`),
+    price: num(formData, `seatRowTemplate${i}Price`, 0),
+    color: str(formData, `seatRowTemplate${i}Color`) || "#8b5cf6",
+  })).filter((r) => r.name);
+
   let image: string;
   let gallery: string[];
   let sponsors: string[];
@@ -480,6 +490,16 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
     // No annotations is a perfectly valid event, not an error.
   }
 
+  // Seating placements arrive in the wire PositionedSeat shape already
+  // (EventForm's venueSeatsJson) — parsed separately so a malformed seats
+  // field never drops otherwise-valid placements.
+  let venueSeats: PositionedSeat[] = [];
+  try {
+    venueSeats = JSON.parse(str(formData, "venueSeatsJson") || "[]");
+  } catch {
+    // No seats is a perfectly valid event, not an error.
+  }
+
   const input = {
     // Auto-generate from the title when left blank — matches the field's
     // own hint text and the same pattern trainings/careers/etc. use; the
@@ -543,6 +563,8 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
     autoGenerateVendorCoupon: bool(formData, "autoGenerateVendorCoupon"),
     showSpacePricesOnEventfront: bool(formData, "showSpacePricesOnEventfront"),
     scheduledSpaceTemplates,
+    seatRowTemplates,
+    venueSeats,
     venueConfig,
     venueTables,
     venueRoundTables,

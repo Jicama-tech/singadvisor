@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { submitApplication } from "@/app/actions";
 import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
 import { Field, Input, Textarea } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 import { Icon } from "@/components/ui/Icon";
 import {
   RESUME_ACCEPTED_EXTENSIONS,
@@ -74,18 +75,13 @@ export function ApplicationForm({
           />
         </Field>
 
-        <Field label="Contact number" htmlFor="app-phone" required error={state.errors?.phone}>
-          <Input
-            id="app-phone"
-            defaultValue={state.values?.phone}
-            name="phone"
-            type="tel"
-            required
-            autoComplete="tel"
-            placeholder="+65 9123 4567"
-            aria-invalid={!!state.errors?.phone}
-          />
-        </Field>
+        <PhoneField
+          name="phone"
+          label="Contact number"
+          required
+          defaultValue={state.values?.phone}
+          error={state.errors?.phone}
+        />
 
         <Field
           label="LinkedIn"

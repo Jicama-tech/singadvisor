@@ -29,7 +29,7 @@ import type { AnnotationTool, VenueAnnotation } from "./VenueAnnotationLayer";
  * finished layout.
  */
 
-export type CanvasKind = "table" | "roundTable" | "scheduledSpace" | "speakerZone";
+export type CanvasKind = "table" | "roundTable" | "scheduledSpace" | "speakerZone" | "seat";
 
 export type CanvasTemplate = {
   templateId: string;
@@ -53,6 +53,8 @@ export type PlacedItem = {
   rotation: number;
   isCircle: boolean;
   color: string;
+  /** Seat-kind items only: the 1-based number within their seat row. */
+  seatNumber?: number;
 };
 
 export type VenueConfigState = {
@@ -67,11 +69,15 @@ export type { AnnotationTool, VenueAnnotation } from "./VenueAnnotationLayer";
 let placedCounter = 0;
 const nextPlacedId = () => `pos-${Date.now()}-${++placedCounter}`;
 
+/** Fixed size of an individually placed seat, matching eventsh's SEAT_SIZE. */
+export const SEAT_SIZE = 26;
+
 const KIND_LABEL: Record<CanvasKind, string> = {
   table: "Space",
   roundTable: "Round Table",
   scheduledSpace: "Scheduled Space",
   speakerZone: "Speaker Slot",
+  seat: "Seat",
 };
 
 // eventsh's own CreateEventForm toolbar omits a "Text" button despite
@@ -153,6 +159,14 @@ export function VenueCanvas({
   }
 
   function addToCanvas(t: CanvasTemplate) {
+    const isSeat = t.kind === "seat";
+    // Seats are fixed-size; the seat number continues the row's count so a
+    // row placed seat-by-seat numbers 1, 2, 3… (eventsh's placeSeatAt
+    // convention). Palette clicks stack at the center — every seat is
+    // immediately draggable into place.
+    const seatNumber = isSeat
+      ? placedItems.filter((p) => p.kind === "seat" && p.templateId === t.templateId).length + 1
+      : undefined;
     const item: PlacedItem = {
       positionId: nextPlacedId(),
       templateId: t.templateId,
@@ -165,6 +179,7 @@ export function VenueCanvas({
       rotation: 0,
       isCircle: t.isCircle,
       color: t.color,
+      ...(seatNumber !== undefined ? { seatNumber } : {}),
     };
     onChange([...placedItems, item]);
     setSelectedId(item.positionId);
@@ -408,7 +423,7 @@ export function VenueCanvas({
                       y={p.y}
                       width={p.width}
                       height={p.height}
-                      rx={4}
+                      rx={p.kind === "seat" ? 3 : 4}
                       fill={p.color}
                       fillOpacity={0.75}
                       stroke={isSelected ? "var(--accent)" : "#00000033"}
@@ -422,13 +437,13 @@ export function VenueCanvas({
                     y={p.y + p.height / 2}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fontSize={12}
+                    fontSize={p.kind === "seat" ? 10 : 12}
                     fill="#111"
                     pointerEvents="none"
                   >
-                    {p.name}
+                    {p.kind === "seat" ? p.seatNumber : p.name}
                   </text>
-                  {isSelected && !p.isCircle && (
+                  {isSelected && !p.isCircle && p.kind !== "seat" && (
                     <rect
                       data-testid="resize-handle"
                       x={p.x + p.width - 8}
@@ -480,7 +495,7 @@ export function VenueCanvas({
         </p>
         {unplacedTemplates.length === 0 ? (
           <p className="text-xs text-[var(--text-muted)]">
-            Define a Space, Round Table, Scheduled Space, or Speaker slot template first.
+            Define a Space, Round Table, Scheduled Space, Speaker slot, or Seat Row template first.
           </p>
         ) : (
           <div className="flex flex-col gap-1.5">

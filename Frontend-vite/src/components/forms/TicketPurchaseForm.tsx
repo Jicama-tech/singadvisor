@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { formatPrice } from "@/lib/utils";
@@ -318,9 +319,7 @@ export function TicketPurchaseForm({
         <Input id="tp-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
 
-      <Field label="Phone" htmlFor="tp-phone" hint="Optional">
-        <Input id="tp-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      </Field>
+      <PhoneField name="phone" label="Phone" hint="Optional" value={phone} onChange={setPhone} />
 
       {tier && (
         <p className="text-sm font-medium text-[var(--text-primary)]">

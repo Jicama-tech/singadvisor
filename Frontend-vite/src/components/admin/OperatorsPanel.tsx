@@ -81,6 +81,7 @@ export function OperatorsPanel() {
 
       {editing && (
         <OperatorForm
+          key={editing === "new" ? "new" : editing._id}
           operator={editing === "new" ? null : editing}
           onDone={async () => {
             setEditing(null);
@@ -168,6 +169,11 @@ function OperatorForm({
 }) {
   const [saving, setSaving] = useState(false);
   const [tabs, setTabs] = useState<string[]>(operator?.accessTabs ?? ["overview"]);
+  // Browsers ignore autoComplete="off" on password fields they can pair with
+  // the email input above and autofill the operator's saved password when the
+  // edit form reopens. readOnly-until-focus is the reliable block — the field
+  // becomes editable only once the user actually clicks in to type.
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   function toggleTab(tab: string) {
     setTabs((prev) => (prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]));
@@ -229,7 +235,9 @@ function OperatorForm({
               id="op-password"
               name="password"
               type="password"
-              autoComplete="new-password"
+              autoComplete="off"
+              readOnly={Boolean(operator) && !passwordFocused}
+              onFocus={() => setPasswordFocused(true)}
               required={!operator}
               minLength={8}
             />
