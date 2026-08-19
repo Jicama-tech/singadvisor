@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
 import { PageHeading, Panel } from "@/components/admin/AdminUI";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
@@ -240,14 +241,14 @@ export default function AdminSettings() {
       )}
 
       {/* ---- Settings sub-tabs (eventsh's organizer Settings structure:
-         Payments / Email / Operators / Profile — Subscription & Membership
+         Profile / Payments / Email / Operators — Subscription & Membership
          are eventsh-platform concepts that don't apply to SingAdvisor) ---- */}
-      <Tabs defaultValue="payments">
+      <Tabs defaultValue="profile">
         <TabsList aria-label="Settings sections">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="operators">Operators</TabsTrigger>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
         </TabsList>
 
       <TabsContent value="payments">
@@ -267,9 +268,12 @@ export default function AdminSettings() {
             <Field label="Company UEN" htmlFor="s-uen" hint="e.g. 202012345K, 12345678A or T08LL1234K">
               <Input id="s-uen" name="companyUEN" defaultValue={settings?.companyUEN} placeholder="202012345K" />
             </Field>
-            <Field label="PayNow mobile (fallback)" htmlFor="s-mobile" hint="Used only when no UEN is set">
-              <Input id="s-mobile" name="payNowMobile" defaultValue={settings?.payNowMobile} placeholder="+65 9123 4567" />
-            </Field>
+            <PhoneField
+              name="payNowMobile"
+              label="PayNow mobile (fallback)"
+              hint="Used only when no UEN is set"
+              defaultValue={settings?.payNowMobile}
+            />
             <div className="flex items-end gap-2">
               <Button type="button" variant="secondary" onClick={loadPreviewQr}>
                 <Icon name="scan" size={15} />

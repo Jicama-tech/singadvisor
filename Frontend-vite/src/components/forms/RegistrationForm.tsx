@@ -3,6 +3,7 @@
 import { registerForEvent, registerForTraining } from "@/app/actions";
 import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
 import { Field, Input, Textarea } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 
 type Props =
   | { kind: "training"; id: string; title: string; maxSeats?: number }
@@ -49,18 +50,13 @@ export function RegistrationForm(props: Props) {
           />
         </Field>
 
-        <Field label="Contact number" htmlFor="reg-phone" required error={state.errors?.phone}>
-          <Input
-            id="reg-phone"
-            defaultValue={state.values?.phone}
-            name="phone"
-            type="tel"
-            required
-            autoComplete="tel"
-            placeholder="+65 9123 4567"
-            aria-invalid={!!state.errors?.phone}
-          />
-        </Field>
+        <PhoneField
+          name="phone"
+          label="Contact number"
+          required
+          defaultValue={state.values?.phone}
+          error={state.errors?.phone}
+        />
 
         <Field
           label="Organisation"
