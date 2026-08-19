@@ -84,16 +84,17 @@ export function ConsultancySectionForm({
                   className="file:mr-3 file:rounded-full file:border-0 file:bg-[var(--accent)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--accent-foreground)] hover:file:bg-[var(--accent-hover)]"
                 />
               </Field>
-              <Field
-                label="Image path"
-                htmlFor="c-image"
-                hint="A path under /public, e.g. /Images/Trainingimgae/consultancy.jpg — or leave as-is after uploading above."
-                required
-                error={errors.image}
-              >
-                <Input id="c-image" name="image" required defaultValue={values.image ?? content.image} />
-              </Field>
             </div>
+            {/* The saved path is derived entirely from the uploaded file server-side
+                (see uploadIfPresent/saveConsultancySection) — no manual path entry.
+                This hidden field just carries the current path forward when no new
+                file is chosen. */}
+            <input type="hidden" name="image" defaultValue={values.image ?? content.image} />
+            {errors.image && (
+              <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
+                {errors.image}
+              </p>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Button label" htmlFor="c-ctaLabel" required error={errors.ctaLabel}>
                 <Input id="c-ctaLabel" name="ctaLabel" required defaultValue={values.ctaLabel ?? content.ctaLabel} />
