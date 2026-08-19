@@ -2,6 +2,7 @@
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
 import { cn } from "@/lib/utils";
 
 /**
@@ -42,12 +43,14 @@ export const EVENTS_DASHBOARD_ROUTES = TABS.map((t) => t.href);
 
 /** "/admin/events" itself must match exactly (every other route under
  * /admin/events/* would otherwise also satisfy startsWith("/admin/events")).
- * Shared by EventsLayout and AdminShell so the two never drift apart on
- * which routes count as "the nested nav is showing". */
+ * Shared by EventsShell and AdminShell so the two never drift apart on
+ * which routes count as "the nested nav is showing". Also true for
+ * /admin/events/new and /admin/events/:id (the create/edit forms) — those
+ * aren't one of the 12 TABS, but they still live under the Events section
+ * and should get the nested nav + collapsed primary sidebar like every
+ * other /admin/events/* page. */
 export function isEventsDashboardRoute(pathname: string): boolean {
-  return EVENTS_DASHBOARD_ROUTES.some((href) =>
-    href === "/admin/events" ? pathname === href : pathname.startsWith(href),
-  );
+  return pathname === "/admin/events" || pathname.startsWith("/admin/events/");
 }
 
 export function EventsNestedNav() {
@@ -56,8 +59,10 @@ export function EventsNestedNav() {
     href === "/admin/events" ? pathname === href : pathname.startsWith(href);
 
   // Full labels on the parent Events/Coupons tab; icon-only once any other
-  // tab is open (see the component comment).
-  const collapsed = pathname !== "/admin/events";
+  // tab is open (see the component comment). The user can also toggle this
+  // by hand at any time — that choice persists (localStorage) across tabs.
+  const autoCollapsed = pathname !== "/admin/events";
+  const [collapsed, toggleCollapsed] = useSidebarCollapse("events-nav-collapsed", autoCollapsed);
 
   return (
     <nav
@@ -72,6 +77,22 @@ export function EventsNestedNav() {
       )}
       aria-label="Organizer dashboard"
     >
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? "Expand organizer dashboard nav" : "Collapse organizer dashboard nav"}
+        title={collapsed ? "Expand" : "Collapse"}
+        className={cn(
+          "mb-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]",
+          !collapsed && "ml-auto",
+        )}
+      >
+        <Icon
+          name="chevron-down"
+          size={14}
+          className={cn("transition-transform", collapsed ? "-rotate-90" : "rotate-90")}
+        />
+      </button>
       {!collapsed && (
         <p className="hidden px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] lg:block">
           Organizer dashboard

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { PageHeading, AdminEmpty } from "@/components/admin/AdminUI";
+import EventsShell from "@/components/admin/EventsShell";
 import { EventForm } from "@/components/admin/EventForm";
 import { saveEvent } from "@/eventsActions";
 import { fetchEventAdmin, EventsServiceError } from "@/lib/events-admin-client";
@@ -45,6 +46,7 @@ export default function EventEdit() {
   };
 
   return (
+    <EventsShell>
       <div className="flex flex-col gap-8">
         {notFound ? (
           <AdminEmpty title="Event not found" message="That event does not exist or was deleted." />
@@ -58,5 +60,6 @@ export default function EventEdit() {
           </>
         )}
       </div>
+    </EventsShell>
   );
 }

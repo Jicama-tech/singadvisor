@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
 import { cn } from "@/lib/utils";
 
 /**
@@ -34,8 +35,11 @@ export function LandingNestedNav() {
   const { pathname } = useLocation();
 
   // Full labels on the "All sections" overview; icon-only once a section
-  // tab has been clicked — same collapse convention as EventsNestedNav.
-  const collapsed = pathname !== "/admin/landing";
+  // tab has been clicked — same collapse convention as EventsNestedNav. The
+  // user can also toggle this by hand at any time; that choice persists
+  // (localStorage) across tabs.
+  const autoCollapsed = pathname !== "/admin/landing";
+  const [collapsed, toggleCollapsed] = useSidebarCollapse("landing-nav-collapsed", autoCollapsed);
 
   return (
     <nav
@@ -47,6 +51,22 @@ export function LandingNestedNav() {
       }
       aria-label="Landing page sections"
     >
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? "Expand landing page nav" : "Collapse landing page nav"}
+        title={collapsed ? "Expand" : "Collapse"}
+        className={cn(
+          "mb-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]",
+          !collapsed && "ml-auto",
+        )}
+      >
+        <Icon
+          name="chevron-down"
+          size={14}
+          className={cn("transition-transform", collapsed ? "-rotate-90" : "rotate-90")}
+        />
+      </button>
       {!collapsed && (
         <p className="hidden px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] lg:block">
           Landing page

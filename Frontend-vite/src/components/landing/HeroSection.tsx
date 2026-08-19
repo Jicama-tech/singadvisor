@@ -51,6 +51,11 @@ export function HeroSection({
       <section className="relative isolate overflow-hidden bg-[var(--color-ink-950)]">
         <div className="absolute inset-0 -z-10 opacity-50">
           <video
+            // A <video>'s nested <source> doesn't reload when React only
+            // patches its src attribute — the element needs to remount for
+            // a newly-chosen file (or a freshly-saved path) to actually
+            // play, hence keying it off the src itself.
+            key={content.videoSrc}
             autoPlay
             muted
             loop
@@ -115,6 +120,9 @@ export function HeroSection({
     <section className="relative isolate overflow-hidden">
       <div className="absolute inset-0 -z-10">
         <video
+          // See the "bold" variant above: keying by src forces a remount so
+          // a newly-chosen/saved video actually reloads and plays.
+          key={content.videoSrc}
           autoPlay
           muted
           loop
