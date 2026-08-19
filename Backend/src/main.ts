@@ -9,6 +9,7 @@ import { join } from 'path';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -29,6 +30,13 @@ async function bootstrap() {
   // webhook handler to verify `X-Razorpay-Signature`, which is computed
   // over the exact bytes Razorpay sent, not a re-serialized JSON object.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+  // Express's default JSON body limit (100kb) is too small for event saves —
+  // a populated venue layout (tables/seats/scheduled spaces/speaker zones/
+  // annotations) plus speakers/sponsors/gallery routinely exceeds it, which
+  // makes "Update event" fail with an opaque 413 that never reaches the
+  // eventsh proxy. Raise it so real event payloads go through.
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.enableCors(); // tighten to an explicit origin allow-list before this leaves scaffold stage

@@ -144,7 +144,7 @@ export function HeroSectionForm({
 
           <FormSection
             title="Background video"
-            description="Upload a new file, or leave blank to keep the current one. Uploading replaces the path below when you save."
+            description="Upload a video and poster image — the storage path is generated automatically and saved for you when you hit Save."
           >
             <Field label="Upload video" htmlFor="h-videoFile" hint="MP4 or WebM, up to 50MB.">
               <Input
@@ -156,9 +156,16 @@ export function HeroSectionForm({
                 className="file:mr-3 file:rounded-full file:border-0 file:bg-[var(--accent)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--accent-foreground)] hover:file:bg-[var(--accent-hover)]"
               />
             </Field>
-            <Field label="Video path" htmlFor="h-videoSrc" required error={errors.videoSrc}>
-              <Input id="h-videoSrc" name="videoSrc" required defaultValue={values.videoSrc ?? content.videoSrc} />
-            </Field>
+            {/* The saved path is derived entirely from the uploaded file server-side
+                (see uploadIfPresent/saveHeroSection) — no manual path entry. This
+                hidden field just carries the current path forward when no new file
+                is chosen. */}
+            <input type="hidden" name="videoSrc" defaultValue={values.videoSrc ?? content.videoSrc} />
+            {errors.videoSrc && (
+              <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
+                {errors.videoSrc}
+              </p>
+            )}
 
             <Field label="Upload poster image" htmlFor="h-posterFile" hint="Shown while the video loads. JPEG, PNG, WebP or GIF.">
               <Input
@@ -170,19 +177,12 @@ export function HeroSectionForm({
                 className="file:mr-3 file:rounded-full file:border-0 file:bg-[var(--accent)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--accent-foreground)] hover:file:bg-[var(--accent-hover)]"
               />
             </Field>
-            <Field
-              label="Poster image path"
-              htmlFor="h-posterSrc"
-              required
-              error={errors.posterSrc}
-            >
-              <Input
-                id="h-posterSrc"
-                name="posterSrc"
-                required
-                defaultValue={values.posterSrc ?? content.posterSrc}
-              />
-            </Field>
+            <input type="hidden" name="posterSrc" defaultValue={values.posterSrc ?? content.posterSrc} />
+            {errors.posterSrc && (
+              <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
+                {errors.posterSrc}
+              </p>
+            )}
           </FormSection>
         </div>
       )}

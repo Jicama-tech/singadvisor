@@ -7,6 +7,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
 import { isEventsDashboardRoute } from "@/components/admin/EventsNestedNav";
 import { isLandingDashboardRoute } from "@/components/admin/LandingNestedNav";
+import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
 import { cn } from "@/lib/utils";
 
 export type AdminCounts = {
@@ -95,7 +96,11 @@ export function AdminShell({
   // room for the actual page content. Only the desktop `<aside>` collapses;
   // the mobile menu (a dropdown, not a permanent column) stays full-width
   // since it isn't competing with the nested nav for horizontal space.
-  const collapsed = isEventsDashboardRoute(pathname) || isLandingDashboardRoute(pathname);
+  // The user can also collapse/expand this by hand at any time (the toggle
+  // button below) — that manual choice overrides the route-driven default
+  // and is remembered across navigation.
+  const autoCollapsed = isEventsDashboardRoute(pathname) || isLandingDashboardRoute(pathname);
+  const [collapsed, toggleCollapsed] = useSidebarCollapse("admin-sidebar-collapsed", autoCollapsed);
 
   const nav = (
     <nav className="flex flex-col gap-6" aria-label="Admin">
@@ -164,14 +169,14 @@ export function AdminShell({
         <div
           className={cn(
             "flex h-16 items-center border-b border-[var(--border-subtle)]",
-            collapsed ? "justify-center px-2" : "px-5",
+            collapsed ? "flex-col justify-center gap-1 px-2" : "px-5",
           )}
         >
           {collapsed ? (
             <Link
               to="/admin"
               title="SingAdvisor Admin"
-              className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--accent-soft)] font-[family-name:var(--font-display)] text-sm font-semibold text-[var(--accent-on-soft)]"
+              className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--accent-soft)] font-[family-name:var(--font-display)] text-xs font-semibold text-[var(--accent-on-soft)]"
             >
               S
             </Link>
@@ -185,6 +190,22 @@ export function AdminShell({
               </span>
             </>
           )}
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={cn(
+              "grid h-7 w-7 shrink-0 place-items-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]",
+              !collapsed && "ml-auto",
+            )}
+          >
+            <Icon
+              name="chevron-down"
+              size={14}
+              className={cn("transition-transform", collapsed ? "-rotate-90" : "rotate-90")}
+            />
+          </button>
         </div>
 
         <div className={cn("flex-1 overflow-y-auto", collapsed ? "p-2" : "p-3")}>{nav}</div>
