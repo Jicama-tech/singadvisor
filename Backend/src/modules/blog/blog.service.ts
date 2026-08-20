@@ -17,13 +17,11 @@ export class BlogService {
   ) {}
 
   /** Public list: published only, newest first (the old Prisma query's
-   * publishedAt ordering). Author populated — the blog index cards show a
-   * "By <name>" byline same as the detail page, not just raw authorId. */
+   * publishedAt ordering). */
   findPublished() {
     return this.model
       .find({ published: true })
       .sort({ publishedAt: -1, createdAt: -1 })
-      .populate('authorId', 'name title bio photo linkedin')
       .exec();
   }
 

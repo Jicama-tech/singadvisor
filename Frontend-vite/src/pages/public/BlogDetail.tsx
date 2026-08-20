@@ -192,14 +192,8 @@ export default function BlogDetail() {
                         className="object-cover"
                       />
                     </span>
-                    <span>
-                      <span className="text-[var(--text-muted)]">Written by </span>
-                      <span className="font-medium text-[var(--text-primary)]">
-                        {post.author.name}
-                      </span>
-                      {post.author.title && (
-                        <span className="text-[var(--text-muted)]">, {post.author.title}</span>
-                      )}
+                    <span className="font-medium text-[var(--text-primary)]">
+                      {post.author.name}
                     </span>
                   </span>
                 )}
