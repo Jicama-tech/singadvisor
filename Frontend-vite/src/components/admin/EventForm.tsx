@@ -3,7 +3,7 @@ import { useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import { saveEvent } from "@/app/admin/actions";
 import type { FormState } from "@/lib/form-state";
-import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
+import { AdminForm, FormActionsRow, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { CroppedImageField } from "@/components/admin/CroppedImageField";
 import { VenueCanvas, SEAT_SIZE, type CanvasTemplate, type PlacedItem, type VenueConfigState } from "@/components/admin/VenueCanvas";
@@ -996,12 +996,22 @@ export function EventForm({
       cancelHref="/admin/events"
       submitLabel={event ? "Save changes" : "Create event"}
       wide
+      hideDefaultActions
     >
-      {(errors, values) => {
+      {(errors, values, pending) => {
         const submitted = Object.keys(values).length > 0;
 
         return (
           <div className="flex flex-col gap-6">
+            {/* Save/Cancel up here instead of buried below a very long form —
+                right above the tabs, right-aligned, always one scroll away. */}
+            <FormActionsRow
+              pending={pending}
+              submitLabel={event ? "Save changes" : "Create event"}
+              cancelHref="/admin/events"
+              className="justify-end"
+            />
+
             {/* Repeater state is submitted via indexed hidden inputs — same
                 convention PillarsSectionForm uses for its 4 fixed rows,
                 extended here to a variable-length list. tierCount/
@@ -1132,13 +1142,13 @@ export function EventForm({
                       name="published"
                       label="Published"
                       hint="Visible on the public site — a separate kill switch from Status above."
-                      defaultChecked={submitted ? values.published === "on" : (event?.published ?? true)}
+                      defaultChecked={submitted ? values.published === "true" : (event?.published ?? true)}
                     />
                     <Toggle
                       name="featured"
                       label="Featured"
                       hint="Highlighted on the home page."
-                      defaultChecked={submitted ? values.featured === "on" : (event?.featured ?? false)}
+                      defaultChecked={submitted ? values.featured === "true" : (event?.featured ?? false)}
                     />
                   </FormSection>
 
@@ -1380,7 +1390,7 @@ export function EventForm({
                     <Toggle
                       name="chatbotEnabled"
                       label="Enable chatbot"
-                      defaultChecked={submitted ? values.chatbotEnabled === "on" : (event?.chatbot?.enabled ?? false)}
+                      defaultChecked={submitted ? values.chatbotEnabled === "true" : (event?.chatbot?.enabled ?? false)}
                     />
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="Chatbot name" htmlFor="e-chatbotName" hint="Defaults to “Event Assistant”.">
@@ -1697,7 +1707,7 @@ export function EventForm({
                     <Toggle
                       name="adBarVisible"
                       label="Show ad bar"
-                      defaultChecked={submitted ? values.adBarVisible === "on" : (event?.adBar?.visible ?? false)}
+                      defaultChecked={submitted ? values.adBarVisible === "true" : (event?.adBar?.visible ?? false)}
                     />
                     <Field label="Message" htmlFor="e-adBarMessage">
                       <Input
@@ -1775,7 +1785,7 @@ export function EventForm({
                       name="showSponsorBar"
                       label="Show the sponsor bar on the event page"
                       hint="Off hides the strip entirely, including any confirmed sponsor logos."
-                      defaultChecked={submitted ? values.showSponsorBar === "on" : (event?.showSponsorBar ?? true)}
+                      defaultChecked={submitted ? values.showSponsorBar === "true" : (event?.showSponsorBar ?? true)}
                     />
                     <div>
                       <p className="mb-2 text-sm font-medium text-[var(--text-primary)]">
@@ -2508,7 +2518,7 @@ export function EventForm({
                       name="workshopHostingOpen"
                       label="Open to host applications"
                       hint="Let facilitators apply to run a session, instead of only you adding them here."
-                      defaultChecked={submitted ? values.workshopHostingOpen === "on" : (event?.workshopHostingOpen ?? false)}
+                      defaultChecked={submitted ? values.workshopHostingOpen === "true" : (event?.workshopHostingOpen ?? false)}
                     />
                     <div className="flex flex-col gap-4">
                       {workshopSessionRows.map((w, i) => (
@@ -2882,13 +2892,13 @@ export function EventForm({
                       name="autoGenerateVendorCoupon"
                       label="Auto-generate a vendor coupon"
                       hint="Each confirmed vendor automatically gets a discount coupon to share."
-                      defaultChecked={submitted ? values.autoGenerateVendorCoupon === "on" : (event?.autoGenerateVendorCoupon ?? true)}
+                      defaultChecked={submitted ? values.autoGenerateVendorCoupon === "true" : (event?.autoGenerateVendorCoupon ?? true)}
                     />
                     <Toggle
                       name="showSpacePricesOnEventfront"
                       label="Show space prices publicly"
                       hint="Off hides pricing from the public page — vendors apply and are quoted directly."
-                      defaultChecked={submitted ? values.showSpacePricesOnEventfront === "on" : (event?.showSpacePricesOnEventfront ?? true)}
+                      defaultChecked={submitted ? values.showSpacePricesOnEventfront === "true" : (event?.showSpacePricesOnEventfront ?? true)}
                     />
                   </FormSection>
                 </div>

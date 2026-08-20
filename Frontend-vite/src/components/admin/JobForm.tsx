@@ -191,7 +191,7 @@ export function JobForm({
               name="published"
               label="Published"
               hint="Listed on the public careers page and accepting applications."
-              defaultChecked={submitted ? values.published === "on" : (job?.published ?? true)}
+              defaultChecked={submitted ? values.published === "true" : (job?.published ?? true)}
             />
           </FormSection>
         </>

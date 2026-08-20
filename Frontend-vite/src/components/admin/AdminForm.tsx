@@ -19,6 +19,7 @@ export function AdminForm({
   cancelHref,
   submitLabel,
   wide,
+  hideDefaultActions,
   children,
 }: {
   action: (formData: FormData) => Promise<FormState | void>;
@@ -29,6 +30,10 @@ export function AdminForm({
    * user asked for the content pane to always take the whole screen).
    * Kept for backwards compatibility; no longer changes anything. */
   wide?: boolean;
+  /** Skip AdminForm's own bottom Save/Cancel row — for pages that place
+   * their own <FormActionsRow> elsewhere (e.g. top-right, above the form)
+   * using the `pending` value the children callback now receives. */
+  hideDefaultActions?: boolean;
   children: (
     errors: Record<string, string>,
     /**
@@ -37,6 +42,9 @@ export function AdminForm({
      * saved record to avoid wiping a long edit over one bad field.
      */
     values: Record<string, string>,
+    /** Whether a submit is in flight — for pages building their own submit
+     * button elsewhere in the tree (see `hideDefaultActions`). */
+    pending: boolean,
   ) => ReactNode;
 }) {
   const [state, setState] = useState<FormState>(emptyFormState);
@@ -76,20 +84,42 @@ export function AdminForm({
 
       <FormError state={state} />
 
-      {children(state.errors ?? {}, state.values ?? {})}
+      {children(state.errors ?? {}, state.values ?? {}, pending)}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <SubmitButton pending={pending} pendingLabel="Saving…">
-          {submitLabel}
-        </SubmitButton>
-        <Link
-          to={cancelHref}
-          className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-        >
-          Cancel
-        </Link>
-      </div>
+      {!hideDefaultActions && (
+        <FormActionsRow pending={pending} submitLabel={submitLabel} cancelHref={cancelHref} />
+      )}
     </form>
+  );
+}
+
+/** The Save/Cancel row AdminForm renders at the bottom by default. Exported
+ * so a page can place its own copy elsewhere (top-right, above the form)
+ * via `hideDefaultActions` + the `pending` the children callback receives —
+ * same buttons, same behaviour, just wherever the page wants them. */
+export function FormActionsRow({
+  pending,
+  submitLabel,
+  cancelHref,
+  className,
+}: {
+  pending: boolean;
+  submitLabel: string;
+  cancelHref: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-wrap items-center gap-3", className)}>
+      <SubmitButton pending={pending} pendingLabel="Saving…">
+        {submitLabel}
+      </SubmitButton>
+      <Link
+        to={cancelHref}
+        className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+      >
+        Cancel
+      </Link>
+    </div>
   );
 }
 
@@ -129,6 +159,12 @@ export function Toggle({
       <input
         type="checkbox"
         name={name}
+        // A checkbox with no `value` submits "on" when checked — every save
+        // handler's `bool()` helper checks for the literal string "true",
+        // so without this every Toggle silently saved as false regardless
+        // of what was actually checked (Published/Featured across
+        // Trainings/Jobs/Blog/Services/Events all shared this bug).
+        value="true"
         defaultChecked={defaultChecked}
         className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
       />
