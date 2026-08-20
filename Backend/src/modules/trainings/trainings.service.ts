@@ -9,7 +9,6 @@ import { slugify } from '../../common/utils/slugify';
 import { Training, TrainingDocument } from './entities/training.entity';
 import { Trainer, TrainerDocument } from './entities/trainer.entity';
 import { SaveTrainingDto } from './dto/save-training.dto';
-import { SaveTrainerDto } from './dto/save-trainer.dto';
 
 /**
  * Content editing here requires a signed-in admin session, so ownership is
@@ -66,59 +65,9 @@ export class TrainingsService {
     return doc;
   }
 
-  /** Picker list for the admin form's "Facilitator"/"Author" select. */
+  /** Read-only picker list for the admin form's "Facilitator" select. */
   findTrainers() {
     return this.trainerModel.find().sort({ name: 1 }).select('name title').exec();
-  }
-
-  findTrainerById(id: string) {
-    return this.trainerModel.findById(id).exec();
-  }
-
-  /** Create or update a Trainer — the "+ New author" flow in the Blog editor
-   * (and, potentially, a future Facilitator editor) writes here. `title` is
-   * the free-text role/company line ("AI Full Stack Developer, Jicama
-   * Tech"), shown next to the name in both the byline and the author card. */
-  async saveTrainer(dto: SaveTrainerDto, id?: string) {
-    if (!id && !dto.name) {
-      throw new BadRequestException('Name is required.');
-    }
-
-    const data: Record<string, unknown> = {
-      ...(dto.name !== undefined && { name: dto.name }),
-      ...(dto.title !== undefined && { title: dto.title }),
-      ...(dto.bio !== undefined && { bio: dto.bio }),
-      ...(dto.photo !== undefined && { photo: dto.photo }),
-      ...(dto.linkedin !== undefined && { linkedin: dto.linkedin }),
-    };
-
-    if (id) {
-      const doc = await this.trainerModel
-        .findByIdAndUpdate(id, data, { new: true, runValidators: true })
-        .exec();
-      if (!doc) throw new NotFoundException(`No author with id "${id}"`);
-      return doc;
-    }
-
-    return this.trainerModel.create(data);
-  }
-
-  /** Blocked while any Training or BlogPost still references this author —
-   * silently orphaning `trainerId`/`authorId` would leave a dangling
-   * populate() on the public pages that referenced them. */
-  async removeTrainer(id: string) {
-    const [trainingCount, postCount] = await Promise.all([
-      this.model.countDocuments({ trainerId: id }),
-      this.trainerModel.db.collection('blog-posts').countDocuments({ authorId: new Types.ObjectId(id) }),
-    ]);
-    if (trainingCount > 0 || postCount > 0) {
-      throw new BadRequestException(
-        'This author is still assigned to a training or blog post — reassign those first.',
-      );
-    }
-    const doc = await this.trainerModel.findByIdAndDelete(id).exec();
-    if (!doc) throw new NotFoundException(`No author with id "${id}"`);
-    return doc;
   }
 
   async save(dto: SaveTrainingDto, id?: string) {

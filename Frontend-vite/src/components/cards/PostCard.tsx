@@ -74,10 +74,7 @@ export function PostCard({
                   className="object-cover"
                 />
               </span>
-              <span>
-                <span className="text-[var(--text-muted)]">By </span>
-                {post.author.name}
-              </span>
+              {post.author.name}
             </span>
           )}
           {post.publishedAt && (

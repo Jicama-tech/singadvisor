@@ -299,28 +299,6 @@ export async function deletePost(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Trainers (Training "Facilitator" / Blog "Author")
-// ---------------------------------------------------------------------------
-
-export type TrainerInput = {
-  name: string;
-  title?: string;
-  bio?: string;
-  photo?: string;
-  linkedin?: string | null;
-};
-
-/** Plain call, not a FormData action — used by the Blog editor's inline
- * "+ New author" flow, which needs the created record back (id + name) to
- * add it to the picker and select it, not a page navigation. Throws with the
- * Backend's message on failure. */
-export async function createTrainer(input: TrainerInput): Promise<{ _id: string; name: string; title: string }> {
-  const result = await sendJson("POST", "/trainers", input);
-  if (!result.ok) throw new Error(backendMessage(result.data, "Could not create the author."));
-  return result.data as { _id: string; name: string; title: string };
-}
-
-// ---------------------------------------------------------------------------
 // Submission status updates
 // ---------------------------------------------------------------------------
 
