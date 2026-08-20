@@ -224,7 +224,11 @@ export async function fetchPosts(): Promise<PostDoc[]> {
   try {
     const res = await fetch(`${__API_URL__}/blog`);
     if (!res.ok) return [];
-    return (await res.json()) as PostDoc[];
+    const rows = (await res.json()) as PostDoc[];
+    // The list endpoint now populates authorId same as the detail one — same
+    // normalize so index/list cards get a `.author` byline, not just detail
+    // pages.
+    return rows.map(normalizePost);
   } catch {
     return [];
   }

@@ -47,7 +47,10 @@ export default function EventEdit() {
 
   return (
     <EventsShell>
-      <div className="flex flex-col gap-8">
+      {/* No gap here — PageHeading already carries its own bottom margin;
+          stacking a flex gap on top of that doubled the space between the
+          heading and the tabs below it. */}
+      <div className="flex flex-col">
         {notFound ? (
           <AdminEmpty title="Event not found" message="That event does not exist or was deleted." />
         ) : (

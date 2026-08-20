@@ -1,7 +1,10 @@
 
+import { useState } from "react";
 import { savePost } from "@/app/admin/actions";
+import { createTrainer } from "@/adminActions";
 import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
+import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { BLOG_CATEGORIES } from "@/lib/constants";
 import { jsonToLines } from "@/lib/utils";
@@ -33,6 +36,43 @@ export function PostForm({
   authors: { id: string; name: string }[];
   action?: (formData: FormData) => Promise<FormState | void>;
 }) {
+  // Local copy so a newly-created author shows up in the picker immediately
+  // — the parent's `authors` prop won't refetch mid-edit.
+  const [localAuthors, setLocalAuthors] = useState(authors);
+  const [creatingAuthor, setCreatingAuthor] = useState(false);
+  const [newAuthorName, setNewAuthorName] = useState("");
+  const [newAuthorTitle, setNewAuthorTitle] = useState("");
+  const [creatingPending, setCreatingPending] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  // Overrides the Author <select>'s value once a new author has just been
+  // created — takes priority over whatever the form would otherwise default
+  // to (see the `key`/`defaultValue` below).
+  const [justCreatedAuthorId, setJustCreatedAuthorId] = useState<string | null>(null);
+
+  async function handleCreateAuthor() {
+    if (!newAuthorName.trim()) {
+      setCreateError("Name is required.");
+      return;
+    }
+    setCreatingPending(true);
+    setCreateError(null);
+    try {
+      const created = await createTrainer({
+        name: newAuthorName.trim(),
+        title: newAuthorTitle.trim() || undefined,
+      });
+      setLocalAuthors((prev) => [...prev, { id: created._id, name: created.name }]);
+      setJustCreatedAuthorId(created._id);
+      setCreatingAuthor(false);
+      setNewAuthorName("");
+      setNewAuthorTitle("");
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Could not create the author.");
+    } finally {
+      setCreatingPending(false);
+    }
+  }
+
   return (
     <AdminForm
       action={action}
@@ -102,17 +142,66 @@ export function PostForm({
                 <Field label="Author" htmlFor="b-author" error={errors.authorId}>
                   <Select
                     id="b-author"
-                    key={values.authorId ?? post?.authorId ?? ""}
+                    key={justCreatedAuthorId ?? values.authorId ?? post?.authorId ?? ""}
                     name="authorId"
-                    defaultValue={values.authorId ?? post?.authorId ?? ""}
+                    defaultValue={justCreatedAuthorId ?? values.authorId ?? post?.authorId ?? ""}
                   >
                     <option value="">Unattributed</option>
-                    {authors.map((a) => (
+                    {localAuthors.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.name}
                       </option>
                     ))}
                   </Select>
+                  {!creatingAuthor ? (
+                    <button
+                      type="button"
+                      onClick={() => setCreatingAuthor(true)}
+                      className="mt-1.5 text-xs font-medium text-[var(--accent)] hover:underline"
+                    >
+                      + New author
+                    </button>
+                  ) : (
+                    <div className="mt-3 flex flex-col gap-2 rounded-lg border border-[var(--border-subtle)] p-3">
+                      <Input
+                        aria-label="New author name"
+                        placeholder="Name — e.g. Vansh Sharma"
+                        value={newAuthorName}
+                        onChange={(e) => setNewAuthorName(e.target.value)}
+                      />
+                      <Input
+                        aria-label="New author title"
+                        placeholder="Role/company — e.g. AI Full Stack Developer, Jicama Tech"
+                        value={newAuthorTitle}
+                        onChange={(e) => setNewAuthorTitle(e.target.value)}
+                      />
+                      {createError && (
+                        <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
+                          {createError}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={creatingPending}
+                          onClick={handleCreateAuthor}
+                        >
+                          {creatingPending ? "Adding…" : "Add author"}
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCreatingAuthor(false);
+                            setCreateError(null);
+                          }}
+                          className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </Field>
               </div>
 
@@ -167,7 +256,7 @@ export function PostForm({
                 label="Published"
                 hint="Unticked keeps it as a draft, hidden from the public blog."
                 defaultChecked={
-                  submitted ? values.published === "on" : (post?.published ?? true)
+                  submitted ? values.published === "true" : (post?.published ?? true)
                 }
               />
               <Toggle
@@ -175,7 +264,7 @@ export function PostForm({
                 label="Featured"
                 hint="Eligible for the home page highlight."
                 defaultChecked={
-                  submitted ? values.featured === "on" : (post?.featured ?? false)
+                  submitted ? values.featured === "true" : (post?.featured ?? false)
                 }
               />
               <Field

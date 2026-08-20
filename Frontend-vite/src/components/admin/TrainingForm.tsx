@@ -193,13 +193,13 @@ export function TrainingForm({
               name="published"
               label="Published"
               hint="Visible on the public site."
-              defaultChecked={submitted ? values.published === "on" : (training?.published ?? true)}
+              defaultChecked={submitted ? values.published === "true" : (training?.published ?? true)}
             />
             <Toggle
               name="featured"
               label="Featured"
               hint="Highlighted on the home page."
-              defaultChecked={submitted ? values.featured === "on" : (training?.featured ?? false)}
+              defaultChecked={submitted ? values.featured === "true" : (training?.featured ?? false)}
             />
             <Field
               label="Sort order"

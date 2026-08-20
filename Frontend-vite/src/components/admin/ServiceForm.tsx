@@ -126,7 +126,7 @@ export function ServiceForm({
             <Toggle
               name="published"
               label="Published"
-              defaultChecked={submitted ? values.published === "on" : (service?.published ?? true)}
+              defaultChecked={submitted ? values.published === "true" : (service?.published ?? true)}
             />
             <Field
               label="Sort order"
