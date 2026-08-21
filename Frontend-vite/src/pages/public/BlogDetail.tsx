@@ -43,6 +43,7 @@ function sortByRecency(a: PostDoc, b: PostDoc): number {
 export default function BlogDetail() {
   const { slug } = useParams();
   const [data, setData] = useState<BlogDetailData | null | undefined>(undefined);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +121,16 @@ export default function BlogDetail() {
   const minutes = readingMinutes(post.content);
 
   const url = `${window.location.origin}/blog/${post.slug}`;
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard API unavailable — button just doesn't confirm */
+    }
+  }
 
   const articleLd = {
     "@context": "https://schema.org",
@@ -265,34 +276,18 @@ export default function BlogDetail() {
               </div>
             )}
 
-            {/* ---- Share --------------------------------------------- */}
+            {/* ---- Share ---------------------------------------------
+                Just the link — no per-network share buttons. */}
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <span className="text-sm text-[var(--text-muted)]">Share</span>
-              <a
-                href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Share on LinkedIn"
-                className="grid h-9 w-9 place-items-center rounded-full surface-sunken text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
+              <button
+                type="button"
+                onClick={() => void handleCopyLink()}
+                className="flex items-center gap-2 rounded-full surface-sunken px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
               >
-                <Icon name="linkedin" size={16} />
-              </a>
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(`${post.title} ${url}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Share on WhatsApp"
-                className="grid h-9 w-9 place-items-center rounded-full surface-sunken text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
-              >
-                <Icon name="whatsapp" size={16} />
-              </a>
-              <a
-                href={`mailto:?subject=${encodeURIComponent(post.title)}&body=${encodeURIComponent(url)}`}
-                aria-label="Share by email"
-                className="grid h-9 w-9 place-items-center rounded-full surface-sunken text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
-              >
-                <Icon name="mail" size={16} />
-              </a>
+                <Icon name="link" size={15} />
+                {copied ? "Link copied!" : "Copy link"}
+              </button>
             </div>
 
             {/* ---- Author ---------------------------------------------- */}

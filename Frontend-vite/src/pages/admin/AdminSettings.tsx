@@ -30,6 +30,10 @@ type SettingsView = {
   razorpayKeyId: string;
   razorpayConfigured: boolean;
   paynowPayeeConfigured: boolean;
+  whatsappEnabled: boolean;
+  whatsappNumber: string;
+  contactEmailEnabled: boolean;
+  contactEmail: string;
 };
 
 type EmailConfig = {
@@ -69,6 +73,12 @@ export default function AdminSettings() {
 
   const [stats, setStats] = useState<OverviewStats | null>(null);
 
+  // Controlled (unlike the other checkboxes here) because the fields below
+  // each one only make sense to show once the toggle is actually on.
+  const [whatsappOn, setWhatsappOn] = useState(false);
+  const [contactEmailOn, setContactEmailOn] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const [sRes, eRes, oRes] = await Promise.all([
@@ -95,6 +105,12 @@ export default function AdminSettings() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!settings) return;
+    setWhatsappOn(settings.whatsappEnabled);
+    setContactEmailOn(settings.contactEmailEnabled);
+  }, [settings]);
 
   if (!user) return null;
 
@@ -139,6 +155,37 @@ export default function AdminSettings() {
       setError(err instanceof Error ? err.message : "Could not save settings.");
     } finally {
       setSavingPayments(false);
+    }
+  }
+
+  async function saveContact(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setSavingContact(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await adminFetch(`${__API_URL__}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          whatsappEnabled: whatsappOn,
+          whatsappNumber: whatsappOn ? String(fd.get("whatsappNumber") ?? "") : "",
+          contactEmailEnabled: contactEmailOn,
+          contactEmail: contactEmailOn ? String(fd.get("contactEmail") ?? "") : "",
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const m = body?.message;
+        throw new Error(Array.isArray(m) ? m.join(" ") : m || "Could not save contact settings.");
+      }
+      setSettings((await res.json()) as SettingsView);
+      setMessage("Contact settings saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save contact settings.");
+    } finally {
+      setSavingContact(false);
     }
   }
 
@@ -248,6 +295,7 @@ export default function AdminSettings() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
+          <TabsTrigger value="contact">Contact</TabsTrigger>
           <TabsTrigger value="operators">Operators</TabsTrigger>
         </TabsList>
 
@@ -423,6 +471,79 @@ export default function AdminSettings() {
               </Field>
               <Button type="button" variant="secondary" onClick={testEmail} disabled={testingEmail || !testRecipient}>
                 {testingEmail ? "Sending…" : "Send test"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Panel>
+      </TabsContent>
+
+      {/* ---- Contact --------------------------------------------------------
+         The site's own public contact channels — the floating "Chat on
+         WhatsApp" button and the contact email shown in the Footer/Contact
+         page. Independent of Profile (eventsh organizer identity) and Email
+         (SMTP send-from config) above. Off by default; each field only
+         shows once its own toggle is on. */}
+      <TabsContent value="contact">
+      <Panel className="p-6">
+        <h2 className="text-lg">Contact</h2>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          What visitors see and can reach you on across the public site — the floating WhatsApp button and the contact email in the footer.
+        </p>
+        {!settings && (
+          <p className="mt-4 text-sm text-[var(--text-muted)]">Loading…</p>
+        )}
+        {settings && (
+          <form onSubmit={saveContact} className="mt-5 flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={whatsappOn}
+                  onChange={(e) => setWhatsappOn(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                Show the WhatsApp chat button on the site
+              </label>
+              {whatsappOn && (
+                <PhoneField
+                  name="whatsappNumber"
+                  label="WhatsApp number"
+                  hint="Where the floating button's chat opens to."
+                  defaultValue={settings.whatsappNumber}
+                  required
+                />
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={contactEmailOn}
+                  onChange={(e) => setContactEmailOn(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                Show a contact email on the site
+              </label>
+              {contactEmailOn && (
+                <Field label="Contact email" htmlFor="s-contact-email" hint="Shown in the footer and Contact page.">
+                  <Input
+                    id="s-contact-email"
+                    name="contactEmail"
+                    type="email"
+                    required
+                    defaultValue={settings.contactEmail}
+                    placeholder="hello@singadvisor.com"
+                    className="max-w-sm"
+                  />
+                </Field>
+              )}
+            </div>
+
+            <div>
+              <Button type="submit" disabled={savingContact}>
+                {savingContact ? "Saving…" : "Save contact settings"}
               </Button>
             </div>
           </form>

@@ -17,6 +17,10 @@ export interface SettingsPublicView {
   razorpayKeyId: string;
   razorpayConfigured: boolean;
   paynowPayeeConfigured: boolean;
+  whatsappEnabled: boolean;
+  whatsappNumber: string;
+  contactEmailEnabled: boolean;
+  contactEmail: string;
 }
 
 /** The shape the PUBLIC endpoint returns to the public event pages — only
@@ -26,6 +30,13 @@ export interface SettingsPublicPayload {
   paynowPayeeId: string;
   paynowPayeeName: string;
   razorpayEnabled: boolean;
+  /** Site-wide "Chat on WhatsApp" button + Footer/Contact page email — off
+   * (and number/email omitted) unless the admin has explicitly enabled
+   * each one in Settings. */
+  whatsappEnabled: boolean;
+  whatsappNumber: string;
+  contactEmailEnabled: boolean;
+  contactEmail: string;
 }
 
 @Injectable()
@@ -57,6 +68,10 @@ export class SettingsService {
       razorpayKeyId: s.razorpayKeyId,
       razorpayConfigured: !!s.razorpayKeyId && !!keySecret,
       paynowPayeeConfigured: !!(s.companyUEN || s.payNowMobile),
+      whatsappEnabled: s.whatsappEnabled,
+      whatsappNumber: s.whatsappNumber,
+      contactEmailEnabled: s.contactEmailEnabled,
+      contactEmail: s.contactEmail,
     };
   }
 
@@ -72,6 +87,10 @@ export class SettingsService {
       paynowPayeeId: payeeId,
       paynowPayeeName: s.companyName || 'SingAdvisor',
       razorpayEnabled: s.razorpayEnabled && !!s.razorpayKeyId && !!keySecret,
+      whatsappEnabled: s.whatsappEnabled && !!s.whatsappNumber,
+      whatsappNumber: s.whatsappEnabled ? s.whatsappNumber : '',
+      contactEmailEnabled: s.contactEmailEnabled && !!s.contactEmail,
+      contactEmail: s.contactEmailEnabled ? s.contactEmail : '',
     };
   }
 
@@ -85,6 +104,10 @@ export class SettingsService {
     if (dto.paynowEnabled !== undefined) update.paynowEnabled = dto.paynowEnabled;
     if (dto.razorpayEnabled !== undefined) update.razorpayEnabled = dto.razorpayEnabled;
     if (dto.razorpayKeyId !== undefined) update.razorpayKeyId = dto.razorpayKeyId;
+    if (dto.whatsappEnabled !== undefined) update.whatsappEnabled = dto.whatsappEnabled;
+    if (dto.whatsappNumber !== undefined) update.whatsappNumber = dto.whatsappNumber;
+    if (dto.contactEmailEnabled !== undefined) update.contactEmailEnabled = dto.contactEmailEnabled;
+    if (dto.contactEmail !== undefined) update.contactEmail = dto.contactEmail;
 
     // Secrets: blank = keep existing, clear flags wipe, otherwise encrypt.
     // encryptSecret throws without SETTINGS_ENC_KEY — fail-safe, never
