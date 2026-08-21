@@ -46,6 +46,23 @@ export class Settings {
   @Prop({ type: String, default: '' })
   razorpayWebhookSecret!: string;
 
+  /** Site-wide "Chat on WhatsApp" floating button — off by default; the
+   * number is a combined "+65 9123 4567" string (PhoneField's own
+   * convention, same as payNowMobile above). */
+  @Prop({ type: Boolean, default: false })
+  whatsappEnabled!: boolean;
+
+  @Prop({ type: String, default: '' })
+  whatsappNumber!: string;
+
+  /** Public contact email shown on the site (Footer/Contact page) — off by
+   * default, independent of the SMTP "send from" config on eventsh. */
+  @Prop({ type: Boolean, default: false })
+  contactEmailEnabled!: boolean;
+
+  @Prop({ type: String, default: '' })
+  contactEmail!: string;
+
   @Prop({ type: String, default: '' })
   updatedBy!: string;
 

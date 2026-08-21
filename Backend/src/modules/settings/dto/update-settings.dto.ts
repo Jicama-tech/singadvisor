@@ -53,4 +53,20 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   clearRazorpayWebhookSecret?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  whatsappEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  whatsappNumber?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  contactEmailEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  contactEmail?: string;
 }

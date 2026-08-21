@@ -31,10 +31,10 @@ the server already occupies 4000; the nginx /api proxy matches this port):
 **`Frontend-vite/.env.production`** — build-time values (Vite reads this
 file automatically during `npm run build`):
 ```
-VITE_API_URL=https://singadvisor.sg/api      # or https://api.singadvisor.sg
+VITE_API_URL=https://singadvisor.com/api      # or https://api.singadvisor.com
 VITE_EVENTSH_PUBLIC_URL=https://eventsh.yourdomain
 VITE_EVENTSH_ORGANIZER_ID=<the organizer id>
-SITE_URL=https://singadvisor.sg              # used by the sitemap script
+SITE_URL=https://singadvisor.com              # used by the sitemap script
 ```
 
 ### Install + first manual deploy (proves everything works before automation)

@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
-import { PageHeading } from "@/components/admin/AdminUI";
 import { PostForm } from "@/components/admin/PostForm";
 import { savePost } from "@/adminActions";
 import type { FormState } from "@/lib/form-state";
-import type { PostDoc, TrainerDoc } from "@/lib/contentClient";
+import type { PostDoc } from "@/lib/contentClient";
 
 function toFormShape(p: PostDoc) {
   return {
@@ -21,7 +20,8 @@ function toFormShape(p: PostDoc) {
     published: p.published,
     featured: p.featured,
     publishedAt: p.publishedAt ? new Date(p.publishedAt) : null,
-    authorId: p.authorId ? String(p.authorId) : null,
+    writtenByName: p.writtenByName ?? "",
+    writtenByPosition: p.writtenByPosition ?? "",
   };
 }
 
@@ -30,25 +30,19 @@ export default function BlogEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [post, setPost] = useState<ReturnType<typeof toFormShape> | undefined>(undefined);
-  const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
   const [loaded, setLoaded] = useState(!id);
 
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
     void (async () => {
       try {
-        const trainerRes = await adminFetch(`${__API_URL__}/trainers`);
-        const trainerRows: TrainerDoc[] = trainerRes.ok ? await trainerRes.json() : [];
-        let doc: PostDoc | undefined;
-        if (id) {
-          const res = await adminFetch(`${__API_URL__}/blog/id/${id}`);
-          if (res.ok) doc = (await res.json()) as PostDoc;
+        const res = await adminFetch(`${__API_URL__}/blog/id/${id}`);
+        if (res.ok) {
+          const doc = (await res.json()) as PostDoc;
+          if (!cancelled) setPost(toFormShape(doc));
         }
-        if (cancelled) return;
-        setAuthors(trainerRows.map((t) => ({ id: t._id, name: t.name })));
-        if (doc) setPost(toFormShape(doc));
-        setLoaded(true);
-      } catch {
+      } finally {
         if (!cancelled) setLoaded(true);
       }
     })();
@@ -66,12 +60,13 @@ export default function BlogEdit() {
   };
 
   return (
-      <div className="flex flex-col gap-8">
-        <PageHeading
-          title={id ? "Edit post" : "New post"}
-          description={id ? "Changes go live as soon as you save." : "Write a new article."}
-        />
-        {loaded && <PostForm post={post} authors={authors} action={onSubmit} />}
-      </div>
+    loaded && (
+      <PostForm
+        post={post}
+        title={id ? "Edit post" : "New post"}
+        description={id ? "Changes go live as soon as you save." : "Write a new article."}
+        action={onSubmit}
+      />
+    )
   );
 }

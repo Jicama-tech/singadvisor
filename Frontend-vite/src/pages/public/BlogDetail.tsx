@@ -4,11 +4,13 @@ import { Helmet } from "react-helmet-async";
 import MarketingShell from "@/components/site/MarketingShell";
 import { AppImage as Image } from "@/components/ui/AppImage";
 import { ArticleBody } from "@/components/blog/ArticleBody";
+import { BlogFeedback } from "@/components/blog/BlogFeedback";
 import { PostCard, type PostCardData } from "@/components/cards/PostCard";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { fetchPostBySlug, fetchPosts, type PostDoc } from "@/lib/contentClient";
+import { withBackendUrl } from "@/lib/media-url";
 import { SITE } from "@/lib/constants";
 import { formatDate, readingMinutes } from "@/lib/utils";
 
@@ -27,6 +29,7 @@ function toCardData(p: PostDoc): PostCardData {
     content: p.content,
     publishedAt: p.publishedAt ? new Date(p.publishedAt) : null,
     author: p.author ? { name: p.author.name, photo: p.author.photo } : null,
+    writtenByName: p.writtenByName || undefined,
   };
 }
 
@@ -40,6 +43,7 @@ function sortByRecency(a: PostDoc, b: PostDoc): number {
 export default function BlogDetail() {
   const { slug } = useParams();
   const [data, setData] = useState<BlogDetailData | null | undefined>(undefined);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,17 +122,29 @@ export default function BlogDetail() {
 
   const url = `${window.location.origin}/blog/${post.slug}`;
 
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard API unavailable — button just doesn't confirm */
+    }
+  }
+
   const articleLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: post.title,
     description: post.excerpt,
-    image: post.coverImage,
+    image: withBackendUrl(post.coverImage),
     datePublished: post.publishedAt ?? undefined,
     dateModified: post.updatedAt,
-    author: post.author
-      ? { "@type": "Person", name: post.author.name }
-      : { "@type": "Organization", name: SITE.name },
+    author: post.writtenByName
+      ? { "@type": "Person", name: post.writtenByName }
+      : post.author
+        ? { "@type": "Person", name: post.author.name }
+        : { "@type": "Organization", name: SITE.name },
     publisher: { "@type": "Organization", name: SITE.name },
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
   };
@@ -181,21 +197,33 @@ export default function BlogDetail() {
               </p>
 
               <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-[var(--text-muted)]">
-                {post.author && (
-                  <span className="flex items-center gap-2.5">
-                    <span className="relative h-9 w-9 overflow-hidden rounded-full surface-sunken">
-                      <Image
-                        src={post.author.photo}
-                        alt=""
-                        fill
-                        sizes="36px"
-                        className="object-cover"
-                      />
-                    </span>
+                {post.writtenByName ? (
+                  <span>
+                    <span className="text-[var(--text-muted)]">Written by </span>
                     <span className="font-medium text-[var(--text-primary)]">
-                      {post.author.name}
+                      {post.writtenByName}
                     </span>
+                    {post.writtenByPosition && (
+                      <span className="text-[var(--text-muted)]">, {post.writtenByPosition}</span>
+                    )}
                   </span>
+                ) : (
+                  post.author && (
+                    <span className="flex items-center gap-2.5">
+                      <span className="relative h-9 w-9 overflow-hidden rounded-full surface-sunken">
+                        <Image
+                          src={post.author.photo}
+                          alt=""
+                          fill
+                          sizes="36px"
+                          className="object-cover"
+                        />
+                      </span>
+                      <span className="font-medium text-[var(--text-primary)]">
+                        {post.author.name}
+                      </span>
+                    </span>
+                  )
                 )}
                 {post.publishedAt && (
                   <time
@@ -219,7 +247,7 @@ export default function BlogDetail() {
         <div className="container-page -mt-0 pt-8 md:pt-10">
           <div className="relative mx-auto aspect-[16/9] max-w-4xl overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-lift)]">
             <Image
-              src={post.coverImage}
+              src={withBackendUrl(post.coverImage)}
               alt=""
               fill
               sizes="(max-width: 1024px) 100vw, 56rem"
@@ -248,34 +276,18 @@ export default function BlogDetail() {
               </div>
             )}
 
-            {/* ---- Share --------------------------------------------- */}
+            {/* ---- Share ---------------------------------------------
+                Just the link — no per-network share buttons. */}
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <span className="text-sm text-[var(--text-muted)]">Share</span>
-              <a
-                href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Share on LinkedIn"
-                className="grid h-9 w-9 place-items-center rounded-full surface-sunken text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
+              <button
+                type="button"
+                onClick={() => void handleCopyLink()}
+                className="flex items-center gap-2 rounded-full surface-sunken px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
               >
-                <Icon name="linkedin" size={16} />
-              </a>
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(`${post.title} ${url}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Share on WhatsApp"
-                className="grid h-9 w-9 place-items-center rounded-full surface-sunken text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
-              >
-                <Icon name="whatsapp" size={16} />
-              </a>
-              <a
-                href={`mailto:?subject=${encodeURIComponent(post.title)}&body=${encodeURIComponent(url)}`}
-                aria-label="Share by email"
-                className="grid h-9 w-9 place-items-center rounded-full surface-sunken text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
-              >
-                <Icon name="mail" size={16} />
-              </a>
+                <Icon name="link" size={15} />
+                {copied ? "Link copied!" : "Copy link"}
+              </button>
             </div>
 
             {/* ---- Author ---------------------------------------------- */}
@@ -301,6 +313,8 @@ export default function BlogDetail() {
                 </div>
               </div>
             )}
+
+            <BlogFeedback slug={post.slug} />
           </div>
         </div>
       </article>

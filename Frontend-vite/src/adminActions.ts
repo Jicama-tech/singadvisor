@@ -273,13 +273,21 @@ export async function savePost(formData: FormData): Promise<FormState> {
     slug: str(formData, "slug") || slugify(title),
     excerpt: str(formData, "excerpt"),
     content,
+    // Already-uploaded URL by the time this submits — the cover image field
+    // uploads immediately on crop-confirm, not deferred to save (see
+    // PostForm.tsx). Falls back to the stock placeholder only for a post
+    // that never got a cover at all.
     coverImage: str(formData, "coverImage") || "/Images/Trainingimgae/traing.jpg",
     category: str(formData, "category") || "Insights",
     tags: linesToArray(str(formData, "tags")),
     published: bool(formData, "published"),
     featured: bool(formData, "featured"),
     publishedAt,
-    authorId: nullable(formData, "authorId"),
+    writtenByName: str(formData, "writtenByName"),
+    writtenByPosition: str(formData, "writtenByPosition"),
+    // authorId deliberately omitted — the Author picker was removed in
+    // favour of the freeform Written-by fields above; omitting the key
+    // (rather than sending null) keeps whatever an old post already had.
   };
 
   try {
@@ -296,6 +304,68 @@ export async function savePost(formData: FormData): Promise<FormState> {
 
 export async function deletePost(id: string): Promise<void> {
   await sendJson("DELETE", `/blog/${id}`);
+}
+
+/** Uploads a (cropped) image to Backend/uploads/content/ and returns its
+ * path. Called immediately on crop-confirm — for the cover image and for
+ * images inserted inline in the article body — not deferred to form
+ * submit, since an inline image's URL needs to be embedded into the
+ * content right away. Deliberately not built on sendJson: a multipart body
+ * must NOT get sendJson's JSON Content-Type, fetch needs to compute the
+ * multipart boundary itself. */
+export async function uploadContentImage(file: File): Promise<{ url: string }> {
+  const token = sessionStorage.getItem("token");
+  if (!token) throw new Error("Not authorised.");
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${__API_URL__}/uploads/content`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(backendMessage(data, "Could not upload the image."));
+  return data as { url: string };
+}
+
+/** "Generate with AI" — draft-only, nothing is saved until the admin hits
+ * Publish/Save on the (now pre-filled) form. */
+export async function generateBlogContent(
+  topic: string,
+): Promise<{ title: string; excerpt: string; contentHtml: string }> {
+  const result = await sendJson("POST", "/blog/generate", { topic });
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not generate the blog."));
+  return result.data as { title: string; excerpt: string; contentHtml: string };
+}
+
+export type FeedbackEntry = {
+  _id: string;
+  rating: number;
+  message: string;
+  email: string;
+  name: string;
+  featured: boolean;
+  createdAt: string;
+};
+
+/** Admin: full feedback detail (email included) for the Blog editor's
+ * feedback panel — only shown once a post has an id (i.e. editing, not
+ * creating). */
+export async function fetchPostFeedback(postId: string): Promise<FeedbackEntry[]> {
+  const result = await sendJson("GET", `/blog/id/${postId}/feedback`);
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not load feedback."));
+  return result.data as FeedbackEntry[];
+}
+
+/** Admin: approve/unapprove one entry for public display. */
+export async function setFeedbackFeatured(
+  postId: string,
+  feedbackId: string,
+  featured: boolean,
+): Promise<FeedbackEntry> {
+  const result = await sendJson("PATCH", `/blog/id/${postId}/feedback/${feedbackId}`, { featured });
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not update feedback."));
+  return result.data as FeedbackEntry;
 }
 
 // ---------------------------------------------------------------------------

@@ -59,4 +59,12 @@ export class SavePostDto {
   @IsOptional()
   @IsString()
   authorId?: string;
+
+  @IsOptional()
+  @IsString()
+  writtenByName?: string;
+
+  @IsOptional()
+  @IsString()
+  writtenByPosition?: string;
 }

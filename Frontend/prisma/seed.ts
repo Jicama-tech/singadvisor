@@ -32,7 +32,7 @@ async function main() {
   await db.adminUser.deleteMany();
 
   // -- Admin ---------------------------------------------------------------
-  const email = process.env.ADMIN_EMAIL ?? "admin@singadvisor.sg";
+  const email = process.env.ADMIN_EMAIL ?? "admin@singadvisor.com";
   const password = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
   await db.adminUser.create({
     data: {

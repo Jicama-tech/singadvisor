@@ -10,3 +10,7 @@ declare const __EVENTSH_PUBLIC_URL__: string;
 /** The single organizer's id on the dedicated eventsh instance — public
  * config, not a secret (see vite.config.ts). */
 declare const __EVENTSH_ORGANIZER_ID__: string;
+/** Google OAuth Client ID for the Blog "Sign in with Google" feedback
+ * feature — empty string until configured, in which case the feature shows
+ * a graceful "not available" state instead of a broken sign-in button. */
+declare const __GOOGLE_CLIENT_ID__: string;

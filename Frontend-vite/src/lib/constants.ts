@@ -78,7 +78,7 @@ export const RESUME_ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx"] as const;
 export const SITE = {
   name: "SingAdvisor",
   tagline: "Training, events, consultancy and careers — built around people.",
-  email: "hello@singadvisor.sg",
+  email: "hello@singadvisor.com",
   phone: "+65 8000 0000",
   whatsapp: "6580000000",
   address: "3 Tampines Grande, Singapore 528733",

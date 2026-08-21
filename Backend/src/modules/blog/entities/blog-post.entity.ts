@@ -22,12 +22,21 @@ export class BlogPost {
   @Prop({ type: String, required: false, default: '' })
   excerpt!: string;
 
-  /** Markdown — the public page renders it itself (never raw HTML). */
+  /** Sanitized HTML from the rich-text editor (DOMPurify on render, never
+   * trusted verbatim) — replaces the old Markdown convention. */
   @Prop({ type: String, required: false, default: '' })
   content!: string;
 
   @Prop({ type: String, required: false, default: '' })
   coverImage!: string;
+
+  /** Freeform byline — "Written by <name>, <position>" on the public page.
+   * Independent of `authorId`/Trainer below; either or both may be set. */
+  @Prop({ type: String, required: false, default: '' })
+  writtenByName!: string;
+
+  @Prop({ type: String, required: false, default: '' })
+  writtenByPosition!: string;
 
   /** One of the four practice areas, plus Insights. */
   @Prop({ type: String, required: true, default: 'Insights' })

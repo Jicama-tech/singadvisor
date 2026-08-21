@@ -100,7 +100,7 @@ export function LoginForm({
             required
             autoComplete="username"
             autoFocus={!demo}
-            placeholder="admin@singadvisor.sg"
+            placeholder="admin@singadvisor.com"
             aria-invalid={!!state.errors?.email}
           />
         </Field>

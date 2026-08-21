@@ -37,9 +37,15 @@ async function bootstrap() {
   // eventsh proxy. Raise it so real event payloads go through.
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
+  // Must come BEFORE useStaticAssets: Express's static middleware answers a
+  // matching request itself and never reaches later-registered middleware,
+  // so CORS headers were never being attached to /uploads/* responses —
+  // harmless for plain <img>/<video> tags (no CORS needed to just display
+  // them) but breaks any fetch()/XHR read of an uploaded file from the SPA's
+  // origin (a different origin than the Backend in local dev).
+  app.enableCors(); // tighten to an explicit origin allow-list before this leaves scaffold stage
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.enableCors(); // tighten to an explicit origin allow-list before this leaves scaffold stage
   await app.listen(process.env.PORT ?? 4000);
 }
 bootstrap();

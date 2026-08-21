@@ -1,8 +1,17 @@
+import { useEffect, useState } from "react";
 import { AppImage as Image } from "@/components/ui/AppImage";
 import { Link } from "react-router-dom";
 import { NewsletterForm } from "@/components/site/NewsletterForm";
 import { Icon } from "@/components/ui/Icon";
 import { SITE } from "@/lib/constants";
+
+/** Same GET /settings/public convention as WhatsAppButton.tsx — the footer's
+ * email row only shows once the admin has explicitly turned it on in
+ * Settings → Contact. */
+type ContactSettings = {
+  contactEmailEnabled: boolean;
+  contactEmail: string;
+};
 
 const COLUMNS = [
   {
@@ -27,6 +36,23 @@ const COLUMNS = [
 ] as const;
 
 export function Footer() {
+  const [settings, setSettings] = useState<ContactSettings | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${__API_URL__}/settings/public`);
+        if (res.ok && !cancelled) setSettings((await res.json()) as ContactSettings);
+      } catch {
+        /* email row just stays hidden */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <footer className="border-t border-[var(--border-subtle)] surface-sunken">
       <div className="container-page py-16">
@@ -96,15 +122,17 @@ export function Footer() {
               <Icon name="map-pin" size={15} />
               {SITE.address}
             </li>
-            <li>
-              <a
-                href={`mailto:${SITE.email}`}
-                className="flex items-center gap-2 transition-colors hover:text-[var(--accent)]"
-              >
-                <Icon name="mail" size={15} />
-                {SITE.email}
-              </a>
-            </li>
+            {settings?.contactEmailEnabled && settings.contactEmail && (
+              <li>
+                <a
+                  href={`mailto:${settings.contactEmail}`}
+                  className="flex items-center gap-2 transition-colors hover:text-[var(--accent)]"
+                >
+                  <Icon name="mail" size={15} />
+                  {settings.contactEmail}
+                </a>
+              </li>
+            )}
           </ul>
         </div>
       </div>

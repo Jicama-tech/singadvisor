@@ -83,11 +83,26 @@ export type PostDoc = {
   publishedAt: string | null;
   authorId: string | null;
   author?: { _id: string; name: string; title: string; bio: string; photo: string; linkedin: string | null };
+  /** Freeform byline ("Written by <name>, <position>") — independent of the
+   * authorId/Trainer reference above, and what the Blog editor's own
+   * "Written by" fields write to now. Either or both may be set. */
+  writtenByName: string;
+  writtenByPosition: string;
   createdAt: string;
   updatedAt: string;
 };
 
 export type TrainerDoc = { _id: string; name: string; title: string };
+
+/** A public, admin-approved feedback entry — no email/Google id ever ships
+ * to the browser (see BlogFeedbackService.findPublicFeaturedBySlug). */
+export type PublicFeedbackDoc = {
+  _id: string;
+  rating: number;
+  message: string;
+  name: string;
+  createdAt: string;
+};
 
 export type RegistrationDoc = {
   _id: string;
@@ -247,4 +262,41 @@ export async function fetchPostBySlug(slug: string): Promise<PostDoc | null> {
   } catch {
     return null;
   }
+}
+
+/** Only admin-approved entries — public, no auth needed. */
+export async function fetchPublicFeedback(slug: string): Promise<PublicFeedbackDoc[]> {
+  try {
+    const res = await fetch(`${__API_URL__}/blog/${encodeURIComponent(slug)}/feedback`);
+    if (!res.ok) return [];
+    return (await res.json()) as PublicFeedbackDoc[];
+  } catch {
+    return [];
+  }
+}
+
+/** Submit (or update) this reader's own feedback — requires a verified
+ * Google sign-in credential, not an admin session. Throws with the
+ * Backend's message on failure (invalid/expired sign-in, feedback
+ * misconfigured, etc.) so the caller can show it. */
+export async function submitFeedback(
+  slug: string,
+  input: { credential: string; rating: number; message?: string },
+): Promise<PublicFeedbackDoc> {
+  const res = await fetch(`${__API_URL__}/blog/${encodeURIComponent(slug)}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message =
+      data && typeof data === "object" && "message" in data
+        ? Array.isArray((data as { message: unknown }).message)
+          ? (data as { message: string[] }).message.join(" ")
+          : String((data as { message: unknown }).message)
+        : "Could not submit feedback.";
+    throw new Error(message);
+  }
+  return data as PublicFeedbackDoc;
 }
