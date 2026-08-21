@@ -17,18 +17,38 @@ export function HeroSection({
 
   if (variant === "minimal") {
     return (
-      <section className="border-b border-[var(--border-subtle)] surface-raised">
+      <section className="relative isolate overflow-hidden">
+        <div className="absolute inset-0 -z-10">
+          <video
+            // See the "bold"/"modern" variants below: keying by src forces a
+            // remount so a newly-chosen/saved video actually reloads and plays.
+            key={content.videoSrc}
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster={withBasePath(withBackendUrl(content.posterSrc))}
+            className="h-full w-full object-cover"
+          >
+            <source src={withBasePath(withBackendUrl(content.videoSrc))} type="video/mp4" />
+          </video>
+          {/* Lighter, even scrim than Bold/Modern — Minimal's point is a calmer,
+              centered layout, so the video reads as a soft backdrop rather
+              than a dramatic full-bleed image. */}
+          <div className="absolute inset-0 bg-[var(--color-ink-950)]/60" />
+        </div>
+
         <div className="container-page flex flex-col items-center gap-6 pb-20 pt-10 text-center md:pb-28 md:pt-14">
-          <span className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-soft)] px-4 py-1.5 text-xs font-medium text-[var(--accent-on-soft)]">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white ring-1 ring-inset ring-white/20 backdrop-blur">
             <Icon name="map-pin" size={14} />
             {content.eyebrow}
           </span>
 
-          <h1 className="max-w-3xl text-4xl leading-[1.12] text-[var(--text-primary)] md:text-5xl">
-            {content.title} <span className="text-[var(--accent)]">{content.titleAccent}</span>
+          <h1 className="max-w-3xl text-4xl leading-[1.12] text-white md:text-5xl">
+            {content.title} <span className="text-[var(--color-teal-300)]">{content.titleAccent}</span>
           </h1>
 
-          <p className="max-w-xl text-lg leading-relaxed text-[var(--text-secondary)]">
+          <p className="max-w-xl text-lg leading-relaxed text-white/80">
             {content.description}
           </p>
 
@@ -37,7 +57,12 @@ export function HeroSection({
               {primaryLabel}
               <Icon name="arrow-right" size={18} />
             </ButtonLink>
-            <ButtonLink to={content.secondaryCtaHref} size="lg" variant="secondary">
+            <ButtonLink
+              to={content.secondaryCtaHref}
+              size="lg"
+              variant="secondary"
+              className="border-white/25 bg-white/10 text-white backdrop-blur hover:border-white hover:bg-white/20 hover:text-white"
+            >
               {content.secondaryCtaLabel}
             </ButtonLink>
           </div>

@@ -96,6 +96,7 @@ export default function HomePage() {
           content: p.content,
           publishedAt: p.publishedAt ? new Date(p.publishedAt) : null,
           author: p.author ? { name: p.author.name, photo: p.author.photo } : null,
+          writtenByName: p.writtenByName || undefined,
         })),
         trainingCount: trainings.length,
       });

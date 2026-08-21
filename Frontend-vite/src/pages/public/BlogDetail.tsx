@@ -4,11 +4,13 @@ import { Helmet } from "react-helmet-async";
 import MarketingShell from "@/components/site/MarketingShell";
 import { AppImage as Image } from "@/components/ui/AppImage";
 import { ArticleBody } from "@/components/blog/ArticleBody";
+import { BlogFeedback } from "@/components/blog/BlogFeedback";
 import { PostCard, type PostCardData } from "@/components/cards/PostCard";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { fetchPostBySlug, fetchPosts, type PostDoc } from "@/lib/contentClient";
+import { withBackendUrl } from "@/lib/media-url";
 import { SITE } from "@/lib/constants";
 import { formatDate, readingMinutes } from "@/lib/utils";
 
@@ -27,6 +29,7 @@ function toCardData(p: PostDoc): PostCardData {
     content: p.content,
     publishedAt: p.publishedAt ? new Date(p.publishedAt) : null,
     author: p.author ? { name: p.author.name, photo: p.author.photo } : null,
+    writtenByName: p.writtenByName || undefined,
   };
 }
 
@@ -123,12 +126,14 @@ export default function BlogDetail() {
     "@type": "BlogPosting",
     headline: post.title,
     description: post.excerpt,
-    image: post.coverImage,
+    image: withBackendUrl(post.coverImage),
     datePublished: post.publishedAt ?? undefined,
     dateModified: post.updatedAt,
-    author: post.author
-      ? { "@type": "Person", name: post.author.name }
-      : { "@type": "Organization", name: SITE.name },
+    author: post.writtenByName
+      ? { "@type": "Person", name: post.writtenByName }
+      : post.author
+        ? { "@type": "Person", name: post.author.name }
+        : { "@type": "Organization", name: SITE.name },
     publisher: { "@type": "Organization", name: SITE.name },
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
   };
@@ -181,21 +186,33 @@ export default function BlogDetail() {
               </p>
 
               <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-[var(--text-muted)]">
-                {post.author && (
-                  <span className="flex items-center gap-2.5">
-                    <span className="relative h-9 w-9 overflow-hidden rounded-full surface-sunken">
-                      <Image
-                        src={post.author.photo}
-                        alt=""
-                        fill
-                        sizes="36px"
-                        className="object-cover"
-                      />
-                    </span>
+                {post.writtenByName ? (
+                  <span>
+                    <span className="text-[var(--text-muted)]">Written by </span>
                     <span className="font-medium text-[var(--text-primary)]">
-                      {post.author.name}
+                      {post.writtenByName}
                     </span>
+                    {post.writtenByPosition && (
+                      <span className="text-[var(--text-muted)]">, {post.writtenByPosition}</span>
+                    )}
                   </span>
+                ) : (
+                  post.author && (
+                    <span className="flex items-center gap-2.5">
+                      <span className="relative h-9 w-9 overflow-hidden rounded-full surface-sunken">
+                        <Image
+                          src={post.author.photo}
+                          alt=""
+                          fill
+                          sizes="36px"
+                          className="object-cover"
+                        />
+                      </span>
+                      <span className="font-medium text-[var(--text-primary)]">
+                        {post.author.name}
+                      </span>
+                    </span>
+                  )
                 )}
                 {post.publishedAt && (
                   <time
@@ -219,7 +236,7 @@ export default function BlogDetail() {
         <div className="container-page -mt-0 pt-8 md:pt-10">
           <div className="relative mx-auto aspect-[16/9] max-w-4xl overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-lift)]">
             <Image
-              src={post.coverImage}
+              src={withBackendUrl(post.coverImage)}
               alt=""
               fill
               sizes="(max-width: 1024px) 100vw, 56rem"
@@ -301,6 +318,8 @@ export default function BlogDetail() {
                 </div>
               </div>
             )}
+
+            <BlogFeedback slug={post.slug} />
           </div>
         </div>
       </article>

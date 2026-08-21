@@ -145,6 +145,7 @@ export default function LandingSectionEdit() {
               author: p.author
                 ? { name: p.author.name, photo: p.author.photo }
                 : null,
+              writtenByName: p.writtenByName || undefined,
             })),
           services: services.slice(0, 4).map((s) => ({ id: s._id, slug: s.slug, title: s.title, summary: s.summary })),
           trainingCount: trainings.length,

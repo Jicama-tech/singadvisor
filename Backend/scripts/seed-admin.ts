@@ -15,7 +15,7 @@ async function main() {
   const uri = process.env.MONGO_URI;
   if (!uri) throw new Error('MONGO_URI is not set (check Backend/.env)');
 
-  const email = (process.env.ADMIN_EMAIL ?? 'admin@singadvisor.sg').toLowerCase().trim();
+  const email = (process.env.ADMIN_EMAIL ?? 'admin@singadvisor.com').toLowerCase().trim();
   const password = process.env.ADMIN_PASSWORD ?? 'ChangeMe123!';
 
   await mongoose.connect(uri);

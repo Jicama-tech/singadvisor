@@ -22,6 +22,10 @@ export default defineConfig(({ mode }) => {
       // id, and the old site already exposed these paths). Anything that
       // needs the API key goes through the Backend's /eventsh/* proxy.
       __EVENTSH_ORGANIZER_ID__: JSON.stringify(env.VITE_EVENTSH_ORGANIZER_ID),
+      // Blog reader feedback's "Sign in with Google" — a public OAuth client
+      // id (not a secret; Google's own docs say so), verified against the
+      // matching GOOGLE_CLIENT_ID server-side on every submission.
+      __GOOGLE_CLIENT_ID__: JSON.stringify(env.VITE_GOOGLE_CLIENT_ID),
     },
     build: {
       chunkSizeWarningLimit: 1000,

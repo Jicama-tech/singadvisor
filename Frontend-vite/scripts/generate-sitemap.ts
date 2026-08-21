@@ -14,7 +14,7 @@
 import { writeFileSync, mkdirSync } from "fs";
 import { resolve } from "path";
 
-const SITE_URL = (process.argv[2] || process.env.SITE_URL || "https://singadvisor.sg").replace(/\/$/, "");
+const SITE_URL = (process.argv[2] || process.env.SITE_URL || "https://singadvisor.com").replace(/\/$/, "");
 const API_URL = process.argv[3] || process.env.VITE_API_URL || "http://localhost:4000";
 const EVENTSH_PUBLIC_URL = process.argv[4] || process.env.VITE_EVENTSH_PUBLIC_URL || "http://localhost:3001";
 const ORGANIZER_ID = process.env.VITE_EVENTSH_ORGANIZER_ID || "";

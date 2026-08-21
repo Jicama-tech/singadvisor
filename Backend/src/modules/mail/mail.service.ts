@@ -45,7 +45,7 @@ export class MailService {
   }
 
   async send(input: SendEmailInput): Promise<void> {
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@singadvisor.sg';
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@singadvisor.com';
     await this.getTransporter().sendMail({ from, ...input });
   }
 

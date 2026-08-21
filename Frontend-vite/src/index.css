@@ -214,4 +214,117 @@
   .prose-body p + p {
     margin-top: 1.125rem;
   }
+
+  /* Blog article body — the sanitized-HTML equivalent of the old per-tag
+     react-markdown component overrides in ArticleBody.tsx; same visual
+     result, applied via CSS since raw HTML can't take React props. */
+  .article-body h2 {
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+  }
+  @media (min-width: 768px) {
+    .article-body h2 {
+      font-size: 1.875rem;
+    }
+  }
+  .article-body h3 {
+    margin-top: 2.25rem;
+    margin-bottom: 0.75rem;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+  }
+  .article-body p {
+    margin-block: 1.25rem;
+  }
+  .article-body strong {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .article-body a {
+    font-weight: 500;
+    color: var(--accent);
+    text-underline-offset: 2px;
+    text-decoration: underline;
+  }
+  .article-body a:hover {
+    text-decoration: none;
+  }
+  .article-body ul,
+  .article-body ol {
+    margin-block: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-left: 1.25rem;
+  }
+  .article-body ul {
+    list-style-type: disc;
+  }
+  .article-body ol {
+    list-style-type: decimal;
+  }
+  .article-body ul > li::marker,
+  .article-body ol > li::marker {
+    color: var(--accent);
+  }
+  .article-body li {
+    padding-left: 0.375rem;
+  }
+  .article-body blockquote {
+    margin-block: 2rem;
+    border-left: 4px solid var(--accent);
+    background-color: var(--surface-sunken);
+    padding-block: 0.25rem;
+    padding-left: 1.5rem;
+    padding-right: 1rem;
+    font-size: 1.125rem;
+    font-style: italic;
+    color: var(--text-primary);
+  }
+  .article-body code {
+    border-radius: 0.25rem;
+    background-color: var(--surface-sunken);
+    padding-inline: 0.375rem;
+    padding-block: 0.125rem;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.875em;
+    color: var(--text-primary);
+  }
+  .article-body pre {
+    margin-block: 1.5rem;
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    background-color: var(--color-ink-950);
+    padding: 1.25rem;
+    font-size: 0.875rem;
+    color: var(--color-ink-100);
+  }
+  .article-body hr {
+    margin-block: 2.5rem;
+    border-color: var(--border-subtle);
+  }
+  .article-body img {
+    margin-block: 1.5rem;
+    width: 100%;
+    border-radius: var(--radius-card, 0.75rem);
+  }
+  .article-body table {
+    margin-block: 1.5rem;
+    width: 100%;
+    min-width: 30rem;
+    text-align: left;
+    font-size: 0.875rem;
+  }
+  .article-body th {
+    border-bottom: 1px solid var(--border-strong);
+    padding: 0.5rem 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .article-body td {
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 0.5rem 0.75rem;
+  }
 }

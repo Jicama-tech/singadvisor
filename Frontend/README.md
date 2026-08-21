@@ -27,7 +27,7 @@ Generate a signing secret for admin sessions and put it in `.env`:
 openssl rand -base64 32
 ```
 
-**Admin:** <http://localhost:3000/admin> — `admin@singadvisor.sg` / `ChangeMe123!`
+**Admin:** <http://localhost:3000/admin> — `admin@singadvisor.com` / `ChangeMe123!`
 Change this before any deployment (see [Going to production](#going-to-production)).
 
 ---
