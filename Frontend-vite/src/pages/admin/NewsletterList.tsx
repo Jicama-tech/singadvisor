@@ -77,7 +77,7 @@ export default function NewsletterList() {
                   <Td>
                     <div className="flex items-center justify-end gap-1">
                       <Link
-                        to={`/newsletter/${n._id}`}
+                        to={`/newsletter/${n.slug}`}
                         target="_blank"
                         aria-label={`Preview ${n.title}`}
                         className="grid h-8 w-8 place-items-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--accent)]"

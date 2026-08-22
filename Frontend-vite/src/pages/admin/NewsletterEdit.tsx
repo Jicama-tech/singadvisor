@@ -10,6 +10,7 @@ import type { NewsletterDoc } from "@/lib/contentClient";
 function toFormShape(n: NewsletterDoc) {
   return {
     id: n._id,
+    slug: n.slug,
     title: n.title,
     image: n.image,
     imageAlt: n.imageAlt,

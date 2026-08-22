@@ -11,6 +11,7 @@ import { withBackendUrl } from "@/lib/media-url";
 
 type Newsletter = {
   id: string;
+  slug: string;
   title: string;
   image: string;
   imageAlt: string;
@@ -102,15 +103,31 @@ export function NewsletterForm({
             <input type="hidden" name="image" value={imageUrl} />
 
             <FormSection title="Content">
-              <Field label="Title" htmlFor="n-title" required error={errors.title}>
-                <Input
-                  id="n-title"
-                  name="title"
-                  required
-                  value={titleValue}
-                  onChange={(e) => setTitleValue(e.target.value)}
-                />
-              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Title" htmlFor="n-title" required error={errors.title}>
+                  <Input
+                    id="n-title"
+                    name="title"
+                    required
+                    value={titleValue}
+                    onChange={(e) => setTitleValue(e.target.value)}
+                  />
+                </Field>
+
+                <Field
+                  label="URL slug"
+                  htmlFor="n-slug"
+                  hint="Leave blank to generate from the title."
+                  error={errors.slug}
+                >
+                  <Input
+                    id="n-slug"
+                    name="slug"
+                    defaultValue={values.slug ?? newsletter?.slug}
+                    placeholder="august-2026-issue"
+                  />
+                </Field>
+              </div>
 
               <Field label="Image" htmlFor="n-image-file" required error={errors.image}>
                 {imageUrl ? (
@@ -152,19 +169,6 @@ export function NewsletterForm({
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   hidden
                   onChange={handleFileChange}
-                />
-              </Field>
-
-              <Field
-                label="Image alt text"
-                htmlFor="n-imageAlt"
-                hint="Describes the image for screen readers."
-                error={errors.imageAlt}
-              >
-                <Input
-                  id="n-imageAlt"
-                  name="imageAlt"
-                  defaultValue={values.imageAlt ?? newsletter?.imageAlt}
                 />
               </Field>
 

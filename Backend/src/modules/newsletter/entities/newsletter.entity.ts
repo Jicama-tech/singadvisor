@@ -10,6 +10,9 @@ export type NewsletterDocument = HydratedDocument<Newsletter>;
  */
 @Schema({ collection: 'newsletters', timestamps: true })
 export class Newsletter {
+  @Prop({ type: String, required: true, unique: true })
+  slug!: string;
+
   @Prop({ type: String, required: true })
   title!: string;
 

@@ -12,8 +12,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { NewsletterService } from './newsletter.service';
 import { SaveNewsletterDto } from './dto/save-newsletter.dto';
 
-/** Route order matters: `admin` comes before `:id`, otherwise it would be
- * swallowed by the GET :id catch-all — same discipline as BlogController. */
+/** Route order matters: `admin` comes before `:slug`, otherwise it would be
+ * swallowed by the GET :slug catch-all — same discipline as BlogController. */
 @Controller('newsletter')
 export class NewsletterController {
   constructor(private readonly newsletterService: NewsletterService) {}
@@ -33,6 +33,11 @@ export class NewsletterController {
   @UseGuards(JwtAuthGuard)
   findById(@Param('id') id: string) {
     return this.newsletterService.findById(id);
+  }
+
+  @Get(':slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.newsletterService.findBySlugPublic(slug);
   }
 
   @Post()

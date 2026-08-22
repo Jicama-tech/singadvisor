@@ -75,7 +75,7 @@ export default function App() {
         <Route path="/blog" element={<BlogIndex />} />
         <Route path="/blog/:slug" element={<BlogDetail />} />
         <Route path="/newsletter" element={<NewsletterIndex />} />
-        <Route path="/newsletter/:id" element={<NewsletterDetail />} />
+        <Route path="/newsletter/:slug" element={<NewsletterDetail />} />
 
         {/* ---- admin dashboard -------------------------------------------- */}
         <Route path="/admin/login" element={<AdminLogin />} />

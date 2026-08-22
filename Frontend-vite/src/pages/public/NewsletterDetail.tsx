@@ -4,29 +4,30 @@ import { Helmet } from "react-helmet-async";
 import MarketingShell from "@/components/site/MarketingShell";
 import { AppImage as Image } from "@/components/ui/AppImage";
 import { Icon } from "@/components/ui/Icon";
-import { fetchNewsletterById, type NewsletterDoc } from "@/lib/contentClient";
+import { fetchNewsletterBySlug, type NewsletterDoc } from "@/lib/contentClient";
 import { withBackendUrl } from "@/lib/media-url";
 import { SITE } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 
 export default function NewsletterDetail() {
-  const { id } = useParams();
+  const { slug } = useParams();
   const [item, setItem] = useState<NewsletterDoc | null | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      if (!id) {
+      if (!slug) {
         setItem(null);
         return;
       }
-      const doc = await fetchNewsletterById(id);
-      if (!cancelled) setItem(doc && doc.published ? doc : null);
+      // The Backend's :slug route already 404s unpublished issues.
+      const doc = await fetchNewsletterBySlug(slug);
+      if (!cancelled) setItem(doc);
     })();
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [slug]);
 
   if (!item) {
     if (item === undefined) {

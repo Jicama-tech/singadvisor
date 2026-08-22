@@ -9,8 +9,15 @@ export class SaveNewsletterDto {
   @MinLength(3)
   title?: string;
 
+  // Leave blank to generate from the title — see NewsletterService.save.
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @IsString()
+  slug?: string;
+
+  // A relative /uploads/newsletters/... path from the upload endpoint, not
+  // a full URL — same convention as blog's coverImage.
+  @IsOptional()
+  @IsString()
   image?: string;
 
   @IsOptional()

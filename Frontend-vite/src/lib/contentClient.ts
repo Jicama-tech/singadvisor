@@ -95,9 +95,10 @@ export type PostDoc = {
 export type TrainerDoc = { _id: string; name: string; title: string };
 
 /** One image, a <=500-word message, and a reference link the reader follows
- * to the full article — no slug, the public detail page routes by _id. */
+ * to the full article — the public detail page routes by slug. */
 export type NewsletterDoc = {
   _id: string;
+  slug: string;
   title: string;
   image: string;
   imageAlt: string;
@@ -289,11 +290,14 @@ export async function fetchNewsletters(): Promise<NewsletterDoc[]> {
   }
 }
 
-/** No dedicated public-by-id route — the detail page just picks its issue
- * out of the published list, same size class as the list itself. */
-export async function fetchNewsletterById(id: string): Promise<NewsletterDoc | null> {
-  const all = await fetchNewsletters();
-  return all.find((n) => n._id === id) ?? null;
+export async function fetchNewsletterBySlug(slug: string): Promise<NewsletterDoc | null> {
+  try {
+    const res = await fetch(`${__API_URL__}/newsletter/${encodeURIComponent(slug)}`);
+    if (!res.ok) return null;
+    return (await res.json()) as NewsletterDoc;
+  } catch {
+    return null;
+  }
 }
 
 /** Only admin-approved entries — public, no auth needed. */

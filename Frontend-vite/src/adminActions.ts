@@ -334,6 +334,7 @@ export async function saveNewsletter(formData: FormData): Promise<FormState> {
 
   const body = {
     title,
+    slug: str(formData, "slug") || slugify(title),
     image,
     imageAlt: str(formData, "imageAlt"),
     message,

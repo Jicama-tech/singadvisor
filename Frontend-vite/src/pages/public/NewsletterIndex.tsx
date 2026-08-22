@@ -75,7 +75,7 @@ export default function NewsletterIndex() {
                 </div>
                 <CardBody>
                   <h3 className="text-lg leading-snug">
-                    <Link to={`/newsletter/${n._id}`} className="after:absolute after:inset-0">
+                    <Link to={`/newsletter/${n.slug}`} className="after:absolute after:inset-0">
                       {n.title}
                     </Link>
                   </h3>
