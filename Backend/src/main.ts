@@ -20,6 +20,7 @@ async function bootstrap() {
   mkdirSync(join(process.cwd(), 'uploads', 'events'), { recursive: true });
   mkdirSync(join(process.cwd(), 'uploads', 'sponsors'), { recursive: true });
   mkdirSync(join(process.cwd(), 'uploads', 'content'), { recursive: true });
+  mkdirSync(join(process.cwd(), 'uploads', 'newsletters'), { recursive: true });
   // Résumés are personal data — deliberately NOT under `uploads/` (which
   // useStaticAssets serves to the world below); careers.service.ts streams
   // them only through its guarded route.

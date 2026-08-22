@@ -111,6 +111,33 @@ export class UploadsController {
     return { url: `/uploads/content/${file.filename}` };
   }
 
+  /** The one image allowed per newsletter — same discipline as `content`
+   * above (uuid filename, images only). */
+  @Post('newsletters')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: join(process.cwd(), 'uploads', 'newsletters'),
+        filename: (_req, file, cb) => {
+          cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`);
+        },
+      }),
+      limits: { fileSize: MAX_SIZE_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_IMAGE_MIME.test(file.mimetype)) {
+          cb(new BadRequestException('Only JPEG/PNG/WebP/GIF images are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadNewsletterImage(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return { url: `/uploads/newsletters/${file.filename}` };
+  }
+
   /**
    * Sponsor logos and payment-proof screenshots — deliberately PUBLIC, no
    * guard. Unlike `landing`/`events` above, the uploader here is an

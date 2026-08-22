@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BlogPost, BlogPostDocument } from '../blog/entities/blog-post.entity';
+import { Newsletter, NewsletterDocument } from '../newsletter/entities/newsletter.entity';
 
 @Injectable()
 export class PlatformSyncService implements OnApplicationBootstrap {
@@ -17,6 +18,8 @@ export class PlatformSyncService implements OnApplicationBootstrap {
   constructor(
     @InjectModel(BlogPost.name)
     private readonly blogPostModel: Model<BlogPostDocument>,
+    @InjectModel(Newsletter.name)
+    private readonly newsletterModel: Model<NewsletterDocument>,
   ) {}
 
   private isConfigured(): boolean {
@@ -53,15 +56,24 @@ export class PlatformSyncService implements OnApplicationBootstrap {
   async syncNow(): Promise<{ skipped: true } | { skipped: false }> {
     if (!this.isConfigured()) return { skipped: true };
 
-    const [blogCount, publishedCount, featuredCount] = await Promise.all([
-      this.blogPostModel.countDocuments({}).exec(),
-      this.blogPostModel.countDocuments({ published: true }).exec(),
-      this.blogPostModel.countDocuments({ featured: true }).exec(),
-    ]);
+    const [blogCount, publishedCount, featuredCount, newsletterCount, publishedNewsletterCount] =
+      await Promise.all([
+        this.blogPostModel.countDocuments({}).exec(),
+        this.blogPostModel.countDocuments({ published: true }).exec(),
+        this.blogPostModel.countDocuments({ featured: true }).exec(),
+        this.newsletterModel.countDocuments({}).exec(),
+        this.newsletterModel.countDocuments({ published: true }).exec(),
+      ]);
 
     const payload = {
       instanceId: process.env.INSTANCE_ID,
-      stats: { blogCount, publishedCount, featuredCount },
+      stats: {
+        blogCount,
+        publishedCount,
+        featuredCount,
+        newsletterCount,
+        publishedNewsletterCount,
+      },
     };
 
     const res = await fetch(

@@ -24,6 +24,7 @@ const CONTENT_NAV: { href: string; label: string; icon: IconName; tab: string }[
   { href: "/admin/consultancy", label: "Consultancy", icon: "compass", tab: "consultancy" },
   { href: "/admin/careers", label: "Careers", icon: "briefcase", tab: "careers" },
   { href: "/admin/blog", label: "Blog", icon: "pencil", tab: "blog" },
+  { href: "/admin/newsletter", label: "Newsletter", icon: "mail", tab: "newsletter" },
   { href: "/admin/settings", label: "Settings", icon: "settings", tab: "settings" },
 ];
 
