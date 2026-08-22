@@ -94,6 +94,20 @@ export type PostDoc = {
 
 export type TrainerDoc = { _id: string; name: string; title: string };
 
+/** One image, a <=500-word message, and a reference link the reader follows
+ * to the full article — no slug, the public detail page routes by _id. */
+export type NewsletterDoc = {
+  _id: string;
+  title: string;
+  image: string;
+  imageAlt: string;
+  message: string;
+  referenceLink: string;
+  published: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** A public, admin-approved feedback entry — no email/Google id ever ships
  * to the browser (see BlogFeedbackService.findPublicFeaturedBySlug). */
 export type PublicFeedbackDoc = {
@@ -262,6 +276,24 @@ export async function fetchPostBySlug(slug: string): Promise<PostDoc | null> {
   } catch {
     return null;
   }
+}
+
+/** Published newsletters only — same degrade-to-[] convention as fetchPosts. */
+export async function fetchNewsletters(): Promise<NewsletterDoc[]> {
+  try {
+    const res = await fetch(`${__API_URL__}/newsletter`);
+    if (!res.ok) return [];
+    return (await res.json()) as NewsletterDoc[];
+  } catch {
+    return [];
+  }
+}
+
+/** No dedicated public-by-id route — the detail page just picks its issue
+ * out of the published list, same size class as the list itself. */
+export async function fetchNewsletterById(id: string): Promise<NewsletterDoc | null> {
+  const all = await fetchNewsletters();
+  return all.find((n) => n._id === id) ?? null;
 }
 
 /** Only admin-approved entries — public, no auth needed. */

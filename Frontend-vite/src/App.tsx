@@ -23,6 +23,8 @@ const CareersList = lazy(() => import("@/pages/admin/CareersList"));
 const CareerEdit = lazy(() => import("@/pages/admin/CareerEdit"));
 const BlogList = lazy(() => import("@/pages/admin/BlogList"));
 const BlogEdit = lazy(() => import("@/pages/admin/BlogEdit"));
+const NewsletterList = lazy(() => import("@/pages/admin/NewsletterList"));
+const NewsletterEdit = lazy(() => import("@/pages/admin/NewsletterEdit"));
 const LandingAdmin = lazy(() => import("@/pages/admin/LandingAdmin"));
 const LandingSectionEdit = lazy(() => import("@/pages/admin/LandingSectionEdit"));
 const RegistrationsList = lazy(() => import("@/pages/admin/RegistrationsList"));
@@ -49,6 +51,8 @@ const CareersIndex = lazy(() => import("@/pages/public/CareersIndex"));
 const CareerDetail = lazy(() => import("@/pages/public/CareerDetail"));
 const BlogIndex = lazy(() => import("@/pages/public/BlogIndex"));
 const BlogDetail = lazy(() => import("@/pages/public/BlogDetail"));
+const NewsletterIndex = lazy(() => import("@/pages/public/NewsletterIndex"));
+const NewsletterDetail = lazy(() => import("@/pages/public/NewsletterDetail"));
 const NotFoundPage = lazy(() => import("@/pages/public/NotFoundPage"));
 
 
@@ -70,6 +74,8 @@ export default function App() {
         <Route path="/careers/:slug" element={<CareerDetail />} />
         <Route path="/blog" element={<BlogIndex />} />
         <Route path="/blog/:slug" element={<BlogDetail />} />
+        <Route path="/newsletter" element={<NewsletterIndex />} />
+        <Route path="/newsletter/:id" element={<NewsletterDetail />} />
 
         {/* ---- admin dashboard -------------------------------------------- */}
         <Route path="/admin/login" element={<AdminLogin />} />
@@ -92,6 +98,9 @@ export default function App() {
           <Route path="blog" element={<BlogList />} />
           <Route path="blog/new" element={<BlogEdit />} />
           <Route path="blog/:id" element={<BlogEdit />} />
+          <Route path="newsletter" element={<NewsletterList />} />
+          <Route path="newsletter/new" element={<NewsletterEdit />} />
+          <Route path="newsletter/:id" element={<NewsletterEdit />} />
           <Route path="registrations" element={<RegistrationsList />} />
           <Route path="enquiries" element={<EnquiriesList />} />
           <Route path="applications" element={<ApplicationsList />} />

@@ -17,6 +17,7 @@ import { TrainingsModule } from './modules/trainings/trainings.module';
 import { ConsultancyModule } from './modules/consultancy/consultancy.module';
 import { CareersModule } from './modules/careers/careers.module';
 import { BlogModule } from './modules/blog/blog.module';
+import { NewsletterModule } from './modules/newsletter/newsletter.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 import { SubscribersModule } from './modules/subscribers/subscribers.module';
@@ -49,6 +50,7 @@ import { PlatformSyncModule } from './modules/platform-sync/platform-sync.module
     ConsultancyModule,
     CareersModule,
     BlogModule,
+    NewsletterModule,
     RegistrationsModule,
     ContactMessagesModule,
     SubscribersModule,

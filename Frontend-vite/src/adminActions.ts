@@ -306,6 +306,78 @@ export async function deletePost(id: string): Promise<void> {
   await sendJson("DELETE", `/blog/${id}`);
 }
 
+// ---------------------------------------------------------------------------
+// Newsletter
+// ---------------------------------------------------------------------------
+
+export async function saveNewsletter(formData: FormData): Promise<FormState> {
+  const id = str(formData, "id") || null;
+  const title = str(formData, "title");
+  if (!title)
+    return { ok: false, errors: { title: "Title is required." }, values: collectValues(formData) };
+
+  const image = str(formData, "image");
+  if (!image && !id)
+    return { ok: false, errors: { image: "An image is required." }, values: collectValues(formData) };
+
+  const message = str(formData, "message");
+  if (!message && !id)
+    return { ok: false, errors: { message: "A message is required." }, values: collectValues(formData) };
+
+  const referenceLink = str(formData, "referenceLink");
+  if (!referenceLink && !id)
+    return {
+      ok: false,
+      errors: { referenceLink: "A reference link is required." },
+      values: collectValues(formData),
+    };
+
+  const body = {
+    title,
+    image,
+    imageAlt: str(formData, "imageAlt"),
+    message,
+    referenceLink,
+    published: bool(formData, "published"),
+  };
+
+  try {
+    const result = id
+      ? await sendJson("PATCH", `/newsletter/${id}`, body)
+      : await sendJson("POST", "/newsletter", body);
+    if (!result.ok)
+      return {
+        ok: false,
+        message: backendMessage(result.data, "Could not save the newsletter."),
+        values: collectValues(formData),
+      };
+    return { ok: true };
+  } catch (err) {
+    return errorState(err, formData, "Could not save the newsletter.");
+  }
+}
+
+export async function deleteNewsletter(id: string): Promise<void> {
+  await sendJson("DELETE", `/newsletter/${id}`);
+}
+
+/** Same shape as uploadContentImage, own storage dir (`uploads/newsletters`)
+ * — the Backend keeps each domain's uploads separate. */
+export async function uploadNewsletterImage(file: File): Promise<{ url: string }> {
+  const token = sessionStorage.getItem("token");
+  if (!token) throw new Error("Not authorised.");
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${__API_URL__}/uploads/newsletters`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(backendMessage(data, "Could not upload the image."));
+  return data as { url: string };
+}
+
 /** Uploads a (cropped) image to Backend/uploads/content/ and returns its
  * path. Called immediately on crop-confirm — for the cover image and for
  * images inserted inline in the article body — not deferred to form
