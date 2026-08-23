@@ -8,7 +8,7 @@ import { StatusSelect } from "@/components/admin/StatusSelect";
 import { Badge } from "@/components/ui/Badge";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { Input } from "@/components/ui/Field";
+import { Input, Select } from "@/components/ui/Field";
 import {
   LEAD_STATUSES,
   crmExportPath,
@@ -194,16 +194,22 @@ export default function CrmList() {
           </Button>
         </form>
 
-        <div className="flex flex-wrap gap-2">
-          <Chip active={!source} onClick={() => setFilter("source", "")}>
-            All sources
-          </Chip>
+        <label htmlFor="crm-source" className="sr-only">
+          Filter by source
+        </label>
+        <Select
+          id="crm-source"
+          value={source}
+          onChange={(e) => setFilter("source", e.target.value)}
+          className="sm:w-56"
+        >
+          <option value="">All sources</option>
           {Object.entries(SOURCE_LABELS).map(([key, label]) => (
-            <Chip key={key} active={source === key} onClick={() => setFilter("source", key)}>
+            <option key={key} value={key}>
               {label}
-            </Chip>
+            </option>
           ))}
-        </div>
+        </Select>
       </div>
 
       <div className="flex flex-wrap gap-2">
