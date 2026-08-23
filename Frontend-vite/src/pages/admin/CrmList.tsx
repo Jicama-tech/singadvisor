@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
@@ -14,6 +14,7 @@ import {
   crmExportPath,
   deleteContact,
   fetchContacts,
+  importContacts,
   runCrmBackfill,
   updateContact,
   type ContactDoc,
@@ -27,6 +28,7 @@ const SOURCE_LABELS: Record<string, string> = {
   message: "Message",
   subscriber: "Subscriber",
   manual: "Manual",
+  import: "Imported",
 };
 
 export default function CrmList() {
@@ -40,6 +42,9 @@ export default function CrmList() {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const data = await fetchContacts({ q, leadStatus, source }).catch(() => []);
@@ -99,6 +104,26 @@ export default function CrmList() {
     }
   }
 
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const { imported, skipped, errors } = await importContacts(file);
+      let msg = `Imported ${imported} contact${imported === 1 ? "" : "s"}.`;
+      if (skipped) msg += ` Skipped ${skipped} row${skipped === 1 ? "" : "s"}.`;
+      if (errors.length) msg += ` ${errors.slice(0, 3).join(" ")}${errors.length > 3 ? " …" : ""}`;
+      setImportMsg(msg);
+      await load();
+    } catch (err) {
+      setImportMsg(err instanceof Error ? err.message : "Import failed.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   if (!user) return null;
 
   return (
@@ -112,6 +137,22 @@ export default function CrmList() {
               <Icon name="scan" size={15} />
               {backfilling ? "Scanning…" : "Backfill from existing data"}
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing}
+            >
+              <Icon name="upload" size={15} />
+              {importing ? "Importing…" : "Import CSV / Excel"}
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              hidden
+              onChange={handleImportFile}
+            />
             <Button variant="secondary" size="sm" onClick={handleExport} disabled={exporting}>
               <Icon name="download" size={15} />
               {exporting ? "Exporting…" : "Export CSV"}
@@ -127,6 +168,11 @@ export default function CrmList() {
       {backfillMsg && (
         <p role="status" className="text-sm text-[var(--text-secondary)]">
           {backfillMsg}
+        </p>
+      )}
+      {importMsg && (
+        <p role="status" className="text-sm text-[var(--text-secondary)]">
+          {importMsg}
         </p>
       )}
 

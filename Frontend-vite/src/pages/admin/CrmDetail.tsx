@@ -26,6 +26,7 @@ const SOURCE_LABELS: Record<string, string> = {
   message: "Message",
   subscriber: "Subscriber",
   manual: "Manual",
+  import: "Imported",
 };
 
 /** Where each source type's real record lives, for the timeline's "view"

@@ -1,6 +1,7 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import * as ExcelJS from 'exceljs';
 import { Contact, ContactDocument } from './entities/contact.entity';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { CreateContactDto } from './dto/create-contact.dto';
@@ -259,5 +260,138 @@ export class CrmService {
 
     this.logger.log(`CRM backfill scanned ${scanned} source records.`);
     return { scanned };
+  }
+
+  /**
+   * Bulk-add contacts from an uploaded .csv/.xlsx/.xls file. Column headers
+   * are matched loosely (case-insensitive, substring — "Email address",
+   * "E-mail" and "email" all resolve to the same field); only Email is
+   * required, everything else fills in like any other upsertContact call.
+   */
+  async importFromSpreadsheet(buffer: Buffer, filename: string) {
+    const rows = await this.parseSpreadsheet(buffer, filename);
+    let imported = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const email = (row.email || '').trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        skipped++;
+        if (errors.length < 20) errors.push(`Row ${i + 2}: missing or invalid email`);
+        continue;
+      }
+      await this.upsertContact({
+        email,
+        name: row.name,
+        phone: row.phone,
+        company: row.company,
+        source: { type: 'import', label: `Imported from ${filename}` },
+      });
+      imported++;
+    }
+
+    return { imported, skipped, errors };
+  }
+
+  private async parseSpreadsheet(buffer: Buffer, filename: string): Promise<Record<string, string>[]> {
+    const ext = filename.toLowerCase().split('.').pop();
+    if (ext === 'csv') return this.parseCsv(buffer.toString('utf-8'));
+
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    } catch {
+      throw new BadRequestException('Could not read that file — is it a valid .xlsx file?');
+    }
+    const sheet = workbook.worksheets[0];
+    if (!sheet) return [];
+
+    const headers: string[] = [];
+    sheet.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      headers[colNumber] = this.normalizeHeader(this.cellToString(cell.value));
+    });
+
+    const rows: Record<string, string>[] = [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const entry: Record<string, string> = {};
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const key = headers[colNumber];
+        if (key) entry[key] = this.cellToString(cell.value);
+      });
+      if (Object.values(entry).some((v) => v)) rows.push(entry);
+    });
+    return rows;
+  }
+
+  private cellToString(value: ExcelJS.CellValue): string {
+    if (value == null) return '';
+    if (typeof value === 'object' && 'text' in value) return String(value.text ?? '');
+    if (typeof value === 'object' && 'result' in value) return String(value.result ?? '');
+    if (value instanceof Date) return value.toISOString();
+    return String(value);
+  }
+
+  private normalizeHeader(h: string): string {
+    // Strip everything but letters before matching, so "E-mail Address",
+    // "e_mail", "Email:" etc. all still resolve — a literal `includes`
+    // check would miss all of those on the hyphen/underscore/punctuation.
+    const key = h.trim().toLowerCase().replace(/[^a-z]/g, '');
+    if (key.includes('email')) return 'email';
+    if (key.includes('name')) return 'name';
+    if (key.includes('phone') || key.includes('mobile') || key.includes('tel')) return 'phone';
+    if (key.includes('company') || key.includes('organi')) return 'company';
+    return key;
+  }
+
+  /** Minimal quoted-field-aware CSV parser — no external dependency needed
+   * for the common case (quoted commas, escaped "" quotes). */
+  private parseCsv(text: string): Record<string, string>[] {
+    const lines = text.split(/\r\n|\n|\r/).filter((l) => l.trim() !== '');
+    if (lines.length === 0) return [];
+
+    const parseLine = (line: string): string[] => {
+      const result: string[] = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (line[i + 1] === '"') {
+              cur += '"';
+              i++;
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            cur += ch;
+          }
+        } else if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          result.push(cur);
+          cur = '';
+        } else {
+          cur += ch;
+        }
+      }
+      result.push(cur);
+      return result;
+    };
+
+    const headers = parseLine(lines[0]).map((h) => this.normalizeHeader(h));
+    const rows: Record<string, string>[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseLine(lines[i]);
+      const entry: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        if (h) entry[h] = (values[idx] ?? '').trim();
+      });
+      if (Object.values(entry).some((v) => v)) rows.push(entry);
+    }
+    return rows;
   }
 }

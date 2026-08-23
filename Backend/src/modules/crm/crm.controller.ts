@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,14 +10,22 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { extname } from 'path';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CrmService } from './crm.service';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { AddNoteDto } from './dto/add-note.dto';
+
+const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+const IMPORT_ACCEPTED_EXTENSIONS = new Set(['.csv', '.xlsx', '.xls']);
 
 type AuthedRequest = { user?: { name?: string; email?: string } };
 
@@ -57,6 +66,28 @@ export class CrmController {
   @Post('backfill')
   backfill() {
     return this.crmService.backfill();
+  }
+
+  /** Bulk-add from a .csv/.xlsx/.xls file — memoryStorage + a size/extension
+   * check up front, same discipline as careers' résumé upload. */
+  @Post('import')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: IMPORT_MAX_BYTES },
+      fileFilter: (_req, file, cb) => {
+        const ext = extname(file.originalname).toLowerCase();
+        if (!IMPORT_ACCEPTED_EXTENSIONS.has(ext)) {
+          cb(new BadRequestException('Please upload a CSV or Excel (.xlsx/.xls) file.'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  importContacts(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return this.crmService.importFromSpreadsheet(file.buffer, file.originalname);
   }
 
   @Post()

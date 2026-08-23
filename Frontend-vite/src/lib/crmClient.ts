@@ -115,3 +115,32 @@ export function runCrmBackfill(): Promise<{ scanned: number }> {
 export function crmExportPath(filters: ContactFilters = {}): string {
   return `/crm/contacts/export${query(filters)}`;
 }
+
+export type ImportResult = { imported: number; skipped: number; errors: string[] };
+
+/** Multipart upload — deliberately not apiJson: a FormData body must not get
+ * apiJson's would-be JSON Content-Type, the browser needs to set its own
+ * multipart boundary (same rule uploadContentImage/uploadNewsletterImage
+ * follow in adminActions.ts). */
+export async function importContacts(file: File): Promise<ImportResult> {
+  const token = sessionStorage.getItem("token");
+  if (!token) throw new Error("Not authorised.");
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${__API_URL__}/crm/contacts/import`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message =
+      data && typeof data === "object" && "message" in data
+        ? Array.isArray((data as { message: unknown }).message)
+          ? (data as { message: string[] }).message.join(" ")
+          : String((data as { message: unknown }).message)
+        : `Import failed (${response.status})`;
+    throw new Error(message);
+  }
+  return data as ImportResult;
+}
