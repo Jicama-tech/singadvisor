@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -13,6 +14,7 @@ import { JobPosting, JobPostingDocument } from './entities/job-posting.entity';
 import { JobApplication, JobApplicationDocument } from './entities/job-application.entity';
 import { SaveJobDto } from './dto/save-job.dto';
 import { SaveApplicationDto } from './dto/save-application.dto';
+import { CrmService } from '../crm/crm.service';
 
 /** Résumés are personal data: NOT under `uploads/` (which main.ts serves
  * statically to the world), and only streamed through the guarded
@@ -38,11 +40,14 @@ export const RESUME_CONTENT_TYPES: Record<string, string> = {
 
 @Injectable()
 export class CareersService {
+  private readonly logger = new Logger(CareersService.name);
+
   constructor(
     @InjectModel(JobPosting.name)
     private readonly model: Model<JobPostingDocument>,
     @InjectModel(JobApplication.name)
     private readonly applicationModel: Model<JobApplicationDocument>,
+    private readonly crmService: CrmService,
   ) {}
 
   // ---- job postings -------------------------------------------------------
@@ -193,7 +198,7 @@ export class CareersService {
       resumeName = resume.originalname.slice(0, 200);
     }
 
-    return this.applicationModel.create({
+    const application = await this.applicationModel.create({
       name: dto.name,
       email,
       phone: dto.phone,
@@ -205,6 +210,23 @@ export class CareersService {
       jobId: job._id,
       jobTitle: job.title,
     });
+
+    this.crmService
+      .upsertContact({
+        email: application.email,
+        name: application.name,
+        phone: application.phone,
+        source: {
+          type: 'application',
+          refId: application._id,
+          label: `Applied for ${application.jobTitle}`,
+        },
+      })
+      .catch((err: unknown) =>
+        this.logger.warn(`CRM upsert failed for application: ${(err as Error)?.message}`),
+      );
+
+    return application;
   }
 
   async updateApplicationStatus(id: string, status: string) {

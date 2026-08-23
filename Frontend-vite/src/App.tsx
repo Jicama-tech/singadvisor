@@ -36,6 +36,9 @@ const EventEdit = lazy(() => import("@/pages/admin/EventEdit"));
 const ParticipantsList = lazy(() => import("@/pages/admin/ParticipantsList"));
 const EventsPlaceholder = lazy(() => import("@/pages/admin/EventsPlaceholder"));
 const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
+const CrmList = lazy(() => import("@/pages/admin/CrmList"));
+const CrmDetail = lazy(() => import("@/pages/admin/CrmDetail"));
+const CrmNew = lazy(() => import("@/pages/admin/CrmNew"));
 
 // ---- public pages ----------------------------------------------------------
 const HomePage = lazy(() => import("@/pages/public/HomePage"));
@@ -126,6 +129,9 @@ export default function App() {
           <Route path="events/settings" element={<EventsPlaceholder tab="settings" />} />
           <Route path="events/:id" element={<EventEdit />} />
           <Route path="settings" element={<AdminSettings />} />
+          <Route path="crm" element={<CrmList />} />
+          <Route path="crm/new" element={<CrmNew />} />
+          <Route path="crm/:id" element={<CrmDetail />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

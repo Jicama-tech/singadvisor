@@ -25,7 +25,11 @@ const CONTENT_NAV: { href: string; label: string; icon: IconName; tab: string }[
   { href: "/admin/careers", label: "Careers", icon: "briefcase", tab: "careers" },
   { href: "/admin/blog", label: "Blog", icon: "pencil", tab: "blog" },
   { href: "/admin/newsletter", label: "Newsletter", icon: "mail", tab: "newsletter" },
+];
+
+const MANAGE_NAV: { href: string; label: string; icon: IconName; tab: string }[] = [
   { href: "/admin/settings", label: "Settings", icon: "settings", tab: "settings" },
+  { href: "/admin/crm", label: "CRM", icon: "users", tab: "crm" },
 ];
 
 const INBOX_NAV: {
@@ -146,6 +150,23 @@ export function AdminShell({
                 count={counts[item.key]}
                 collapsed={collapsed}
               >
+                {item.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        {!collapsed && (
+          <p className="px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Manage
+          </p>
+        )}
+        <ul className="flex flex-col gap-0.5">
+          {MANAGE_NAV.filter((item) => !allowedTabs || allowedTabs.includes(item.tab)).map((item) => (
+            <li key={item.href}>
+              <NavLink href={item.href} icon={item.icon} active={isActive(item.href)} collapsed={collapsed}>
                 {item.label}
               </NavLink>
             </li>

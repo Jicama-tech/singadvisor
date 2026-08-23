@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -16,14 +17,18 @@ import {
 } from './entities/consultancy-enquiry.entity';
 import { SaveServiceDto } from './dto/save-service.dto';
 import { SaveEnquiryDto } from './dto/save-enquiry.dto';
+import { CrmService } from '../crm/crm.service';
 
 @Injectable()
 export class ConsultancyService {
+  private readonly logger = new Logger(ConsultancyService.name);
+
   constructor(
     @InjectModel(ConsultancyServiceEntity.name)
     private readonly model: Model<ConsultancyServiceDocument>,
     @InjectModel(ConsultancyEnquiry.name)
     private readonly enquiryModel: Model<ConsultancyEnquiryDocument>,
+    private readonly crmService: CrmService,
   ) {}
 
   /** Public list: published services in display order. */
@@ -116,7 +121,7 @@ export class ConsultancyService {
       }
     }
 
-    return this.enquiryModel.create({
+    const enquiry = await this.enquiryModel.create({
       name: dto.name,
       email: dto.email.toLowerCase(),
       phone: dto.phone,
@@ -128,6 +133,26 @@ export class ConsultancyService {
       serviceId,
       serviceTitle,
     });
+
+    this.crmService
+      .upsertContact({
+        email: enquiry.email,
+        name: enquiry.name,
+        phone: enquiry.phone,
+        company: enquiry.company,
+        source: {
+          type: 'enquiry',
+          refId: enquiry._id,
+          label: enquiry.serviceTitle
+            ? `Enquired about ${enquiry.serviceTitle}`
+            : 'Sent a consultancy enquiry',
+        },
+      })
+      .catch((err: unknown) =>
+        this.logger.warn(`CRM upsert failed for enquiry: ${(err as Error)?.message}`),
+      );
+
+    return enquiry;
   }
 
   async updateEnquiryStatus(id: string, status: string) {

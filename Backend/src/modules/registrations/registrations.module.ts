@@ -7,6 +7,7 @@ import { RegistrationsService } from './registrations.service';
 // the module that declares them) so RegistrationsService can inject it for the
 // enrolment-time published check.
 import { Training, TrainingSchema } from '../trainings/entities/training.entity';
+import { CrmModule } from '../crm/crm.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { Training, TrainingSchema } from '../trainings/entities/training.entity'
       { name: Registration.name, schema: RegistrationSchema },
       { name: Training.name, schema: TrainingSchema },
     ]),
+    CrmModule,
   ],
   controllers: [RegistrationsController],
   providers: [RegistrationsService],

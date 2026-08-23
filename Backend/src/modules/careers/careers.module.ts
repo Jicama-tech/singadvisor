@@ -10,6 +10,7 @@ import {
   CareersJobsController,
 } from './careers.controller';
 import { CareersService } from './careers.service';
+import { CrmModule } from '../crm/crm.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { CareersService } from './careers.service';
       { name: JobPosting.name, schema: JobPostingSchema },
       { name: JobApplication.name, schema: JobApplicationSchema },
     ]),
+    CrmModule,
   ],
   controllers: [CareersJobsController, CareersApplicationsController],
   providers: [CareersService],

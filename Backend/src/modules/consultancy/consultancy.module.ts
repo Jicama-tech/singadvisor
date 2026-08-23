@@ -13,6 +13,7 @@ import {
   ConsultancyServicesController,
 } from './consultancy.controller';
 import { ConsultancyService } from './consultancy.service';
+import { CrmModule } from '../crm/crm.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ConsultancyService } from './consultancy.service';
       { name: ConsultancyServiceEntity.name, schema: ConsultancyServiceSchema },
       { name: ConsultancyEnquiry.name, schema: ConsultancyEnquirySchema },
     ]),
+    CrmModule,
   ],
   controllers: [ConsultancyServicesController, ConsultancyEnquiriesController],
   providers: [ConsultancyService],

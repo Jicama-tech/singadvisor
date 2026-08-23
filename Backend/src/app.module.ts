@@ -26,6 +26,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { PaynowModule } from './modules/paynow/paynow.module';
 import { OperatorsModule } from './modules/operators/operators.module';
 import { PlatformSyncModule } from './modules/platform-sync/platform-sync.module';
+import { CrmModule } from './modules/crm/crm.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { PlatformSyncModule } from './modules/platform-sync/platform-sync.module
     PaynowModule,
     OperatorsModule,
     PlatformSyncModule,
+    CrmModule,
     // Events' own follow-on modules (rsvp, coupons, stalls) land here too,
     // per the event-ops port plan.
   ],
