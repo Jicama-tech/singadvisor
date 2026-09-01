@@ -11,6 +11,8 @@ export type IconName =
   | "calendar"
   | "check"
   | "chevron-down"
+  | "chevron-left"
+  | "chevron-right"
   | "clock"
   | "compass"
   | "activity"
@@ -62,6 +64,8 @@ const paths: Record<IconName, string> = {
     "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z",
   check: "M20 6L9 17l-5-5",
   "chevron-down": "M6 9l6 6 6-6",
+  "chevron-left": "M15 18l-6-6 6-6",
+  "chevron-right": "M9 18l6-6-6-6",
   clock: "M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   compass: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM16 8l-2.5 5.5L8 16l2.5-5.5L16 8z",
   activity: "M22 12h-4l-3 9L9 3l-3 9H2",

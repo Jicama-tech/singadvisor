@@ -1820,7 +1820,9 @@ export function EventForm({
                         </p>
                         {/* CSS-only marquee, matching eventsh's own SponsorMarquee
                             component's effect without a new dependency: two copies
-                            of the logo strip animated to loop seamlessly. */}
+                            of the logo strip animated to loop seamlessly. The
+                            keyframes live in index.css — the public event page
+                            draws the same strip. */}
                         <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-2">
                           <div className="flex w-max animate-[marquee_20s_linear_infinite] items-center gap-8">
                             {[...sponsorLogoRows, ...sponsorLogoRows].map((row, i) => (
@@ -1835,7 +1837,6 @@ export function EventForm({
                             ))}
                           </div>
                         </div>
-                        <style>{"@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }"}</style>
                       </div>
                     )}
                   </FormSection>

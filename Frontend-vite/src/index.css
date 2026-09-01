@@ -67,6 +67,26 @@
   }
 }
 
+/* Seamless left-to-right loop for the event page's announcement bar and its
+   sponsor-logo strip. Both render two identical copies of their content side
+   by side, so sliding exactly -50% lands back on a pixel-identical frame.
+   Shared here rather than injected per-component: the admin's sponsor preview
+   and the public event page draw the same strip. */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[marquee_20s_linear_infinite\] {
+    animation: none;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Semantic surface variables — the only colours components should reach for.
    Redefined wholesale under .dark so nothing has a light-only definition.

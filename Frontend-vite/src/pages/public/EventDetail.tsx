@@ -8,6 +8,18 @@ import { SponsorApplicationForm } from "@/components/forms/SponsorApplicationFor
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { EventGallery } from "@/components/events/EventGallery";
+import { EventAdBar, EventReels, EventSponsorBar } from "@/components/events/EventMedia";
+import { EventSpaces } from "@/components/events/EventSpaces";
+import { EventVenueMap } from "@/components/events/EventVenueMap";
+import { EventAddOns, EventWorkshops } from "@/components/events/EventExtras";
+import {
+  EventCustomSections,
+  EventGoodToKnow,
+  EventPolicies,
+  EventSocialLinks,
+  EventTicketTypes,
+} from "@/components/events/EventInfo";
 import {
   fetchEventBySlug,
   remainingCapacity,
@@ -85,6 +97,10 @@ export default function EventDetail() {
         <meta name="description" content={event.summary} />
       </Helmet>
 
+      {/* Organizer announcement strip — above everything, same placement as
+          eventsh-v1's Eventfront. */}
+      <EventAdBar adBar={event.adBar} />
+
       {/* ---- Hero ------------------------------------------------------ */}
       {/* The dark backdrop the hero text sits on. It extends past the image so
           a long title always has something legible behind it. */}
@@ -137,6 +153,10 @@ export default function EventDetail() {
         </div>
       </div>
 
+      {/* Sponsor logos sit directly under the banner (full-bleed, so outside
+          the body grid) — the placement the admin's Media tab promises. */}
+      <EventSponsorBar event={event} />
+
       {/* ---- Body ------------------------------------------------------ */}
       <div className="container-page grid gap-12 py-12 lg:grid-cols-[1.5fr_1fr] lg:gap-16">
         <div className="flex flex-col gap-12">
@@ -147,7 +167,10 @@ export default function EventDetail() {
             <div className="prose-body mt-5">
               <p>{event.description}</p>
             </div>
+            <EventSocialLinks socialMedia={event.socialMedia} />
           </section>
+
+          <EventGallery gallery={event.gallery} />
 
           {agenda.length > 0 && (
             <section>
@@ -167,6 +190,8 @@ export default function EventDetail() {
               </ol>
             </section>
           )}
+
+          <EventTicketTypes event={event} />
 
           {event.speakerProfiles.length > 0 ? (
             <section>
@@ -269,6 +294,20 @@ export default function EventDetail() {
             )
           )}
 
+          <EventWorkshops event={event} />
+
+          <EventSpaces event={event} />
+
+          <EventVenueMap event={event} />
+
+          <EventAddOns event={event} />
+
+          <EventReels reelLinks={event.reelLinks} />
+
+          <EventGoodToKnow event={event} />
+
+          <EventCustomSections sections={event.customSections} />
+
           {event.sponsorTypes.length > 0 && (
             <section>
               <h2 className="text-2xl">Become a sponsor</h2>
@@ -300,6 +339,8 @@ export default function EventDetail() {
               </div>
             </div>
           </section>
+
+          <EventPolicies event={event} />
         </div>
 
         {/* ---- Registration -------------------------------------------- */}
