@@ -12,10 +12,9 @@ function toFormShape(n: NewsletterDoc) {
     id: n._id,
     slug: n.slug,
     title: n.title,
-    image: n.image,
-    imageAlt: n.imageAlt,
-    message: n.message,
-    referenceLink: n.referenceLink,
+    // Always an array by the time it reaches here — the Backend folds
+    // pre-`items` issues into one story before answering.
+    items: n.items ?? [],
     published: n.published,
   };
 }

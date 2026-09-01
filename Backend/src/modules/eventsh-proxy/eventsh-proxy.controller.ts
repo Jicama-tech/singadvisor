@@ -13,6 +13,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Request, Response as ExpressResponse } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { EventsMirrorService } from '../events-mirror/events-mirror.service';
 
 /**
  * Transparent forwarder to the dedicated eventsh instance, so the browser
@@ -32,6 +33,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @Controller('eventsh')
 @UseGuards(JwtAuthGuard)
 export class EventshProxyController {
+  constructor(private readonly eventsMirror: EventsMirrorService) {}
+
   private config() {
     const url = process.env.EVENTSH_BACKEND_URL;
     const organizerId = process.env.EVENTSH_ORGANIZER_ID;
@@ -135,8 +138,62 @@ export class EventshProxyController {
     }
 
     const data = Buffer.from(await upstream.arrayBuffer());
+
+    // Shadow-copy event writes into this Backend's own database as they pass
+    // through. Events live in eventsh, so nothing here persisted them locally
+    // — this is the one place that sees every event write the admin makes,
+    // with eventsh's own saved document in hand. Failure-tolerant on purpose
+    // (see EventsMirrorService): a mirroring problem must never turn an
+    // organizer's successful save into an error, and the hourly reconcile
+    // repairs anything missed. Awaited rather than fired-and-forgotten so the
+    // local copy is guaranteed to exist by the time the admin's save returns.
+    if (upstream.ok) {
+      await this.mirrorEventWrite(req.method, suffix, data);
+    }
+
     res.status(upstream.status);
     res.set('Content-Type', upstream.headers.get('content-type') ?? 'application/json');
     res.send(data);
+  }
+
+  /**
+   * Recognises the three event-write routes the admin uses
+   * (events-admin-client.ts's createEvent / updateEvent / deleteEvent) and
+   * mirrors their result. Every other forwarded call — tickets, coupons,
+   * organizer profile — passes through untouched.
+   */
+  private async mirrorEventWrite(
+    method: string,
+    suffix: string,
+    body: Buffer,
+  ): Promise<void> {
+    // Query strings never appear on these routes, but strip anyway so a
+    // future `?foo=1` cannot silently stop the mirror from matching.
+    const path = suffix.split('?')[0];
+
+    if (method === 'POST' && path === '/events/create-event') {
+      await this.eventsMirror.mirrorFromResponse(parseJson(body), 'proxy');
+      return;
+    }
+
+    const byId = /^\/events\/([0-9a-fA-F]{24})$/.exec(path);
+    if (!byId) return;
+
+    if (method === 'PUT' || method === 'PATCH') {
+      await this.eventsMirror.mirrorFromResponse(parseJson(body), 'proxy');
+    } else if (method === 'DELETE') {
+      await this.eventsMirror.remove(byId[1]);
+    }
+  }
+}
+
+/** The upstream body is forwarded as raw bytes; the mirror needs it parsed.
+ * A non-JSON body is simply not mirrored — never a thrown error, since the
+ * organizer's save itself succeeded. */
+function parseJson(body: Buffer): unknown {
+  try {
+    return JSON.parse(body.toString('utf8'));
+  } catch {
+    return null;
   }
 }

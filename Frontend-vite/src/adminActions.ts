@@ -316,29 +316,43 @@ export async function saveNewsletter(formData: FormData): Promise<FormState> {
   if (!title)
     return { ok: false, errors: { title: "Title is required." }, values: collectValues(formData) };
 
-  const image = str(formData, "image");
-  if (!image && !id)
-    return { ok: false, errors: { image: "An image is required." }, values: collectValues(formData) };
+  // An issue holds any number of stories, submitted as indexed fields
+  // (story0Image, story1Image, ...) — the same repeater convention
+  // eventsActions uses for gallery/sponsor slots.
+  const storyCount = num(formData, "storyCount", 0);
+  const items = Array.from({ length: storyCount }, (_, i) => ({
+    heading: str(formData, `story${i}Heading`),
+    image: str(formData, `story${i}Image`),
+    message: str(formData, `story${i}Message`),
+    referenceLink: str(formData, `story${i}ReferenceLink`),
+  }));
 
-  const message = str(formData, "message");
-  if (!message && !id)
-    return { ok: false, errors: { message: "A message is required." }, values: collectValues(formData) };
-
-  const referenceLink = str(formData, "referenceLink");
-  if (!referenceLink && !id)
+  if (items.length === 0)
     return {
       ok: false,
-      errors: { referenceLink: "A reference link is required." },
+      errors: { items: "Add at least one story." },
       values: collectValues(formData),
     };
+
+  // Report the first incomplete story by its position — a bare "an image is
+  // required" is useless once there are five of them on the page. The
+  // reference link is deliberately not checked: a story that points nowhere
+  // is valid and simply renders without the "Read full article" button.
+  for (const [i, item] of items.entries()) {
+    const missing = !item.image ? "an image" : !item.message ? "a message" : null;
+    if (missing) {
+      return {
+        ok: false,
+        errors: { items: `Story ${i + 1} still needs ${missing}.` },
+        values: collectValues(formData),
+      };
+    }
+  }
 
   const body = {
     title,
     slug: str(formData, "slug") || slugify(title),
-    image,
-    imageAlt: str(formData, "imageAlt"),
-    message,
-    referenceLink,
+    items,
     published: bool(formData, "published"),
   };
 

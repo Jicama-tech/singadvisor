@@ -96,14 +96,26 @@ export type TrainerDoc = { _id: string; name: string; title: string };
 
 /** One image, a <=500-word message, and a reference link the reader follows
  * to the full article — the public detail page routes by slug. */
+/** One story inside an issue. `heading` is optional — a story that reads fine
+ * without its own headline leaves it blank. */
+export type NewsletterItem = {
+  heading: string;
+  image: string;
+  message: string;
+  referenceLink: string;
+};
+
+/** An issue of the newsletter: a heading, a slug, and one or more stories.
+ *
+ * `items` is always present and, for any issue with content, non-empty — the
+ * Backend folds pre-`items` issues (which stored a single story at the top
+ * level) into a one-entry array before it answers, so nothing here needs to
+ * know about that older shape. */
 export type NewsletterDoc = {
   _id: string;
   slug: string;
   title: string;
-  image: string;
-  imageAlt: string;
-  message: string;
-  referenceLink: string;
+  items: NewsletterItem[];
   published: boolean;
   createdAt: string;
   updatedAt: string;
