@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -27,10 +28,15 @@ import { PaynowModule } from './modules/paynow/paynow.module';
 import { OperatorsModule } from './modules/operators/operators.module';
 import { PlatformSyncModule } from './modules/platform-sync/platform-sync.module';
 import { CrmModule } from './modules/crm/crm.module';
+import { EventsMirrorModule } from './modules/events-mirror/events-mirror.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Registered exactly once, here: the schedule explorer discovers @Cron
+    // across every provider in the app, so a second forRoot() in a feature
+    // module risks registering the same job twice.
+    ScheduleModule.forRoot(),
     MongooseModule.forRoot(
       process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/singadvisor',
       {
@@ -61,6 +67,10 @@ import { CrmModule } from './modules/crm/crm.module';
     OperatorsModule,
     PlatformSyncModule,
     CrmModule,
+    // Shadow-copies every eventsh event into this database. Events are
+    // owned by eventsh (see EventshProxyModule) and were the one domain
+    // with nothing stored locally.
+    EventsMirrorModule,
     // Events' own follow-on modules (rsvp, coupons, stalls) land here too,
     // per the event-ops port plan.
   ],
