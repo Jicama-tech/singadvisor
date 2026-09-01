@@ -62,32 +62,46 @@ export default function NewsletterIndex() {
           />
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((n) => (
-              <Card key={n._id} interactive className="h-full">
-                <div className="relative aspect-[16/10] overflow-hidden surface-sunken">
-                  <Image
-                    src={withBackendUrl(n.image)}
-                    alt={n.imageAlt || ""}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover transition-transform duration-500 hover:scale-105"
-                  />
-                </div>
-                <CardBody>
-                  <h3 className="text-lg leading-snug">
-                    <Link to={`/newsletter/${n.slug}`} className="after:absolute after:inset-0">
-                      {n.title}
-                    </Link>
-                  </h3>
-                  <p className="line-clamp-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-                    {n.message}
-                  </p>
-                  <div className="mt-auto pt-3 text-xs text-[var(--text-muted)]">
-                    {formatDate(n.createdAt)}
+            {items.map((n) => {
+              // An issue holds several stories now; the first one stands in
+              // for the whole issue on the card.
+              const lead = n.items[0];
+              const storyCount = n.items.length;
+              return (
+                <Card key={n._id} interactive className="h-full">
+                  <div className="relative aspect-[16/10] overflow-hidden surface-sunken">
+                    {lead?.image && (
+                      <Image
+                        src={withBackendUrl(lead.image)}
+                        alt=""
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        className="object-cover transition-transform duration-500 hover:scale-105"
+                      />
+                    )}
                   </div>
-                </CardBody>
-              </Card>
-            ))}
+                  <CardBody>
+                    <h3 className="text-lg leading-snug">
+                      <Link to={`/newsletter/${n.slug}`} className="after:absolute after:inset-0">
+                        {n.title}
+                      </Link>
+                    </h3>
+                    <p className="line-clamp-3 text-sm leading-relaxed text-[var(--text-secondary)]">
+                      {lead?.message ?? ""}
+                    </p>
+                    <div className="mt-auto flex items-center gap-2 pt-3 text-xs text-[var(--text-muted)]">
+                      <span>{formatDate(n.createdAt)}</span>
+                      {storyCount > 1 && (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span>{storyCount} stories</span>
+                        </>
+                      )}
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
