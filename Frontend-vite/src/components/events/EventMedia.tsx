@@ -1,5 +1,6 @@
 import type { EventRow } from "@/lib/events-client";
 import { AppImage as Image } from "@/components/ui/AppImage";
+import { Marquee } from "@/components/ui/Marquee";
 import { withEventshUrl } from "@/lib/media-url";
 
 /**
@@ -23,17 +24,12 @@ export function EventAdBar({ adBar }: { adBar: EventRow["adBar"] }) {
       }}
       role="status"
     >
-      {/* Two copies, each carrying its OWN trailing gap as padding rather than
-          a flex `gap` between them: the keyframes slide by exactly -50%, which
-          only lands on a pixel-identical frame when the repeated unit includes
-          its spacing. A shared flex gap puts the seam mid-gap and the loop
-          visibly jumps. */}
-      <div className="flex w-max animate-[marquee_20s_linear_infinite] whitespace-nowrap text-sm font-medium">
-        <span className="pr-16">{adBar.message}</span>
-        <span className="pr-16" aria-hidden="true">
-          {adBar.message}
-        </span>
-      </div>
+      {/* One <Marquee>: it measures the message and repeats it enough times to
+          fill the bar, so a short announcement flows continuously instead of
+          scrolling once and leaving a screen of empty colour behind it. */}
+      <Marquee ariaLabel="Announcement">
+        <span className="whitespace-nowrap pr-16 text-sm font-medium">{adBar.message}</span>
+      </Marquee>
     </div>
   );
 }
@@ -46,36 +42,32 @@ export function EventSponsorBar({ event }: { event: EventRow }) {
 
   return (
     <div className="border-y border-[var(--border-subtle)] surface-sunken py-4">
+      {/* Only the label is held to the page's reading width. The marquee
+          itself sits OUTSIDE container-page so it runs edge to edge — inside
+          it, the logos were capped at the 80rem column and stopped well short
+          of the screen on anything wide. */}
       <div className="container-page">
         <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
           Our sponsors
         </p>
-        <div className="mt-3 overflow-hidden">
-          {/* Two identical strips, each with its own trailing gap — see the
-              ad bar above for why the spacing has to live inside the repeated
-              unit. The second is a decorative duplicate, hidden from
-              assistive tech. */}
-          <div className="flex w-max animate-[marquee_20s_linear_infinite] items-center">
-            {[0, 1].map((copy) => (
-              <div
-                key={copy}
-                className="flex items-center gap-12 pr-12"
-                aria-hidden={copy === 1 ? true : undefined}
-              >
-                {logos.map((logo, i) => (
-                  <span key={`${logo}-${i}`} className="flex h-12 items-center">
-                    <Image
-                      src={withEventshUrl(logo)}
-                      alt={copy === 0 ? `Sponsor ${i + 1}` : ""}
-                      className="h-full w-auto object-contain"
-                    />
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
+      {/* Full-bleed (outside container-page) and continuous: the logos are
+          repeated to fill the strip rather than padded out with blank space,
+          so there is no dead stretch between passes. */}
+      <Marquee className="mt-3" ariaLabel="Our sponsors">
+        {logos.map((logo, i) => (
+          <span key={`${logo}-${i}`} className="flex h-12 shrink-0 items-center pr-12">
+            {/* Decorative: the strip repeats each logo several times to fill
+                the width, so alt text here would be read out over and over.
+                The region's own label carries the meaning. */}
+            <Image
+              src={withEventshUrl(logo)}
+              alt=""
+              className="h-full w-auto object-contain"
+            />
+          </span>
+        ))}
+      </Marquee>
     </div>
   );
 }

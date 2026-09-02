@@ -81,8 +81,25 @@
   }
 }
 
+/* The marquee track. Duration is set inline per instance, worked out from the
+   measured content width, so every strip scrolls at the same speed no matter
+   how much is in it — a fixed duration made a long sponsor row race and a
+   short announcement crawl. */
+.marquee-track {
+  animation-name: marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+/* Hovering pauses it, so a logo or a link can actually be read. */
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-\[marquee_20s_linear_infinite\] {
+  .animate-\[marquee_20s_linear_infinite\],
+  .marquee-track {
     animation: none;
   }
 }

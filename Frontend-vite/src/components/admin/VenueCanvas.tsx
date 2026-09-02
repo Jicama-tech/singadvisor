@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Field, Input } from "@/components/ui/Field";
 import VenueAnnotationLayer from "./VenueAnnotationLayer";
+import { FacilityCourtLines } from "@/lib/facility-court-lines";
 import type { AnnotationTool, VenueAnnotation } from "./VenueAnnotationLayer";
 
 // react-konva's Stage touches Canvas/DOM APIs at mount time — the old
@@ -39,6 +40,8 @@ export type CanvasTemplate = {
   height: number;
   isCircle: boolean;
   color: string;
+  /** scheduledSpace-kind only: drives the court markings drawn on the item. */
+  facilityType?: string;
 };
 
 export type PlacedItem = {
@@ -55,6 +58,8 @@ export type PlacedItem = {
   color: string;
   /** Seat-kind items only: the 1-based number within their seat row. */
   seatNumber?: number;
+  /** scheduledSpace-kind only: drives the court markings drawn on the item. */
+  facilityType?: string;
 };
 
 export type VenueConfigState = {
@@ -62,6 +67,13 @@ export type VenueConfigState = {
   height: number;
   gridSize: number;
   showGrid: boolean;
+  /** Crop box, anchored at the origin — eventsh's own model, which has a
+   * width and height but no x/y. With it on, the public venue plan shows only
+   * this corner of the canvas and hides anything placed outside it, so a plan
+   * drawn on a big canvas can be published tight to its contents. */
+  cropped: boolean;
+  cropWidth: number;
+  cropHeight: number;
 };
 
 export type { AnnotationTool, VenueAnnotation } from "./VenueAnnotationLayer";
@@ -117,6 +129,9 @@ export function VenueCanvas({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const dragState = useRef<{ id: string; offsetX: number; offsetY: number; mode: "move" | "resize" } | null>(null);
+  // Dragging the crop handle is its own gesture: it moves nothing on the
+  // canvas, it resizes the published window onto it.
+  const cropDragging = useRef(false);
 
   // CAD annotation toolbar state (Phase 8h) — kept local to this component,
   // same as `selectedId` above for placed items, so EventForm.tsx only
@@ -177,6 +192,7 @@ export function VenueCanvas({
       width: t.width,
       height: t.height,
       rotation: 0,
+      facilityType: t.facilityType,
       isCircle: t.isCircle,
       color: t.color,
       ...(seatNumber !== undefined ? { seatNumber } : {}),
@@ -238,6 +254,42 @@ export function VenueCanvas({
     dragState.current = null;
     window.removeEventListener("mousemove", handleDragMove);
     window.removeEventListener("mouseup", handleDragEnd);
+  }
+
+  function startCropDrag(e: React.MouseEvent) {
+    e.stopPropagation();
+    cropDragging.current = true;
+    window.addEventListener("mousemove", handleCropMove);
+    window.addEventListener("mouseup", handleCropEnd);
+  }
+
+  function handleCropMove(e: MouseEvent) {
+    if (!cropDragging.current) return;
+    const pt = svgPoint(e.clientX, e.clientY);
+    onVenueConfigChange({
+      cropWidth: Math.round(Math.max(50, Math.min(pt.x, venueConfig.width))),
+      cropHeight: Math.round(Math.max(50, Math.min(pt.y, venueConfig.height))),
+    });
+  }
+
+  function handleCropEnd() {
+    cropDragging.current = false;
+    window.removeEventListener("mousemove", handleCropMove);
+    window.removeEventListener("mouseup", handleCropEnd);
+  }
+
+  /** Shrinks the crop to the smallest box containing every placed item — the
+   * common case, and far quicker than dragging to it by hand. */
+  function cropToContents() {
+    if (placedItems.length === 0) return;
+    const right = Math.max(...placedItems.map((p) => p.x + p.width));
+    const bottom = Math.max(...placedItems.map((p) => p.y + p.height));
+    const PAD = 20;
+    onVenueConfigChange({
+      cropped: true,
+      cropWidth: Math.round(Math.min(venueConfig.width, right + PAD)),
+      cropHeight: Math.round(Math.min(venueConfig.height, bottom + PAD)),
+    });
   }
 
   // Rasterise the canvas (placed items + annotations) and save it as a
@@ -322,6 +374,35 @@ export function VenueCanvas({
               />
               Show grid
             </label>
+
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                checked={venueConfig.cropped}
+                onChange={(e) =>
+                  onVenueConfigChange({
+                    cropped: e.target.checked,
+                    // First time on, start from the full canvas so the handle
+                    // is somewhere findable rather than collapsed at 0,0.
+                    ...(e.target.checked && venueConfig.cropWidth <= 0
+                      ? { cropWidth: venueConfig.width, cropHeight: venueConfig.height }
+                      : {}),
+                  })
+                }
+                className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+              />
+              Crop
+            </label>
+            {venueConfig.cropped && (
+              <>
+                <Button type="button" variant="secondary" size="sm" onClick={cropToContents}>
+                  Fit to contents
+                </Button>
+                <span className="text-xs text-[var(--text-muted)]">
+                  {venueConfig.cropWidth} × {venueConfig.cropHeight} cm published
+                </span>
+              </>
+            )}
           </div>
           <Button type="button" variant="secondary" size="sm" onClick={downloadVenuePdf} disabled={pdfBusy}>
             <Icon name="download" size={14} />
@@ -432,6 +513,21 @@ export function VenueCanvas({
                       className="cursor-move"
                     />
                   )}
+                  {/* Court/field markings, so a Badminton Court reads as one
+                      while it is being positioned — not just on the public
+                      page. pointerEvents are off inside, so dragging still
+                      works through them. */}
+                  {p.kind === "scheduledSpace" && p.facilityType && (
+                    <FacilityCourtLines
+                      facilityType={p.facilityType}
+                      x={p.x}
+                      y={p.y}
+                      width={p.width}
+                      height={p.height}
+                      isCircle={p.isCircle}
+                      idSeed={p.positionId}
+                    />
+                  )}
                   <text
                     x={p.x + p.width / 2}
                     y={p.y + p.height / 2}
@@ -459,6 +555,42 @@ export function VenueCanvas({
               );
             })}
           </svg>
+
+          {/* Crop overlay: everything outside the published window is dimmed,
+              and the corner handle resizes it. Drawn after the items so it
+              sits over them, but only the handle takes pointer events. */}
+          {venueConfig.cropped && (
+            <g>
+              <path
+                d={`M0,0 H${venueConfig.width} V${venueConfig.height} H0 Z M0,0 V${venueConfig.cropHeight} H${venueConfig.cropWidth} V0 Z`}
+                fill="rgba(15,23,42,0.45)"
+                fillRule="evenodd"
+                pointerEvents="none"
+              />
+              <rect
+                x={0}
+                y={0}
+                width={venueConfig.cropWidth}
+                height={venueConfig.cropHeight}
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth={2}
+                strokeDasharray="8 5"
+                pointerEvents="none"
+              />
+              <rect
+                data-testid="crop-handle"
+                x={venueConfig.cropWidth - 9}
+                y={venueConfig.cropHeight - 9}
+                width={18}
+                height={18}
+                rx={3}
+                fill="var(--accent)"
+                className="cursor-nwse-resize"
+                onMouseDown={startCropDrag}
+              />
+            </g>
+          )}
 
           {overlay.width > 0 && (
             <VenueAnnotationLayer
