@@ -1,12 +1,19 @@
 import {
   BadGatewayException,
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
+  Patch,
+  Post,
   Res,
 } from '@nestjs/common';
 import { Response as ExpressResponse } from 'express';
+
+/** eventsh ids are Mongo ObjectIds. Checked before anything is forwarded so a
+ * junk path segment is rejected here rather than becoming an upstream 500. */
+const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
 
 /**
  * Public (unauthenticated) forwarder for eventsh's organizer-scoped read
@@ -39,11 +46,23 @@ export class EventshPublicController {
     return { url, organizerId };
   }
 
-  private async forward(path: string, res: ExpressResponse) {
+  private async forward(
+    path: string,
+    res: ExpressResponse,
+    init?: { method: string; body?: unknown },
+  ) {
     const { url } = this.config();
     let upstream: Awaited<ReturnType<typeof fetch>>;
     try {
-      upstream = await fetch(`${url}${path}`);
+      upstream = await fetch(`${url}${path}`, {
+        method: init?.method ?? 'GET',
+        ...(init?.body === undefined
+          ? {}
+          : {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(init.body),
+            }),
+      });
     } catch (cause) {
       throw new BadGatewayException(`eventsh is unreachable: ${(cause as Error).message}`);
     }
@@ -79,5 +98,76 @@ export class EventshPublicController {
       `/events/organizer/${organizerId}/slug/${encodeURIComponent(slug)}`,
       res,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Scheduled-space (court/facility slot) booking.
+  //
+  // eventsh owns this flow end to end — a ScheduledSpaceRequest collection,
+  // slot-availability tokens on the event, an organizer status workflow. The
+  // events themselves already live there, so bookings are forwarded rather
+  // than reimplemented against a second store that would immediately disagree
+  // with the first.
+  //
+  // Unauthenticated by design, exactly like eventsh's own buyer-facing routes
+  // and like the ticket purchase this Backend already forwards: a visitor
+  // booking a badminton court has no account. The protections are that only
+  // these four paths are reachable, ids are shape-checked, and `organizerId`
+  // is set from configuration rather than the request body — without that
+  // last one this endpoint would let anyone file requests against any
+  // organizer on the eventsh instance.
+  // -------------------------------------------------------------------------
+
+  /** Which spaces exist and which of their slots are already taken. Every
+   * slot comes back with an `isBooked` flag (eventsh derives it from the
+   * event's own booked-slot tokens). */
+  @Get('scheduled-spaces/available/:eventId')
+  availableSpaces(@Param('eventId') eventId: string, @Res() res: ExpressResponse) {
+    if (!OBJECT_ID.test(eventId)) throw new BadRequestException('Invalid event id.');
+    return this.forward(`/scheduled-spaces/available/${eventId}`, res);
+  }
+
+  /** Has this email already booked for this event? Lets the page say so
+   * instead of surfacing eventsh's 409 as a failure. */
+  @Get('scheduled-spaces/check-request/:eventId/:email')
+  checkRequest(
+    @Param('eventId') eventId: string,
+    @Param('email') email: string,
+    @Res() res: ExpressResponse,
+  ) {
+    if (!OBJECT_ID.test(eventId)) throw new BadRequestException('Invalid event id.');
+    return this.forward(
+      `/scheduled-spaces/check-request/${eventId}/${encodeURIComponent(email)}`,
+      res,
+    );
+  }
+
+  /** Step 1 — create the booking request. `organizerId` is overwritten with
+   * the configured one; whatever the client sent is ignored. */
+  @Post('scheduled-spaces/register')
+  register(@Body() body: Record<string, unknown>, @Res() res: ExpressResponse) {
+    const { organizerId } = this.config();
+    const eventId = String(body?.eventId ?? '');
+    if (!OBJECT_ID.test(eventId)) throw new BadRequestException('Invalid event id.');
+    return this.forward('/scheduled-spaces/register', res, {
+      method: 'POST',
+      body: { ...body, eventId, organizerId },
+    });
+  }
+
+  /** Step 2 — attach the chosen slots to that request. eventsh re-resolves
+   * every slot against the event's own placed spaces, so price, name and
+   * times are never taken from the browser. */
+  @Patch('scheduled-spaces/:requestId/select-slots')
+  selectSlots(
+    @Param('requestId') requestId: string,
+    @Body() body: Record<string, unknown>,
+    @Res() res: ExpressResponse,
+  ) {
+    if (!OBJECT_ID.test(requestId)) throw new BadRequestException('Invalid request id.');
+    return this.forward(`/scheduled-spaces/${requestId}/select-slots`, res, {
+      method: 'PATCH',
+      body,
+    });
   }
 }

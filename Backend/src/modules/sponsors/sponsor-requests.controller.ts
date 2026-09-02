@@ -20,6 +20,13 @@ export class SponsorRequestsController {
     return this.sponsorsService.findMyApplication(eventId, email);
   }
 
+  /** The QR a cash sponsor pays against. Public, like the apply route above —
+   * a sponsor has no account. */
+  @Get(':id/paynow-qr')
+  paynowQr(@Param('id') id: string) {
+    return this.sponsorsService.paynowQr(id);
+  }
+
   @Post(':id/payment-submit')
   submitPayment(@Param('id') id: string, @Body() dto: SubmitPaymentDto) {
     return this.sponsorsService.submitPayment(id, dto);

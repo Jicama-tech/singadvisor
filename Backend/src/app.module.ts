@@ -28,6 +28,7 @@ import { PaynowModule } from './modules/paynow/paynow.module';
 import { OperatorsModule } from './modules/operators/operators.module';
 import { PlatformSyncModule } from './modules/platform-sync/platform-sync.module';
 import { CrmModule } from './modules/crm/crm.module';
+import { SpaceBookingsModule } from './modules/space-bookings/space-bookings.module';
 import { EventsMirrorModule } from './modules/events-mirror/events-mirror.module';
 
 @Module({
@@ -67,6 +68,7 @@ import { EventsMirrorModule } from './modules/events-mirror/events-mirror.module
     OperatorsModule,
     PlatformSyncModule,
     CrmModule,
+    SpaceBookingsModule,
     // Shadow-copies every eventsh event into this database. Events are
     // owned by eventsh (see EventshProxyModule) and were the one domain
     // with nothing stored locally.
