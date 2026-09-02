@@ -1,6 +1,6 @@
 /**
  * The tab-access whitelist for operators — keyed to the SPA's own MAIN
- * sidebar (AdminShell's CONTENT_NAV + INBOX_NAV + Overview/Settings), so
+ * sidebar (AdminShell's CONTENT_NAV + INBOX_NAV + MANAGE_NAV + Overview), so
  * an admin grants access in terms they already see. The frontend filters
  * the sidebar and guards routes against these keys; the backend validates
  * them on save so a typo can never silently grant nothing (or everything).
@@ -13,11 +13,13 @@ export const ACCESS_TABS = [
   'consultancy',
   'careers',
   'blog',
+  'newsletter',
   'registrations',
   'enquiries',
   'applications',
   'messages',
   'settings',
+  'crm',
 ] as const;
 
 export type AccessTab = (typeof ACCESS_TABS)[number];
