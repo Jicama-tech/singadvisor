@@ -17,11 +17,28 @@ import {
   ContactMessageDocument,
 } from '../contact-messages/entities/contact-message.entity';
 import { Subscriber, SubscriberDocument } from '../subscribers/entities/subscriber.entity';
+import { Ticket, TicketDocument } from '../tickets/entities/ticket.entity';
+import {
+  SponsorRequest,
+  SponsorRequestDocument,
+} from '../sponsors/entities/sponsor-request.entity';
+import { BlogFeedback, BlogFeedbackDocument } from '../blog/entities/blog-feedback.entity';
+
+/** The source row as upsertContact builds it, before it is pushed onto a
+ * contact — `refId` already narrowed to a real ObjectId or null. */
+type ContactSourceEntry = {
+  type: string;
+  refId: Types.ObjectId | null;
+  label: string;
+  createdAt: Date;
+};
 
 export type UpsertContactInput = {
   email: string;
   name?: string;
   phone?: string;
+  whatsapp?: string;
+  role?: string;
   company?: string;
   /** Backdates the source entry and firstSeenAt/lastActivityAt bookkeeping —
    * used by backfill() to preserve real history instead of stamping "now"
@@ -54,6 +71,12 @@ export class CrmService {
     private readonly messageModel: Model<ContactMessageDocument>,
     @InjectModel(Subscriber.name)
     private readonly subscriberModel: Model<SubscriberDocument>,
+    @InjectModel(Ticket.name)
+    private readonly ticketModel: Model<TicketDocument>,
+    @InjectModel(SponsorRequest.name)
+    private readonly sponsorRequestModel: Model<SponsorRequestDocument>,
+    @InjectModel(BlogFeedback.name)
+    private readonly feedbackModel: Model<BlogFeedbackDocument>,
   ) {}
 
   /** Called by every domain service right after it saves its own record —
@@ -77,36 +100,89 @@ export class CrmService {
 
     const existing = await this.model.findOne({ email }).exec();
     if (!existing) {
+      try {
+        return await this.createContactFor(email, input, sourceEntry, at);
+      } catch (err) {
+        // Two sources firing for the same new person at once (a purchase that
+        // also subscribes, say) both pass the findOne above and both insert.
+        // `email` is uniquely indexed so the loser gets E11000 — fall through
+        // and treat it as the update it actually is, rather than dropping the
+        // second source entry on the floor. One contact per email is the whole
+        // point of this collection.
+        if ((err as { code?: number }).code !== 11000) throw err;
+      }
+    }
+
+    const contact = existing ?? (await this.model.findOne({ email }).exec());
+    if (!contact) return null;
+    return this.appendSource(contact, input, sourceEntry, at);
+  }
+
+  private createContactFor(
+    email: string,
+    input: UpsertContactInput,
+    sourceEntry: ContactSourceEntry,
+    at: Date,
+  ) {
+    {
       return this.model.create({
         email,
         name: input.name ?? '',
         phone: input.phone ?? '',
+        whatsapp: input.whatsapp ?? '',
+        role: input.role ?? '',
         company: input.company ?? '',
         sources: [sourceEntry],
         firstSeenAt: at,
         lastActivityAt: at,
       });
     }
+  }
 
+  /** Adds this activity to a contact that already exists, filling in any
+   * detail it was still missing. Existing values are never overwritten — the
+   * admin may have corrected them by hand. */
+  private async appendSource(
+    existing: ContactDocument,
+    input: UpsertContactInput,
+    sourceEntry: ContactSourceEntry,
+    at: Date,
+  ) {
     existing.sources.push(sourceEntry);
     if (at > existing.lastActivityAt) existing.lastActivityAt = at;
     if (at < existing.firstSeenAt) existing.firstSeenAt = at;
     if (!existing.name && input.name) existing.name = input.name;
     if (!existing.phone && input.phone) existing.phone = input.phone;
+    if (!existing.whatsapp && input.whatsapp) existing.whatsapp = input.whatsapp;
+    if (!existing.role && input.role) existing.role = input.role;
     if (!existing.company && input.company) existing.company = input.company;
     await existing.save();
     return existing;
   }
 
-  async findAll(filters: { q?: string; tag?: string; leadStatus?: string; source?: string }) {
+  async findAll(filters: {
+    q?: string;
+    tag?: string;
+    leadStatus?: string;
+    source?: string;
+    role?: string;
+  }) {
     const query: Record<string, unknown> = {};
     if (filters.q) {
       const re = new RegExp(filters.q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      query.$or = [{ name: re }, { email: re }, { company: re }];
+      // Both numbers are searchable: looking someone up by the number that
+      // just rang is a common case, and it may be either of them.
+      query.$or = [{ name: re }, { email: re }, { company: re }, { phone: re }, { whatsapp: re }];
     }
     if (filters.tag) query.tags = filters.tag;
     if (filters.leadStatus) query.leadStatus = filters.leadStatus;
     if (filters.source) query['sources.type'] = filters.source;
+    // Case-insensitive exact match: roles are typed by hand and imported from
+    // spreadsheets, so "Student" and "student" are the same role.
+    if (filters.role) {
+      const escaped = filters.role.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.role = new RegExp(`^${escaped}$`, 'i');
+    }
 
     return this.model.find(query).sort({ lastActivityAt: -1 }).exec();
   }
@@ -127,6 +203,8 @@ export class CrmService {
       email,
       name: dto.name ?? '',
       phone: dto.phone ?? '',
+      whatsapp: dto.whatsapp ?? '',
+      role: dto.role ?? '',
       company: dto.company ?? '',
       sources: [{ type: 'manual', refId: null, label: 'Added manually', createdAt: now }],
       firstSeenAt: now,
@@ -165,13 +243,34 @@ export class CrmService {
   }
 
   /** CSV of the current filtered list — same filters as findAll. */
-  async exportCsv(filters: { q?: string; tag?: string; leadStatus?: string; source?: string }) {
+  async exportCsv(filters: {
+    q?: string;
+    tag?: string;
+    leadStatus?: string;
+    source?: string;
+    role?: string;
+  }) {
     const contacts = await this.findAll(filters);
-    const header = ['Name', 'Email', 'Phone', 'Company', 'Lead status', 'Tags', 'First seen', 'Last activity'];
+    // Column names match what the importer accepts, so an export can be
+    // edited in Excel and fed straight back in.
+    const header = [
+      'Name',
+      'Email',
+      'Contact Number',
+      'WhatsApp Number',
+      'Role',
+      'Company',
+      'Lead status',
+      'Tags',
+      'First seen',
+      'Last activity',
+    ];
     const rows = contacts.map((c) => [
       c.name,
       c.email,
       c.phone,
+      c.whatsapp,
+      c.role,
       c.company,
       c.leadStatus,
       c.tags.join('; '),
@@ -258,6 +357,61 @@ export class CrmService {
       scanned++;
     }
 
+    // Only confirmed purchases: a 'pending' PayNow audit row is someone who
+    // was shown a QR code, not someone who bought anything.
+    const tickets = await this.ticketModel.find({ status: 'confirmed' }).exec();
+    for (const t of tickets) {
+      await this.upsertContact({
+        email: t.customerEmail,
+        name: t.customerName,
+        phone: t.customerPhone || undefined,
+        // Ticket declares no createdAt of its own — purchaseDate is the
+        // real moment of the sale and is always set on a confirmed row.
+        at: t.purchaseDate,
+        source: {
+          type: 'ticket',
+          refId: t._id,
+          label: `Bought a ticket for ${t.eventTitle}`,
+        },
+      });
+      scanned++;
+    }
+
+    const sponsorRequests = await this.sponsorRequestModel.find().exec();
+    for (const r of sponsorRequests) {
+      await this.upsertContact({
+        email: r.email,
+        name: r.contactName,
+        phone: r.phone || undefined,
+        company: r.companyName || undefined,
+        // SponsorRequest declares no createdAt either; its first status entry
+        // is stamped when the application is created.
+        at: r.statusHistory?.[0]?.changedAt,
+        source: {
+          type: 'sponsor',
+          refId: r._id,
+          label: `Applied to sponsor (${r.sponsorTypeName})`,
+        },
+      });
+      scanned++;
+    }
+
+    const feedback = await this.feedbackModel.find().populate('postId', 'title').exec();
+    for (const f of feedback) {
+      const post = f.postId as unknown as { title?: string } | null;
+      await this.upsertContact({
+        email: f.email,
+        name: f.name,
+        at: f.createdAt,
+        source: {
+          type: 'feedback',
+          refId: f._id,
+          label: post?.title ? `Left feedback on "${post.title}"` : 'Left blog feedback',
+        },
+      });
+      scanned++;
+    }
+
     this.logger.log(`CRM backfill scanned ${scanned} source records.`);
     return { scanned };
   }
@@ -286,6 +440,8 @@ export class CrmService {
         email,
         name: row.name,
         phone: row.phone,
+        whatsapp: row.whatsapp,
+        role: row.role,
         company: row.company,
         source: { type: 'import', label: `Imported from ${filename}` },
       });
@@ -339,9 +495,28 @@ export class CrmService {
     // "e_mail", "Email:" etc. all still resolve — a literal `includes`
     // check would miss all of those on the hyphen/underscore/punctuation.
     const key = h.trim().toLowerCase().replace(/[^a-z]/g, '');
-    if (key.includes('email')) return 'email';
+
+    // Order matters: every check must run before any looser one that would
+    // also swallow it, so the most specific column wins.
+    if (key.includes('whatsapp')) return 'whatsapp';
+    // 'mail', not 'email' — "Gmail ID" is a real column heading and contains
+    // no "email" at all, so an 'email' check dropped the whole column and
+    // every row then failed as "missing email".
+    if (key.includes('mail')) return 'email';
+    if (key.includes('role') || key.includes('category')) return 'role';
     if (key.includes('name')) return 'name';
-    if (key.includes('phone') || key.includes('mobile') || key.includes('tel')) return 'phone';
+    // 'contact'/'number' included: "Contact Number" matched none of
+    // phone/mobile/tel, so that column was silently dropped too. Runs after
+    // the whatsapp check above, which "WhatsApp Number" would otherwise hit.
+    if (
+      key.includes('phone') ||
+      key.includes('mobile') ||
+      key.includes('tel') ||
+      key.includes('contact') ||
+      key.includes('number')
+    ) {
+      return 'phone';
+    }
     if (key.includes('company') || key.includes('organi')) return 'company';
     return key;
   }

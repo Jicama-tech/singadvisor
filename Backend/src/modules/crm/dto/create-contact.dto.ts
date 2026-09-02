@@ -15,5 +15,13 @@ export class CreateContactDto {
 
   @IsOptional()
   @IsString()
+  whatsapp?: string;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @IsOptional()
+  @IsString()
   company?: string;
 }

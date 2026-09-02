@@ -6,6 +6,7 @@ import { BlogController } from './blog.controller';
 import { BlogService } from './blog.service';
 import { BlogFeedbackService } from './blog-feedback.service';
 import { AiModule } from '../ai/ai.module';
+import { CrmModule } from '../crm/crm.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AiModule } from '../ai/ai.module';
       { name: BlogFeedback.name, schema: BlogFeedbackSchema },
     ]),
     AiModule,
+    CrmModule,
   ],
   controllers: [BlogController],
   providers: [BlogService, BlogFeedbackService],

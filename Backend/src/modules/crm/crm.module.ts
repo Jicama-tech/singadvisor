@@ -12,6 +12,12 @@ import {
   ContactMessageSchema,
 } from '../contact-messages/entities/contact-message.entity';
 import { Subscriber, SubscriberSchema } from '../subscribers/entities/subscriber.entity';
+import { Ticket, TicketSchema } from '../tickets/entities/ticket.entity';
+import {
+  SponsorRequest,
+  SponsorRequestSchema,
+} from '../sponsors/entities/sponsor-request.entity';
+import { BlogFeedback, BlogFeedbackSchema } from '../blog/entities/blog-feedback.entity';
 import { CrmController } from './crm.controller';
 import { CrmService } from './crm.service';
 
@@ -25,6 +31,9 @@ import { CrmService } from './crm.service';
       { name: JobApplication.name, schema: JobApplicationSchema },
       { name: ContactMessage.name, schema: ContactMessageSchema },
       { name: Subscriber.name, schema: SubscriberSchema },
+      { name: Ticket.name, schema: TicketSchema },
+      { name: SponsorRequest.name, schema: SponsorRequestSchema },
+      { name: BlogFeedback.name, schema: BlogFeedbackSchema },
     ]),
   ],
   controllers: [CrmController],

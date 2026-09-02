@@ -7,6 +7,7 @@ import { DeleteButton } from "@/components/admin/DeleteButton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { PhoneField } from "@/components/ui/PhoneField";
 import { Icon } from "@/components/ui/Icon";
 import {
   LEAD_STATUSES,
@@ -14,6 +15,7 @@ import {
   deleteContact,
   deleteContactNote,
   fetchContact,
+  CONTACT_ROLES,
   updateContact,
   type ContactDoc,
 } from "@/lib/crmClient";
@@ -25,17 +27,24 @@ const SOURCE_LABELS: Record<string, string> = {
   application: "Application",
   message: "Message",
   subscriber: "Subscriber",
+  ticket: "Ticket",
+  sponsor: "Sponsor",
+  feedback: "Feedback",
   manual: "Manual",
   import: "Imported",
 };
 
 /** Where each source type's real record lives, for the timeline's "view"
- * link — subscriber/manual have no dedicated admin list, so no link. */
+ * link. Sources with no dedicated admin list get no link: subscriber, manual
+ * and import by design, sponsor because it has no admin screen yet, and
+ * feedback because it is only reachable inside the post's own Blog editor
+ * panel, not from a list. */
 const SOURCE_ADMIN_HREF: Record<string, string> = {
   registration: "/admin/registrations",
   enquiry: "/admin/enquiries",
   application: "/admin/applications",
   message: "/admin/messages",
+  ticket: "/admin/events/participants",
 };
 
 export default function CrmDetail() {
@@ -48,6 +57,8 @@ export default function CrmDetail() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [leadStatus, setLeadStatusValue] = useState("new");
@@ -61,6 +72,8 @@ export default function CrmDetail() {
       setContact(doc);
       setName(doc.name);
       setPhone(doc.phone);
+      setWhatsapp(doc.whatsapp);
+      setRole(doc.role);
       setCompany(doc.company);
       setTagsText(doc.tags.join(", "));
       setLeadStatusValue(doc.leadStatus);
@@ -101,7 +114,15 @@ export default function CrmDetail() {
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
-      const updated = await updateContact(id, { name, phone, company, tags, leadStatus });
+      const updated = await updateContact(id, {
+        name,
+        phone,
+        whatsapp,
+        role,
+        company,
+        tags,
+        leadStatus,
+      });
       setContact(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save.");
@@ -160,9 +181,33 @@ export default function CrmDetail() {
               <Field label="Name" htmlFor="c-name">
                 <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)} />
               </Field>
-              <Field label="Phone" htmlFor="c-phone">
-                <Input id="c-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Field label="Role" htmlFor="c-role" hint="Student, Customer, Trainer… or your own.">
+                {/* Free-text with suggestions — see CONTACT_ROLES. */}
+                <Input
+                  id="c-role"
+                  list="crm-role-options"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                />
+                <datalist id="crm-role-options">
+                  {CONTACT_ROLES.map((r) => (
+                    <option key={r} value={r} />
+                  ))}
+                </datalist>
               </Field>
+              {/* PhoneField, not a bare Input — see CrmNew. */}
+              <PhoneField
+                name="phone"
+                label="Contact number"
+                value={phone}
+                onChange={setPhone}
+              />
+              <PhoneField
+                name="whatsapp"
+                label="WhatsApp number"
+                value={whatsapp}
+                onChange={setWhatsapp}
+              />
               <Field label="Company" htmlFor="c-company">
                 <Input id="c-company" value={company} onChange={(e) => setCompany(e.target.value)} />
               </Field>

@@ -55,6 +55,20 @@ export class Contact {
   @Prop({ type: String, required: false, default: '' })
   phone!: string;
 
+  /** Kept separate from `phone`: the number someone answers a call on is
+   * routinely not the one they use on WhatsApp, and the CRM is used to reach
+   * people on both. */
+  @Prop({ type: String, required: false, default: '' })
+  whatsapp!: string;
+
+  /** What this person is to SingAdvisor — Student, Customer, Trainer and so
+   * on. Free-form rather than an enum: the admin form suggests the common
+   * ones but new kinds of person turn up without wanting a schema change.
+   * Distinct from `leadStatus` (where they are in the pipeline) and from
+   * `tags` (arbitrary labels). */
+  @Prop({ type: String, required: false, default: '', index: true })
+  role!: string;
+
   @Prop({ type: String, required: false, default: '' })
   company!: string;
 

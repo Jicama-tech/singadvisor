@@ -1,16 +1,20 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Event, EventDocument } from '../events/entities/event.entity';
 import { SponsorRequest, SponsorRequestDocument, SponsorRequestStatus } from './entities/sponsor-request.entity';
 import { ApplySponsorDto } from './dto/apply-sponsor.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
+import { CrmService } from '../crm/crm.service';
 
 @Injectable()
 export class SponsorsService {
+  private readonly logger = new Logger(SponsorsService.name);
+
   constructor(
     @InjectModel(SponsorRequest.name) private readonly model: Model<SponsorRequestDocument>,
     @InjectModel(Event.name) private readonly eventModel: Model<EventDocument>,
+    private readonly crmService: CrmService,
   ) {}
 
   /** Public tier list — what the "Become a sponsor" section on the event
@@ -28,7 +32,7 @@ export class SponsorsService {
     if (!tier) throw new BadRequestException('Sponsorship tier not found');
 
     try {
-      return await this.model.create({
+      const request = await this.model.create({
         eventId: dto.eventId,
         sponsorTypeId: tier.id,
         sponsorTypeName: tier.name,
@@ -45,6 +49,25 @@ export class SponsorsService {
         status: 'Applied',
         statusHistory: [{ status: 'Applied', note: '', changedAt: new Date() }],
       });
+
+      // Never let a CRM hiccup block the application itself.
+      this.crmService
+        .upsertContact({
+          email: request.email,
+          name: request.contactName,
+          phone: request.phone || undefined,
+          company: request.companyName || undefined,
+          source: {
+            type: 'sponsor',
+            refId: request._id,
+            label: `Applied to sponsor (${request.sponsorTypeName})`,
+          },
+        })
+        .catch((err: unknown) =>
+          this.logger.warn(`CRM upsert failed for sponsor request: ${(err as Error)?.message}`),
+        );
+
+      return request;
     } catch (err) {
       if ((err as { code?: number }).code === 11000) {
         throw new BadRequestException('This email has already applied to sponsor this event.');
