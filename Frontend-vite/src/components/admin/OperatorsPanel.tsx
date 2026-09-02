@@ -24,9 +24,12 @@ type OperatorRow = {
 };
 
 const GROUPS: { label: string; tabs: (keyof typeof ACCESS_TAB_LABELS)[] }[] = [
-  { label: "Content", tabs: ["landing", "trainings", "events", "consultancy", "careers", "blog"] },
+  {
+    label: "Content",
+    tabs: ["landing", "trainings", "events", "consultancy", "careers", "blog", "newsletter"],
+  },
   { label: "Inbox", tabs: ["registrations", "enquiries", "applications", "messages"] },
-  { label: "Other", tabs: ["overview", "settings"] },
+  { label: "Other", tabs: ["overview", "settings", "crm"] },
 ];
 
 export function OperatorsPanel() {
