@@ -64,8 +64,7 @@ export class Contact {
   /** What this person is to SingAdvisor — Student, Customer, Trainer and so
    * on. Free-form rather than an enum: the admin form suggests the common
    * ones but new kinds of person turn up without wanting a schema change.
-   * Distinct from `leadStatus` (where they are in the pipeline) and from
-   * `tags` (arbitrary labels). */
+   * Distinct from `tags`, which are arbitrary labels. */
   @Prop({ type: String, required: false, default: '', index: true })
   role!: string;
 
@@ -77,12 +76,6 @@ export class Contact {
 
   @Prop({ type: [ContactNoteSchema], required: false, default: [] })
   notes!: ContactNote[];
-
-  /** new | contacted | qualified | won | lost — independent of whatever
-   * status field the originating source record (registration/enquiry/
-   * application) already has; this is the CRM's own pipeline. */
-  @Prop({ type: String, required: true, default: 'new', index: true })
-  leadStatus!: string;
 
   @Prop({ type: [ContactSourceSchema], required: false, default: [] })
   sources!: ContactSource[];

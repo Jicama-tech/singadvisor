@@ -20,9 +20,6 @@ export type ContactSource = {
   createdAt: string;
 };
 
-export const LEAD_STATUSES = ["new", "contacted", "qualified", "won", "lost"] as const;
-export type LeadStatus = (typeof LEAD_STATUSES)[number];
-
 /** Suggested roles, not an allow-list — `Contact.role` is a free-form string
  * on the Backend so a new kind of person never needs a deploy. These are what
  * the form offers and what the filter seeds itself with; anything typed by
@@ -48,7 +45,6 @@ export type ContactDoc = {
   company: string;
   tags: string[];
   notes: ContactNote[];
-  leadStatus: string;
   sources: ContactSource[];
   firstSeenAt: string;
   lastActivityAt: string;
@@ -56,19 +52,12 @@ export type ContactDoc = {
   updatedAt: string;
 };
 
-export type ContactFilters = {
-  q?: string;
-  tag?: string;
-  leadStatus?: string;
-  source?: string;
-  role?: string;
-};
+export type ContactFilters = { q?: string; tag?: string; source?: string; role?: string };
 
 function query(filters: ContactFilters): string {
   const sp = new URLSearchParams();
   if (filters.q) sp.set("q", filters.q);
   if (filters.tag) sp.set("tag", filters.tag);
-  if (filters.leadStatus) sp.set("leadStatus", filters.leadStatus);
   if (filters.source) sp.set("source", filters.source);
   if (filters.role) sp.set("role", filters.role);
   const s = sp.toString();
@@ -110,8 +99,7 @@ export function updateContact(
     role: string;
     company: string;
     tags: string[];
-    leadStatus: string;
-  }>,
+    }>,
 ): Promise<ContactDoc> {
   return apiJson(`/crm/contacts/${id}`, {
     admin: true,

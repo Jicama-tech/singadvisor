@@ -1,6 +1,4 @@
-import { IsArray, IsIn, IsOptional, IsString } from 'class-validator';
-
-export const LEAD_STATUSES = ['new', 'contacted', 'qualified', 'won', 'lost'] as const;
+import { IsArray, IsOptional, IsString } from 'class-validator';
 
 export class UpdateContactDto {
   @IsOptional()
@@ -29,8 +27,4 @@ export class UpdateContactDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
-
-  @IsOptional()
-  @IsIn(LEAD_STATUSES)
-  leadStatus?: string;
 }

@@ -10,7 +10,6 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { Icon } from "@/components/ui/Icon";
 import {
-  LEAD_STATUSES,
   addContactNote,
   deleteContact,
   deleteContactNote,
@@ -30,6 +29,7 @@ const SOURCE_LABELS: Record<string, string> = {
   ticket: "Ticket",
   sponsor: "Sponsor",
   feedback: "Feedback",
+  "space-booking": "Space booking",
   manual: "Manual",
   import: "Imported",
 };
@@ -61,7 +61,6 @@ export default function CrmDetail() {
   const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
   const [tagsText, setTagsText] = useState("");
-  const [leadStatus, setLeadStatusValue] = useState("new");
   const [noteText, setNoteText] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
 
@@ -76,7 +75,6 @@ export default function CrmDetail() {
       setRole(doc.role);
       setCompany(doc.company);
       setTagsText(doc.tags.join(", "));
-      setLeadStatusValue(doc.leadStatus);
     } catch {
       setContact(null);
     }
@@ -121,7 +119,6 @@ export default function CrmDetail() {
         role,
         company,
         tags,
-        leadStatus,
       });
       setContact(updated);
     } catch (err) {
@@ -210,15 +207,6 @@ export default function CrmDetail() {
               />
               <Field label="Company" htmlFor="c-company">
                 <Input id="c-company" value={company} onChange={(e) => setCompany(e.target.value)} />
-              </Field>
-              <Field label="Lead status" htmlFor="c-status">
-                <Select id="c-status" value={leadStatus} onChange={(e) => setLeadStatusValue(e.target.value)}>
-                  {LEAD_STATUSES.map((s) => (
-                    <option key={s} value={s} className="capitalize">
-                      {s}
-                    </option>
-                  ))}
-                </Select>
               </Field>
             </div>
             <Field label="Tags" htmlFor="c-tags" hint="Comma-separated.">
