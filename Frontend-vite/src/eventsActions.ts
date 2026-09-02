@@ -190,9 +190,18 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
   const tierCount = num(formData, "tierCount", 0);
   const visitorTypes = Array.from({ length: tierCount }, (_, i) => {
     const tierId = str(formData, `tier${i}Id`);
+    const typedName = str(formData, `tier${i}Name`).trim();
     return {
+      // An event does not have to sell tickets — plenty are booked purely by
+      // space or court slot. The form always renders at least one tier row
+      // (the last one cannot be removed), so a row with neither an id nor a
+      // typed name is an untouched placeholder and is dropped below rather
+      // than saved. Left in, it became a phantom "General Admission" tier that
+      // made the public page believe the event sells tickets and then, with
+      // none sold, call it Fully booked.
+      untouched: !tierId && !typedName,
       id: tierId,
-      name: str(formData, `tier${i}Name`) || "General Admission",
+      name: typedName || "General Admission",
       price: num(formData, `tier${i}Price`),
       maxCount: num(formData, `tier${i}MaxCount`, 0),
       soldCount: existingTiersById.get(tierId) ?? 0,
@@ -209,9 +218,9 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
       isActive: bool(formData, `tier${i}Active`),
     };
   });
-  if (visitorTypes.length === 0) {
-    return { ok: false, message: "Add at least one ticket tier.", values: collectValues(formData) };
-  }
+  const filledVisitorTypes = visitorTypes
+    .filter((t) => !t.untouched)
+    .map(({ untouched: _untouched, ...tier }) => tier);
 
   const sectionCount = num(formData, "sectionCount", 0);
   const customSections = Array.from({ length: sectionCount }, (_, i) => ({
@@ -406,30 +415,53 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
   // venueTables/venueRoundTables/venueScheduledSpaces/venueSpeakerZones
   // actually expect.
   const VENUE_CONFIG_ID = "venueConfig1";
-  let venueConfig: Array<{
-    venueConfigId: string;
-    width: number;
-    height: number;
-    scale: number;
-    gridSize: number;
-    showGrid: boolean;
-    hasMainStage: boolean;
-  }> = [];
+  // Open shape: fields this form does not manage ride along from the stored
+  // config (see the merge below), so the type cannot be a closed literal.
+  let venueConfig: Array<
+    Record<string, unknown> & {
+      venueConfigId: string;
+      width: number;
+      height: number;
+      scale: number;
+      gridSize: number;
+      showGrid: boolean;
+      hasMainStage: boolean;
+    }
+  > = [];
   const venueTables: PositionedTable[] = [];
   const venueRoundTables: PositionedRoundTable[] = [];
   const venueScheduledSpaces: PositionedScheduledSpace[] = [];
   const venueSpeakerZones: PositionedSpeakerZone[] = [];
   try {
     const rawConfig = JSON.parse(str(formData, "venueConfigJson") || "{}");
+    // Merge onto what is already stored rather than rebuilding the object.
+    // The Space Layout tab edits four fields; the venue config carries around
+    // twenty, and the rest are set in eventsh's own venue designer — the crop
+    // box (cropped/cropWidth/cropHeight), the main stage and its position,
+    // doors, entrances and exits. Rebuilding from scratch silently deleted
+    // every one of them on save, so a crop made in eventsh reverted the moment
+    // the event was saved here. `hasMainStage` was the clearest case: it was
+    // hardcoded false, so saving always removed the main stage.
+    const baseConfig = JSON.parse(str(formData, "venueConfigBaseJson") || "{}") as Record<
+      string,
+      unknown
+    >;
     venueConfig = [
       {
+        ...baseConfig,
         venueConfigId: VENUE_CONFIG_ID,
         width: Number(rawConfig.width) || 800,
         height: Number(rawConfig.height) || 500,
         scale: 1,
         gridSize: Number(rawConfig.gridSize) || 50,
         showGrid: Boolean(rawConfig.showGrid),
-        hasMainStage: false,
+        hasMainStage: Boolean(baseConfig.hasMainStage),
+        // Crop is edited in the Space Layout tab now, so the form's values win
+        // over whatever was stored — unlike the fields above it, which ride
+        // along untouched from `baseConfig`.
+        cropped: Boolean(rawConfig.cropped),
+        cropWidth: Number(rawConfig.cropWidth) || 0,
+        cropHeight: Number(rawConfig.cropHeight) || 0,
       },
     ];
 
@@ -443,6 +475,9 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
       width: number;
       height: number;
       rotation: number;
+      /** Serialised by the canvas along with the rest — a round space stores
+       * its size as a diameter, a rectangular one as width/height. */
+      isCircle: boolean;
     }[] = JSON.parse(str(formData, "placedItemsJson") || "[]");
 
     for (const item of placedItems) {
@@ -452,10 +487,38 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
         if (t) venueTables.push({ ...t, ...common, tableName: item.name, width: item.width, height: item.height });
       } else if (item.kind === "roundTable") {
         const t = roundTableTemplates.find((x) => x.id === item.templateId);
-        if (t) venueRoundTables.push({ ...t, ...common, templateId: t.id, bookedChairs: [], isFullyBooked: false });
+        // `tableDiameter` has to come from the PLACED item, not the template.
+        // Spreading the template alone meant resizing one round table on the
+        // canvas was thrown away on save and it snapped back to the template's
+        // diameter on reload.
+        if (t)
+          venueRoundTables.push({
+            ...t,
+            ...common,
+            templateId: t.id,
+            tableDiameter: Math.round(item.width),
+            bookedChairs: [],
+            isFullyBooked: false,
+          });
       } else if (item.kind === "scheduledSpace") {
         const t = scheduledSpaceTemplates.find((x) => x.id === item.templateId);
-        if (t) venueScheduledSpaces.push({ ...t, ...common, templateId: t.id, displayWidth: item.width, displayHeight: item.height });
+        // Same problem, one level subtler: the resize was only ever written to
+        // displayWidth/displayHeight, but everything that READS a placed space
+        // — the form rebuilding the canvas, the public venue map — reads
+        // width/height (or diameter when it is round). So the space rendered
+        // at its template size again the moment the page reloaded. Write the
+        // real dimensions too; displayWidth/Height stay for eventsh's sake.
+        if (t)
+          venueScheduledSpaces.push({
+            ...t,
+            ...common,
+            templateId: t.id,
+            ...(item.isCircle
+              ? { diameter: Math.round(item.width) }
+              : { width: Math.round(item.width), height: Math.round(item.height) }),
+            displayWidth: item.width,
+            displayHeight: item.height,
+          });
       } else if (item.kind === "speakerZone") {
         const t = speakerSlotTemplates.find((x) => x.id === item.templateId);
         if (t) {
@@ -549,7 +612,7 @@ export async function saveEvent(formData: FormData): Promise<FormState> {
     speakerProfiles,
     published: bool(formData, "published"),
     featured: bool(formData, "featured"),
-    visitorTypes,
+    visitorTypes: filledVisitorTypes,
     sponsorTypes,
     volunteers,
     speakerSlotTemplates,

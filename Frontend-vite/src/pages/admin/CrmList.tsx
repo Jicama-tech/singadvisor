@@ -4,14 +4,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
 import { AdminEmpty, PageHeading, Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
 import { DeleteButton } from "@/components/admin/DeleteButton";
-import { StatusSelect } from "@/components/admin/StatusSelect";
 import { Badge } from "@/components/ui/Badge";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Select } from "@/components/ui/Field";
 import {
   CONTACT_ROLES,
-  LEAD_STATUSES,
   crmExportPath,
   deleteContact,
   fetchContacts,
@@ -20,7 +18,7 @@ import {
   updateContact,
   type ContactDoc,
 } from "@/lib/crmClient";
-import { cn, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 const SOURCE_LABELS: Record<string, string> = {
   registration: "Registration",
@@ -31,6 +29,7 @@ const SOURCE_LABELS: Record<string, string> = {
   ticket: "Ticket",
   sponsor: "Sponsor",
   feedback: "Feedback",
+  "space-booking": "Space booking",
   manual: "Manual",
   import: "Imported",
 };
@@ -39,7 +38,6 @@ export default function CrmList() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get("q") ?? "";
-  const leadStatus = searchParams.get("leadStatus") ?? "";
   const source = searchParams.get("source") ?? "";
   const role = searchParams.get("role") ?? "";
 
@@ -52,9 +50,9 @@ export default function CrmList() {
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const data = await fetchContacts({ q, leadStatus, source, role }).catch(() => []);
+    const data = await fetchContacts({ q, source, role }).catch(() => []);
     setContacts(data);
-  }, [q, leadStatus, source, role]);
+  }, [q, source, role]);
 
   // The presets plus whatever roles the data actually holds — imported
   // spreadsheets and hand-typed values are free-form, so the filter has to
@@ -90,11 +88,6 @@ export default function CrmList() {
     await load();
   }
 
-  async function setLeadStatus(id: string, status: string) {
-    await updateContact(id, { leadStatus: status });
-    await load();
-  }
-
   async function handleBackfill() {
     setBackfilling(true);
     setBackfillMsg(null);
@@ -113,7 +106,7 @@ export default function CrmList() {
     setExporting(true);
     try {
       const res = await adminFetch(
-        `${__API_URL__}${crmExportPath({ q, leadStatus, source, role })}`,
+        `${__API_URL__}${crmExportPath({ q, source, role })}`,
       );
       if (!res.ok) {
         window.alert("Could not export contacts.");
@@ -256,17 +249,6 @@ export default function CrmList() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Chip active={!leadStatus} onClick={() => setFilter("leadStatus", "")}>
-          All statuses
-        </Chip>
-        {LEAD_STATUSES.map((s) => (
-          <Chip key={s} active={leadStatus === s} onClick={() => setFilter("leadStatus", s)}>
-            {s}
-          </Chip>
-        ))}
-      </div>
-
       <Panel>
         {contacts && contacts.length === 0 ? (
           <AdminEmpty message="No contacts yet — they'll appear automatically as people register, enquire, apply, message or subscribe, or run the backfill above to pull in what's already there." />
@@ -278,7 +260,6 @@ export default function CrmList() {
                 <Th>Role</Th>
                 <Th>Company</Th>
                 <Th>Sources</Th>
-                <Th>Lead status</Th>
                 <Th>Last activity</Th>
                 <Th className="text-right">Actions</Th>
               </tr>
@@ -319,16 +300,9 @@ export default function CrmList() {
                         ))}
                       </div>
                     </Td>
-                    <Td>
-                      <StatusSelect
-                        id={c._id}
-                        value={c.leadStatus}
-                        options={LEAD_STATUSES}
-                        action={setLeadStatus}
-                        label={`Lead status for ${c.name || c.email}`}
-                      />
+                    <Td className="text-[var(--text-secondary)]">
+                      {formatDate(c.lastActivityAt)}
                     </Td>
-                    <Td className="text-[var(--text-secondary)]">{formatDate(c.lastActivityAt)}</Td>
                     <Td>
                       <div className="flex items-center justify-end gap-1">
                         <Link
@@ -349,31 +323,5 @@ export default function CrmList() {
         )}
       </Panel>
     </div>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active ? "true" : undefined}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium capitalize transition-colors",
-        active
-          ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
-          : "surface-sunken text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-      )}
-    >
-      {children}
-    </button>
   );
 }

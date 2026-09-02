@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { CroppedImageField } from "@/components/admin/CroppedImageField";
 import { VenueCanvas, SEAT_SIZE, type CanvasTemplate, type PlacedItem, type VenueConfigState } from "@/components/admin/VenueCanvas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { SCHEDULED_SPACE_FACILITY_TYPES } from "@/lib/facility-court-lines";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/Button";
@@ -614,6 +615,9 @@ export function EventForm({
     height: firstVenueConfig?.height || 500,
     gridSize: firstVenueConfig?.gridSize || 50,
     showGrid: firstVenueConfig?.showGrid ?? true,
+    cropped: firstVenueConfig?.cropped ?? false,
+    cropWidth: firstVenueConfig?.cropWidth || 0,
+    cropHeight: firstVenueConfig?.cropHeight || 0,
   };
   const initialPlacedItems: PlacedItem[] = [
     ...(event?.venueTables ?? []).map((t) => ({
@@ -654,6 +658,7 @@ export function EventForm({
       rotation: s.rotation || 0,
       isCircle: s.shape === "Circle",
       color: s.color || "#0ea5e9",
+      facilityType: s.facilityType,
     })),
     ...(event?.venueSpeakerZones ?? []).map((z) => ({
       positionId: z.positionId,
@@ -1043,6 +1048,16 @@ export function EventForm({
                 Seats split into their own wire-shaped JSON field so the two
                 inputs own disjoint item sets. */}
             <input type="hidden" name="venueConfigJson" value={JSON.stringify(venueConfig)} />
+            {/* The venue config AS STORED, carried through untouched so the save
+                can merge onto it. This form only edits four of its fields; the
+                rest (crop box, main stage, doors, entrances) are set elsewhere —
+                eventsh's own venue designer — and were being wiped on every save
+                because the payload rebuilt the object from scratch. */}
+            <input
+              type="hidden"
+              name="venueConfigBaseJson"
+              value={JSON.stringify(firstVenueConfig ?? {})}
+            />
             <input type="hidden" name="placedItemsJson" value={JSON.stringify(placedItems.filter((p) => p.kind !== "seat"))} />
             <input
               type="hidden"
@@ -1358,6 +1373,7 @@ export function EventForm({
                             <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
                               <input
                                 type="checkbox"
+                              value="true"
                                 name={`stallTerm${i}Mandatory`}
                                 checked={row.isMandatory}
                                 onChange={(e) => updateStallTerm(row.key, { isMandatory: e.target.checked })}
@@ -1671,6 +1687,7 @@ export function EventForm({
                           <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
                             <input
                               type="checkbox"
+                              value="true"
                               name={`tier${i}Active`}
                               checked={tier.isActive}
                               onChange={(e) => updateTier(tier.key, { isActive: e.target.checked })}
@@ -2116,6 +2133,7 @@ export function EventForm({
                           <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
                             <input
                               type="checkbox"
+                              value="true"
                               name={`speakerSlot${i}IsMainStage`}
                               checked={slot.isMainStage}
                               onChange={(e) => updateSpeakerSlot(slot.key, { isMainStage: e.target.checked })}
@@ -2198,6 +2216,7 @@ export function EventForm({
                           </span>
                           <input
                             type="checkbox"
+                              value="true"
                             name={`sponsor${i}CollectPayment`}
                             checked={s.collectPayment}
                             onChange={(e) => updateSponsor(s.key, { collectPayment: e.target.checked })}
@@ -2471,6 +2490,7 @@ export function EventForm({
                             <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
                               <input
                                 type="checkbox"
+                              value="true"
                                 name={`roundTable${i}ForSale`}
                                 checked={rt.forSale}
                                 onChange={(e) => updateRoundTable(rt.key, { forSale: e.target.checked })}
@@ -2781,6 +2801,7 @@ export function EventForm({
                             <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
                               <input
                                 type="checkbox"
+                              value="true"
                                 name={`tableTemplate${i}CustomDimensions`}
                                 checked={t.customDimensions}
                                 onChange={(e) => updateTableTemplate(t.key, { customDimensions: e.target.checked })}
@@ -2925,13 +2946,24 @@ export function EventForm({
                               onChange={(e) => updateScheduledSpace(s.key, { name: e.target.value })}
                             />
                           </Field>
-                          <Field label="Facility type" htmlFor={`ss${i}-facilityType`} hint="e.g. Court, Room">
-                            <Input
+                          <Field
+                            label="Facility type"
+                            htmlFor={`ss${i}-facilityType`}
+                            hint="Drives the court markings drawn on the venue plan."
+                          >
+                            <Select
                               id={`ss${i}-facilityType`}
                               name={`scheduledSpace${i}FacilityType`}
                               value={s.facilityType}
                               onChange={(e) => updateScheduledSpace(s.key, { facilityType: e.target.value })}
-                            />
+                            >
+                              <option value="">Choose a facility…</option>
+                              {SCHEDULED_SPACE_FACILITY_TYPES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </Select>
                           </Field>
                           <Field label="Shape" htmlFor={`ss${i}-shape`}>
                             <Select
@@ -3184,6 +3216,7 @@ export function EventForm({
                           height: s.shape === "Circle" ? Number(s.diameter) || 150 : Number(s.height) || 100,
                           isCircle: s.shape === "Circle",
                           color: s.color,
+                          facilityType: s.facilityType,
                         })),
                       ...speakerSlotRows
                         .filter((s) => s.name)

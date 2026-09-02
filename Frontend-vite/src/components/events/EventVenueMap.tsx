@@ -1,5 +1,6 @@
 import type { EventRow, VenueAnnotation } from "@/lib/events-client";
 import { formatPrice } from "@/lib/utils";
+import { FacilityCourtLines } from "@/lib/facility-court-lines";
 
 /**
  * Read-only public rendering of the Space Layout an organizer built in the
@@ -40,6 +41,8 @@ type Shape = {
   isCircle: boolean;
   color: string;
   fontSize: number;
+  /** Scheduled spaces only — drives the court markings drawn on the shape. */
+  facilityType?: string;
 };
 
 /** One legend row — a space type a visitor can actually book, with its price. */
@@ -79,6 +82,7 @@ function placedShapes(event: EventRow): Shape[] {
       isCircle: s.shape === "Circle",
       color: s.color || "#0ea5e9",
       fontSize: 12,
+      facilityType: s.facilityType,
     })),
     ...event.venueSpeakerZones.map((z) => ({
       key: `zone-${z.positionId}`,
@@ -112,12 +116,16 @@ function placedShapes(event: EventRow): Shape[] {
  * identical stalls collapse to one swatch, same as eventsh-v1's own legend.
  * Round tables the organizer marked not-for-sale are reference furniture, not
  * something to advertise a price for, so they are skipped. */
-function legendEntries(event: EventRow): LegendEntry[] {
+function legendEntries(
+  event: EventRow,
+  inCrop: (x: number, y: number) => boolean,
+): LegendEntry[] {
   const entries = new Map<string, LegendEntry>();
   const add = (e: LegendEntry) => {
     if (!entries.has(e.name)) entries.set(e.name, e);
   };
   for (const t of event.venueTables) {
+    if (!inCrop(t.x, t.y)) continue;
     const tpl = event.tableTemplates.find((x) => x.id === t.id);
     add({
       name: tpl?.name || t.name || "Space",
@@ -127,6 +135,7 @@ function legendEntries(event: EventRow): LegendEntry[] {
   }
   for (const rt of event.venueRoundTables) {
     if (rt.forSale === false) continue;
+    if (!inCrop(rt.x, rt.y)) continue;
     const perChair = rt.sellingMode === "chair";
     add({
       name: rt.category || rt.name || "Round table",
@@ -136,6 +145,7 @@ function legendEntries(event: EventRow): LegendEntry[] {
     });
   }
   for (const s of event.venueScheduledSpaces) {
+    if (!inCrop(s.x, s.y)) continue;
     add({
       name: s.name || s.facilityType || "Scheduled space",
       color: s.color || "#0ea5e9",
@@ -157,17 +167,31 @@ export function EventVenueMap({ event }: { event: EventRow }) {
   const gridSize = config?.gridSize || 50;
   const showGrid = config?.showGrid ?? true;
 
+  // The published window onto the plan. eventsh anchors its crop at the
+  // origin — a width and height, no x/y — and hides anything placed outside
+  // it, so a layout drawn on a big canvas can be published tight to its
+  // contents. Same rule here: `x < cropWidth && y < cropHeight`.
+  const cropActive =
+    Boolean(config?.cropped) && (config?.cropWidth ?? 0) > 0 && (config?.cropHeight ?? 0) > 0;
+  const viewWidth = cropActive ? Math.min(config!.cropWidth!, width) : width;
+  const viewHeight = cropActive ? Math.min(config!.cropHeight!, height) : height;
+  const inCrop = (x: number, y: number) => !cropActive || (x < viewWidth && y < viewHeight);
+
   const gridLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
   if (showGrid && gridSize > 0) {
-    for (let x = gridSize; x < width; x += gridSize) {
-      gridLines.push({ x1: x, y1: 0, x2: x, y2: height });
+    for (let x = gridSize; x < viewWidth; x += gridSize) {
+      gridLines.push({ x1: x, y1: 0, x2: x, y2: viewHeight });
     }
-    for (let y = gridSize; y < height; y += gridSize) {
-      gridLines.push({ x1: 0, y1: y, x2: width, y2: y });
+    for (let y = gridSize; y < viewHeight; y += gridSize) {
+      gridLines.push({ x1: 0, y1: y, x2: viewWidth, y2: y });
     }
   }
 
-  const legend = event.showSpacePricesOnEventfront ? legendEntries(event) : [];
+  // Only price what is actually on the published plan — a stall cropped out
+  // of view should not still advertise a price beneath it. The predicate is
+  // passed down rather than matching on rendered labels, which are not the
+  // same strings as the template names the legend is keyed on.
+  const legend = event.showSpacePricesOnEventfront ? legendEntries(event, inCrop) : [];
 
   return (
     <section>
@@ -180,11 +204,11 @@ export function EventVenueMap({ event }: { event: EventRow }) {
           itself to scroll sideways on a phone. */}
       <div className="mt-5 overflow-x-auto">
         <svg
-          viewBox={`0 0 ${width} ${height}`}
+          viewBox={`0 0 ${viewWidth} ${viewHeight}`}
           role="img"
           aria-label={`Venue layout for ${event.title}`}
           className="block w-full min-w-[520px] rounded-[var(--radius-card)] border border-[var(--border-strong)] surface-sunken"
-          style={{ aspectRatio: `${width} / ${height}` }}
+          style={{ aspectRatio: `${viewWidth} / ${viewHeight}` }}
         >
           {gridLines.map((l, i) => (
             <line
@@ -222,7 +246,7 @@ export function EventVenueMap({ event }: { event: EventRow }) {
             </g>
           )}
 
-          {shapes.map((s) => (
+          {shapes.filter((s) => inCrop(s.x, s.y)).map((s) => (
             <g key={s.key}>
               {s.isCircle ? (
                 <circle
@@ -245,6 +269,19 @@ export function EventVenueMap({ event }: { event: EventRow }) {
                   fillOpacity={0.75}
                   stroke="#00000033"
                   strokeWidth={1}
+                />
+              )}
+              {/* Court/field markings — the same shapes eventsh draws, so a
+                  Badminton Court looks like one on both products' plans. */}
+              {s.facilityType && (
+                <FacilityCourtLines
+                  facilityType={s.facilityType}
+                  x={s.x}
+                  y={s.y}
+                  width={s.width}
+                  height={s.height}
+                  isCircle={s.isCircle}
+                  idSeed={s.key}
                 />
               )}
               <text

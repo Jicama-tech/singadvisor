@@ -160,13 +160,7 @@ export class CrmService {
     return existing;
   }
 
-  async findAll(filters: {
-    q?: string;
-    tag?: string;
-    leadStatus?: string;
-    source?: string;
-    role?: string;
-  }) {
+  async findAll(filters: { q?: string; tag?: string; source?: string; role?: string }) {
     const query: Record<string, unknown> = {};
     if (filters.q) {
       const re = new RegExp(filters.q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -175,7 +169,6 @@ export class CrmService {
       query.$or = [{ name: re }, { email: re }, { company: re }, { phone: re }, { whatsapp: re }];
     }
     if (filters.tag) query.tags = filters.tag;
-    if (filters.leadStatus) query.leadStatus = filters.leadStatus;
     if (filters.source) query['sources.type'] = filters.source;
     // Case-insensitive exact match: roles are typed by hand and imported from
     // spreadsheets, so "Student" and "student" are the same role.
@@ -243,13 +236,7 @@ export class CrmService {
   }
 
   /** CSV of the current filtered list — same filters as findAll. */
-  async exportCsv(filters: {
-    q?: string;
-    tag?: string;
-    leadStatus?: string;
-    source?: string;
-    role?: string;
-  }) {
+  async exportCsv(filters: { q?: string; tag?: string; source?: string; role?: string }) {
     const contacts = await this.findAll(filters);
     // Column names match what the importer accepts, so an export can be
     // edited in Excel and fed straight back in.
@@ -260,7 +247,6 @@ export class CrmService {
       'WhatsApp Number',
       'Role',
       'Company',
-      'Lead status',
       'Tags',
       'First seen',
       'Last activity',
@@ -272,7 +258,6 @@ export class CrmService {
       c.whatsapp,
       c.role,
       c.company,
-      c.leadStatus,
       c.tags.join('; '),
       c.firstSeenAt.toISOString(),
       c.lastActivityAt.toISOString(),

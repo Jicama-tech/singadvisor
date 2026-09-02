@@ -1,11 +1,27 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Event, EventDocument } from '../events/entities/event.entity';
 import { SponsorRequest, SponsorRequestDocument, SponsorRequestStatus } from './entities/sponsor-request.entity';
 import { ApplySponsorDto } from './dto/apply-sponsor.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
 import { CrmService } from '../crm/crm.service';
+import { PaynowService } from '../paynow/paynow.service';
+
+/** The slice of eventsh's sponsorTypes this service uses. */
+type SponsorTier = {
+  id: string;
+  name: string;
+  price?: number;
+  collectPayment?: boolean;
+  description?: string;
+  customOptions?: string[];
+};
 
 @Injectable()
 export class SponsorsService {
@@ -13,22 +29,48 @@ export class SponsorsService {
 
   constructor(
     @InjectModel(SponsorRequest.name) private readonly model: Model<SponsorRequestDocument>,
-    @InjectModel(Event.name) private readonly eventModel: Model<EventDocument>,
     private readonly crmService: CrmService,
+    private readonly paynow: PaynowService,
   ) {}
+
+  /**
+   * Events live on eventsh, not in this app's own `events` collection — that
+   * one stopped being kept in sync at the cutover and still holds stale
+   * pre-cutover rows. Reading it here meant every sponsorship application for
+   * a real event failed with "Event not found", because the event was only
+   * ever in eventsh. Same live read the ticket purchase already does.
+   */
+  private async fetchEventshEvent(
+    eventId: string,
+  ): Promise<{ _id: string; sponsorTypes?: SponsorTier[] }> {
+    const url = process.env.EVENTSH_BACKEND_URL;
+    if (!url) throw new ServiceUnavailableException('EVENTSH_BACKEND_URL is not set.');
+    let response: Response;
+    try {
+      response = await fetch(`${url}/events/${eventId}`, { cache: 'no-store' });
+    } catch (cause) {
+      throw new ServiceUnavailableException('eventsh is unreachable', { cause });
+    }
+    if (!response.ok) throw new NotFoundException('Event not found');
+    const body = (await response.json()) as { data?: { _id: string } } | { _id: string };
+    const event = ('data' in body ? body.data : body) as {
+      _id: string;
+      sponsorTypes?: SponsorTier[];
+    };
+    if (!event?._id) throw new NotFoundException('Event not found');
+    return event;
+  }
 
   /** Public tier list — what the "Become a sponsor" section on the event
    * page reads to render tiers + the apply form. */
   async tiersForEvent(eventId: string) {
-    const event = await this.eventModel.findById(eventId).select('sponsorTypes').exec();
-    if (!event) throw new NotFoundException('Event not found');
-    return event.sponsorTypes;
+    const event = await this.fetchEventshEvent(eventId);
+    return event.sponsorTypes ?? [];
   }
 
   async apply(dto: ApplySponsorDto) {
-    const event = await this.eventModel.findById(dto.eventId).exec();
-    if (!event) throw new NotFoundException('Event not found');
-    const tier = event.sponsorTypes.find((t) => t.id === dto.sponsorTypeId);
+    const event = await this.fetchEventshEvent(dto.eventId);
+    const tier = (event.sponsorTypes ?? []).find((t) => t.id === dto.sponsorTypeId);
     if (!tier) throw new BadRequestException('Sponsorship tier not found');
 
     try {
@@ -80,6 +122,30 @@ export class SponsorsService {
     const doc = await this.model.findOne({ eventId, email: email.toLowerCase() }).exec();
     if (!doc) throw new NotFoundException('No application found for this email.');
     return doc;
+  }
+
+  /**
+   * PayNow QR for a cash sponsorship, built from the UEN in Settings — the
+   * same generator the ticket and slot-booking flows use.
+   *
+   * The reference is derived from the request's own id rather than stored on
+   * it: deterministic, so reloading the page shows the same code rather than
+   * minting a new reference for a payment the sponsor may already have made,
+   * and short enough to read off a bank statement.
+   */
+  async paynowQr(id: string) {
+    const request = await this.findById(id);
+    if (!request.collectPayment || request.amount <= 0) {
+      throw new BadRequestException('This sponsorship tier has nothing to pay.');
+    }
+    const reference = String(request._id).slice(-12).toUpperCase();
+    const { qr, payeeId, payeeName } = await this.paynow.generateQr(request.amount, reference);
+    return {
+      reference,
+      amount: request.amount,
+      currency: 'SGD',
+      payment: { qr, payeeId, payeeName },
+    };
   }
 
   async submitPayment(id: string, dto: SubmitPaymentDto) {

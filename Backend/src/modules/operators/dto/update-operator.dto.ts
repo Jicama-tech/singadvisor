@@ -1,6 +1,6 @@
 import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
-/** Partial update — blank password keeps the existing one (the Settings
+/** Partial update (the Settings
  * Operators tab follows the same convention as the Razorpay secrets). */
 export class UpdateOperatorDto {
   @IsOptional()
@@ -13,11 +13,6 @@ export class UpdateOperatorDto {
   @IsEmail()
   email?: string;
 
-  @IsOptional()
-  @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters' })
-  @MaxLength(200)
-  password?: string;
 
   @IsOptional()
   @IsArray()

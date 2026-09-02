@@ -9,10 +9,7 @@ export class CreateOperatorDto {
   @IsEmail()
   email!: string;
 
-  @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters' })
-  @MaxLength(200)
-  password!: string;
+  // No password: an operator signs in with Google against `email` above.
 
   @IsArray()
   @IsString({ each: true })

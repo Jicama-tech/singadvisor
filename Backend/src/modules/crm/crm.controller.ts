@@ -40,11 +40,10 @@ export class CrmController {
   findAll(
     @Query('q') q?: string,
     @Query('tag') tag?: string,
-    @Query('leadStatus') leadStatus?: string,
     @Query('source') source?: string,
     @Query('role') role?: string,
   ) {
-    return this.crmService.findAll({ q, tag, leadStatus, source, role });
+    return this.crmService.findAll({ q, tag, source, role });
   }
 
   @Get('export')
@@ -52,11 +51,10 @@ export class CrmController {
     @Res() res: Response,
     @Query('q') q?: string,
     @Query('tag') tag?: string,
-    @Query('leadStatus') leadStatus?: string,
     @Query('source') source?: string,
     @Query('role') role?: string,
   ) {
-    const csv = await this.crmService.exportCsv({ q, tag, leadStatus, source, role });
+    const csv = await this.crmService.exportCsv({ q, tag, source, role });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="contacts.csv"');
     res.send(csv);

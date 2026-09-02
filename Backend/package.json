@@ -10,7 +10,8 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "lint": "eslint '{src,test}/**/*.ts' --fix",
-    "seed:admin": "tsx scripts/seed-admin.ts",
+    "add:owner": "tsx scripts/add-owner.ts",
+    "drop:passwords": "tsx scripts/drop-passwords.ts",
     "seed:landing": "tsx scripts/seed-landing.ts",
     "import:events": "tsx scripts/import-events.ts",
     "import:content": "tsx scripts/import-content.ts"
