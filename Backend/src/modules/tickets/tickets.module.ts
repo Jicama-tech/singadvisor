@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CrmModule } from '../crm/crm.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MailModule } from '../mail/mail.module';
 import { SettingsModule } from '../settings/settings.module';
@@ -11,6 +12,7 @@ import { RazorpayService } from './razorpay.service';
 
 @Module({
   imports: [
+    CrmModule,
     MongooseModule.forFeature([{ name: Ticket.name, schema: TicketSchema }]),
     // EventsModule is no longer imported here — Events moved to eventsh
     // (see Frontend's events-client.ts), so this module doesn't need the

@@ -25,7 +25,12 @@ export type EventCardData = {
 };
 
 export function EventCard({ event }: { event: EventCardData }) {
-  const upcoming = isUpcoming(event.startDate);
+  // An event is over once its END has passed, not its start — the same rule
+  // fetchPublishedEvents uses to split the Upcoming and Past tabs
+  // (events-client.ts). Keyed off startDate, a multi-day event running right
+  // now sat in the Upcoming list while its own badge read "Past event".
+  // `endDate` is optional on the wire, so fall back to the start.
+  const upcoming = isUpcoming(event.endDate || event.startDate);
   const speakers = event.speakers;
   const start = new Date(event.startDate);
 
@@ -90,9 +95,14 @@ export function EventCard({ event }: { event: EventCardData }) {
           )}
         </dl>
 
-        <div className="mt-auto pt-3 text-sm font-semibold text-[var(--text-primary)]">
-          {formatPrice(Math.round(event.price * 100), event.currency)}
-        </div>
+        {/* Price only while the event is still sellable — on a past event it
+            is noise at best and misleading at worst, since nothing can be
+            bought any more. */}
+        {upcoming && (
+          <div className="mt-auto pt-3 text-sm font-semibold text-[var(--text-primary)]">
+            {formatPrice(Math.round(event.price * 100), event.currency)}
+          </div>
+        )}
       </CardBody>
     </Card>
   );

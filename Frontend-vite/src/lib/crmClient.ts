@@ -23,11 +23,28 @@ export type ContactSource = {
 export const LEAD_STATUSES = ["new", "contacted", "qualified", "won", "lost"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
+/** Suggested roles, not an allow-list — `Contact.role` is a free-form string
+ * on the Backend so a new kind of person never needs a deploy. These are what
+ * the form offers and what the filter seeds itself with; anything typed by
+ * hand or arriving in a spreadsheet is kept as-is. */
+export const CONTACT_ROLES = [
+  "Student",
+  "Customer",
+  "Trainer",
+  "Consultant",
+  "Partner",
+  "Vendor",
+  "Staff",
+  "Other",
+] as const;
+
 export type ContactDoc = {
   _id: string;
   email: string;
   name: string;
   phone: string;
+  whatsapp: string;
+  role: string;
   company: string;
   tags: string[];
   notes: ContactNote[];
@@ -39,7 +56,13 @@ export type ContactDoc = {
   updatedAt: string;
 };
 
-export type ContactFilters = { q?: string; tag?: string; leadStatus?: string; source?: string };
+export type ContactFilters = {
+  q?: string;
+  tag?: string;
+  leadStatus?: string;
+  source?: string;
+  role?: string;
+};
 
 function query(filters: ContactFilters): string {
   const sp = new URLSearchParams();
@@ -47,6 +70,7 @@ function query(filters: ContactFilters): string {
   if (filters.tag) sp.set("tag", filters.tag);
   if (filters.leadStatus) sp.set("leadStatus", filters.leadStatus);
   if (filters.source) sp.set("source", filters.source);
+  if (filters.role) sp.set("role", filters.role);
   const s = sp.toString();
   return s ? `?${s}` : "";
 }
@@ -65,6 +89,8 @@ export function createContact(body: {
   email: string;
   name?: string;
   phone?: string;
+  whatsapp?: string;
+  role?: string;
   company?: string;
 }): Promise<ContactDoc> {
   return apiJson(`/crm/contacts`, {
@@ -77,7 +103,15 @@ export function createContact(body: {
 
 export function updateContact(
   id: string,
-  body: Partial<{ name: string; phone: string; company: string; tags: string[]; leadStatus: string }>,
+  body: Partial<{
+    name: string;
+    phone: string;
+    whatsapp: string;
+    role: string;
+    company: string;
+    tags: string[];
+    leadStatus: string;
+  }>,
 ): Promise<ContactDoc> {
   return apiJson(`/crm/contacts/${id}`, {
     admin: true,

@@ -63,6 +63,40 @@ export class Settings {
   @Prop({ type: String, default: '' })
   contactEmail!: string;
 
+  // ---- Contact page channels -------------------------------------------
+  // Everything the public Contact page shows was hardcoded in the frontend's
+  // SITE constant; these make it editable. Each channel has its own on/off
+  // flag so a channel can be hidden without deleting what is in it, and its
+  // own free-text note (the line under the value: opening hours, response
+  // time, "visits by appointment"). A blank note falls back to the wording
+  // the page shipped with, so an unconfigured site looks unchanged.
+
+  /** Public phone number — a combined "+65 9123 4567" string, PhoneField's
+   * own convention (same as payNowMobile / whatsappNumber above). */
+  @Prop({ type: Boolean, default: false })
+  contactPhoneEnabled!: boolean;
+
+  @Prop({ type: String, default: '' })
+  contactPhone!: string;
+
+  @Prop({ type: Boolean, default: false })
+  officeAddressEnabled!: boolean;
+
+  @Prop({ type: String, default: '' })
+  officeAddress!: string;
+
+  @Prop({ type: String, default: '' })
+  contactEmailNote!: string;
+
+  @Prop({ type: String, default: '' })
+  contactPhoneNote!: string;
+
+  @Prop({ type: String, default: '' })
+  whatsappNote!: string;
+
+  @Prop({ type: String, default: '' })
+  officeAddressNote!: string;
+
   @Prop({ type: String, default: '' })
   updatedBy!: string;
 

@@ -69,4 +69,38 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   contactEmail?: string;
+
+  // ---- Contact page channels (see Settings entity) ----------------------
+
+  @IsOptional()
+  @IsBoolean()
+  contactPhoneEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  contactPhone?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  officeAddressEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  officeAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  contactEmailNote?: string;
+
+  @IsOptional()
+  @IsString()
+  contactPhoneNote?: string;
+
+  @IsOptional()
+  @IsString()
+  whatsappNote?: string;
+
+  @IsOptional()
+  @IsString()
+  officeAddressNote?: string;
 }

@@ -10,6 +10,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { join } from 'path';
 import { Model, Types } from 'mongoose';
 import { Ticket, TicketDocument } from './entities/ticket.entity';
+import { CrmService } from '../crm/crm.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ConfirmTicketDto } from './dto/confirm-ticket.dto';
 import { ClaimFreeTicketDto } from './dto/claim-free-ticket.dto';
@@ -66,6 +67,7 @@ export class TicketsService {
     private readonly razorpay: RazorpayService,
     private readonly paynow: PaynowService,
     private readonly mail: MailService,
+    private readonly crmService: CrmService,
   ) {}
 
   private eventshUrl(): string {
@@ -486,6 +488,26 @@ export class TicketsService {
       }
       throw err;
     }
+
+    // Never let a CRM hiccup affect a payment that already succeeded. Placed
+    // after the local audit record so it only runs on the one call that
+    // actually created the ticket — the idempotency guard at the top of this
+    // method returns early for the client/webhook race, so a single purchase
+    // never lands in the timeline twice.
+    this.crmService
+      .upsertContact({
+        email: ticket.customerEmail,
+        name: ticket.customerName,
+        phone: ticket.customerPhone || undefined,
+        source: {
+          type: 'ticket',
+          refId: ticket._id,
+          label: `Bought a ticket for ${ticket.eventTitle}`,
+        },
+      })
+      .catch((err: unknown) =>
+        this.logger.warn(`CRM upsert failed for ticket: ${(err as Error)?.message}`),
+      );
 
     return ticket;
   }

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -11,9 +12,11 @@ import { OAuth2Client } from 'google-auth-library';
 import { BlogPost, BlogPostDocument } from './entities/blog-post.entity';
 import { BlogFeedback, BlogFeedbackDocument } from './entities/blog-feedback.entity';
 import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
+import { CrmService } from '../crm/crm.service';
 
 @Injectable()
 export class BlogFeedbackService {
+  private readonly logger = new Logger(BlogFeedbackService.name);
   private oauthClient: OAuth2Client;
 
   constructor(
@@ -21,6 +24,7 @@ export class BlogFeedbackService {
     @InjectModel(BlogFeedback.name)
     private readonly feedbackModel: Model<BlogFeedbackDocument>,
     private readonly configService: ConfigService,
+    private readonly crmService: CrmService,
   ) {
     this.oauthClient = new OAuth2Client(this.configService.get<string>('GOOGLE_CLIENT_ID'));
   }
@@ -56,7 +60,7 @@ export class BlogFeedbackService {
 
     const identity = await this.verifyGoogleCredential(dto.credential);
 
-    return this.feedbackModel
+    const feedback = await this.feedbackModel
       .findOneAndUpdate(
         { postId: post._id, googleSub: identity.sub },
         {
@@ -70,6 +74,25 @@ export class BlogFeedbackService {
         { upsert: true, new: true },
       )
       .exec();
+
+    // Never let a CRM hiccup lose the reader's feedback. The email here comes
+    // from a server-verified Google token, so it is a real address — the
+    // strongest identity any of the CRM's sources supplies.
+    this.crmService
+      .upsertContact({
+        email: feedback.email,
+        name: feedback.name,
+        source: {
+          type: 'feedback',
+          refId: feedback._id,
+          label: `Left feedback on "${post.title}"`,
+        },
+      })
+      .catch((err: unknown) =>
+        this.logger.warn(`CRM upsert failed for blog feedback: ${(err as Error)?.message}`),
+      );
+
+    return feedback;
   }
 
   /** Admin: full detail including the authenticated email, for the Blog

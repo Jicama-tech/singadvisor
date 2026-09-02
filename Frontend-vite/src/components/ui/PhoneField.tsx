@@ -28,17 +28,34 @@ function parseStored(stored: string, defaultCountry: string): { code: string; na
   // Accept both "+65 9123 4567" (canonical) and legacy "+6591234567" (no
   // space) — only when what follows the dial code is all digits, so bare
   // national numbers never match.
+  //
+  // `startsWith` is load-bearing and was missing: without it every dial code
+  // of the right LENGTH matched, because the check only looked at what came
+  // after slicing that many characters off. A saved "+65 9123 4567" then
+  // matched "+93" (Afghanistan) — same length, and character 3 onwards is
+  // still " 9123 4567" — and "+65 81234567" matched "+1268", which sliced
+  // four characters and silently dropped two digits of the real number. Every
+  // stored number came back with the wrong country, some of them truncated.
   const match = COUNTRIES.map((c) => c.dialCode)
     .filter((dial) => {
+      if (!s.startsWith(dial)) return false;
       if (s === dial) return true;
       const rest = s.slice(dial.length);
       return rest.startsWith(" ") || /^\d+$/.test(rest.trim());
     })
     .sort((a, b) => b.length - a.length)[0];
   if (match) {
-    const code =
-      COUNTRIES.find((c) => c.dialCode === match)?.code.toLowerCase() ?? defaultCountry;
-    return { code, national: s.slice(match.length).trim() };
+    // Several countries share a dial code (+1 is the US, Canada and more).
+    // Prefer the one the field is already defaulted to, so a US-defaulted
+    // field showing "+1 415…" does not silently relabel itself Canada;
+    // otherwise take the first listed, which at least stays deterministic.
+    const owners = COUNTRIES.filter((c) => c.dialCode === match);
+    const preferred =
+      owners.find((c) => c.code.toLowerCase() === defaultCountry.toLowerCase()) ?? owners[0];
+    return {
+      code: preferred?.code.toLowerCase() ?? defaultCountry,
+      national: s.slice(match.length).trim(),
+    };
   }
   // Bare national number without a dial code — keep it as typed.
   return { code: defaultCountry, national: s };

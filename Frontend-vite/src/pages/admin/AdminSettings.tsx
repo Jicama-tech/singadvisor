@@ -34,6 +34,14 @@ type SettingsView = {
   whatsappNumber: string;
   contactEmailEnabled: boolean;
   contactEmail: string;
+  contactPhoneEnabled: boolean;
+  contactPhone: string;
+  officeAddressEnabled: boolean;
+  officeAddress: string;
+  contactEmailNote: string;
+  contactPhoneNote: string;
+  whatsappNote: string;
+  officeAddressNote: string;
 };
 
 type EmailConfig = {
@@ -77,6 +85,8 @@ export default function AdminSettings() {
   // each one only make sense to show once the toggle is actually on.
   const [whatsappOn, setWhatsappOn] = useState(false);
   const [contactEmailOn, setContactEmailOn] = useState(false);
+  const [contactPhoneOn, setContactPhoneOn] = useState(false);
+  const [officeAddressOn, setOfficeAddressOn] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
 
   const load = useCallback(async () => {
@@ -110,6 +120,8 @@ export default function AdminSettings() {
     if (!settings) return;
     setWhatsappOn(settings.whatsappEnabled);
     setContactEmailOn(settings.contactEmailEnabled);
+    setContactPhoneOn(settings.contactPhoneEnabled);
+    setOfficeAddressOn(settings.officeAddressEnabled);
   }, [settings]);
 
   if (!user) return null;
@@ -173,6 +185,16 @@ export default function AdminSettings() {
           whatsappNumber: whatsappOn ? String(fd.get("whatsappNumber") ?? "") : "",
           contactEmailEnabled: contactEmailOn,
           contactEmail: contactEmailOn ? String(fd.get("contactEmail") ?? "") : "",
+          contactPhoneEnabled: contactPhoneOn,
+          contactPhone: contactPhoneOn ? String(fd.get("contactPhone") ?? "") : "",
+          officeAddressEnabled: officeAddressOn,
+          officeAddress: officeAddressOn ? String(fd.get("officeAddress") ?? "") : "",
+          // Notes are kept even when their channel is switched off — turning a
+          // channel back on should not have silently thrown away its caption.
+          contactEmailNote: String(fd.get("contactEmailNote") ?? ""),
+          contactPhoneNote: String(fd.get("contactPhoneNote") ?? ""),
+          whatsappNote: String(fd.get("whatsappNote") ?? ""),
+          officeAddressNote: String(fd.get("officeAddressNote") ?? ""),
         }),
       });
       if (!res.ok) {
@@ -488,7 +510,10 @@ export default function AdminSettings() {
       <Panel className="p-6">
         <h2 className="text-lg">Contact</h2>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          What visitors see and can reach you on across the public site — the floating WhatsApp button and the contact email in the footer.
+          Every channel the public Contact page and the footer show. Each one is
+          off until you fill it in; the note under it is the small line of text
+          shown beneath the value, and falls back to the page&apos;s own wording
+          when left blank.
         </p>
         {!settings && (
           <p className="mt-4 text-sm text-[var(--text-muted)]">Loading…</p>
@@ -506,13 +531,24 @@ export default function AdminSettings() {
                 Show the WhatsApp chat button on the site
               </label>
               {whatsappOn && (
-                <PhoneField
-                  name="whatsappNumber"
-                  label="WhatsApp number"
-                  hint="Where the floating button's chat opens to."
-                  defaultValue={settings.whatsappNumber}
-                  required
-                />
+                <>
+                  <PhoneField
+                    name="whatsappNumber"
+                    label="WhatsApp number"
+                    hint="Where the floating button's chat opens to."
+                    defaultValue={settings.whatsappNumber}
+                    required
+                  />
+                  <Field label="Note" htmlFor="s-whatsapp-note" hint="Shown under WhatsApp on the Contact page.">
+                    <Input
+                      id="s-whatsapp-note"
+                      name="whatsappNote"
+                      defaultValue={settings.whatsappNote}
+                      placeholder="Usually the fastest way to reach us."
+                      className="max-w-md"
+                    />
+                  </Field>
+                </>
               )}
             </div>
 
@@ -527,17 +563,95 @@ export default function AdminSettings() {
                 Show a contact email on the site
               </label>
               {contactEmailOn && (
-                <Field label="Contact email" htmlFor="s-contact-email" hint="Shown in the footer and Contact page.">
-                  <Input
-                    id="s-contact-email"
-                    name="contactEmail"
-                    type="email"
+                <>
+                  <Field label="Contact email" htmlFor="s-contact-email" hint="Shown in the footer and Contact page.">
+                    <Input
+                      id="s-contact-email"
+                      name="contactEmail"
+                      type="email"
+                      required
+                      defaultValue={settings.contactEmail}
+                      placeholder="hello@singadvisor.com"
+                      className="max-w-sm"
+                    />
+                  </Field>
+                  <Field label="Note" htmlFor="s-contact-email-note" hint="Shown under the email on the Contact page.">
+                    <Input
+                      id="s-contact-email-note"
+                      name="contactEmailNote"
+                      defaultValue={settings.contactEmailNote}
+                      placeholder="We reply within one working day."
+                      className="max-w-md"
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={contactPhoneOn}
+                  onChange={(e) => setContactPhoneOn(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                Show a contact phone number on the site
+              </label>
+              {contactPhoneOn && (
+                <>
+                  <PhoneField
+                    name="contactPhone"
+                    label="Contact number"
+                    hint="Shown on the Contact page, and dialable on a phone."
+                    defaultValue={settings.contactPhone}
                     required
-                    defaultValue={settings.contactEmail}
-                    placeholder="hello@singadvisor.com"
-                    className="max-w-sm"
                   />
-                </Field>
+                  <Field label="Note" htmlFor="s-contact-phone-note" hint="Opening hours, or when you answer.">
+                    <Input
+                      id="s-contact-phone-note"
+                      name="contactPhoneNote"
+                      defaultValue={settings.contactPhoneNote}
+                      placeholder="Weekdays, 9am - 6pm SGT."
+                      className="max-w-md"
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={officeAddressOn}
+                  onChange={(e) => setOfficeAddressOn(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                Show an office address on the site
+              </label>
+              {officeAddressOn && (
+                <>
+                  <Field label="Office address" htmlFor="s-office-address" hint="Shown on the Contact page and in the footer.">
+                    <Input
+                      id="s-office-address"
+                      name="officeAddress"
+                      required
+                      defaultValue={settings.officeAddress}
+                      placeholder="3 Tampines Grande, Singapore 528733"
+                      className="max-w-md"
+                    />
+                  </Field>
+                  <Field label="Note" htmlFor="s-office-address-note" hint="Visiting instructions, if any.">
+                    <Input
+                      id="s-office-address-note"
+                      name="officeAddressNote"
+                      defaultValue={settings.officeAddressNote}
+                      placeholder="Visits by appointment."
+                      className="max-w-md"
+                    />
+                  </Field>
+                </>
               )}
             </div>
 

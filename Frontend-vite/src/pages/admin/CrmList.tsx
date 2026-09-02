@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
@@ -10,6 +10,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Select } from "@/components/ui/Field";
 import {
+  CONTACT_ROLES,
   LEAD_STATUSES,
   crmExportPath,
   deleteContact,
@@ -27,6 +28,9 @@ const SOURCE_LABELS: Record<string, string> = {
   application: "Application",
   message: "Message",
   subscriber: "Subscriber",
+  ticket: "Ticket",
+  sponsor: "Sponsor",
+  feedback: "Feedback",
   manual: "Manual",
   import: "Imported",
 };
@@ -37,6 +41,7 @@ export default function CrmList() {
   const q = searchParams.get("q") ?? "";
   const leadStatus = searchParams.get("leadStatus") ?? "";
   const source = searchParams.get("source") ?? "";
+  const role = searchParams.get("role") ?? "";
 
   const [contacts, setContacts] = useState<ContactDoc[] | null>(null);
   const [backfilling, setBackfilling] = useState(false);
@@ -47,9 +52,27 @@ export default function CrmList() {
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const data = await fetchContacts({ q, leadStatus, source }).catch(() => []);
+    const data = await fetchContacts({ q, leadStatus, source, role }).catch(() => []);
     setContacts(data);
-  }, [q, leadStatus, source]);
+  }, [q, leadStatus, source, role]);
+
+  // The presets plus whatever roles the data actually holds — imported
+  // spreadsheets and hand-typed values are free-form, so the filter has to
+  // offer roles nobody predicted. Deduped case-insensitively so "student"
+  // from a spreadsheet does not sit next to the preset "Student".
+  const roleOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of CONTACT_ROLES) seen.set(r.toLowerCase(), r);
+    for (const c of contacts ?? []) {
+      const r = c.role?.trim();
+      if (r && !seen.has(r.toLowerCase())) seen.set(r.toLowerCase(), r);
+    }
+    // The current filter may name a role that no loaded contact has (the
+    // filter itself excluded them), so keep it in the list or the Select
+    // would silently fall back to "All roles".
+    if (role && !seen.has(role.toLowerCase())) seen.set(role.toLowerCase(), role);
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [contacts, role]);
 
   useEffect(() => {
     void load();
@@ -89,7 +112,9 @@ export default function CrmList() {
   async function handleExport() {
     setExporting(true);
     try {
-      const res = await adminFetch(`${__API_URL__}${crmExportPath({ q, leadStatus, source })}`);
+      const res = await adminFetch(
+        `${__API_URL__}${crmExportPath({ q, leadStatus, source, role })}`,
+      );
       if (!res.ok) {
         window.alert("Could not export contacts.");
         return;
@@ -188,28 +213,47 @@ export default function CrmList() {
           <label htmlFor="crm-search" className="sr-only">
             Search contacts
           </label>
-          <Input id="crm-search" name="q" type="search" defaultValue={q} placeholder="Search name, email, company…" />
+          <Input id="crm-search" name="q" type="search" defaultValue={q} placeholder="Search name, email, phone…" />
           <Button type="submit" variant="secondary" aria-label="Search">
             <Icon name="search" size={16} />
           </Button>
         </form>
 
-        <label htmlFor="crm-source" className="sr-only">
-          Filter by source
-        </label>
-        <Select
-          id="crm-source"
-          value={source}
-          onChange={(e) => setFilter("source", e.target.value)}
-          className="sm:w-56"
-        >
-          <option value="">All sources</option>
-          {Object.entries(SOURCE_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </Select>
+        <div className="flex gap-2">
+          <label htmlFor="crm-role" className="sr-only">
+            Filter by role
+          </label>
+          <Select
+            id="crm-role"
+            value={role}
+            onChange={(e) => setFilter("role", e.target.value)}
+            className="sm:w-44"
+          >
+            <option value="">All roles</option>
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </Select>
+
+          <label htmlFor="crm-source" className="sr-only">
+            Filter by source
+          </label>
+          <Select
+            id="crm-source"
+            value={source}
+            onChange={(e) => setFilter("source", e.target.value)}
+            className="sm:w-56"
+          >
+            <option value="">All sources</option>
+            {Object.entries(SOURCE_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -231,6 +275,7 @@ export default function CrmList() {
             <thead>
               <tr>
                 <Th>Contact</Th>
+                <Th>Role</Th>
                 <Th>Company</Th>
                 <Th>Sources</Th>
                 <Th>Lead status</Th>
@@ -253,6 +298,16 @@ export default function CrmList() {
                       {c.name && (
                         <span className="block text-xs text-[var(--text-muted)]">{c.email}</span>
                       )}
+                      {(c.phone || c.whatsapp) && (
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          {c.phone}
+                          {c.phone && c.whatsapp && c.whatsapp !== c.phone && " · WA "}
+                          {c.whatsapp !== c.phone ? c.whatsapp : ""}
+                        </span>
+                      )}
+                    </Td>
+                    <Td>
+                      {c.role ? <Badge tone="accent">{c.role}</Badge> : <span className="text-[var(--text-muted)]">—</span>}
                     </Td>
                     <Td className="text-[var(--text-secondary)]">{c.company || "—"}</Td>
                     <Td>
