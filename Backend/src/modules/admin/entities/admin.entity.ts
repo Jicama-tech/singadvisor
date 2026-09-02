@@ -19,9 +19,6 @@ export class AdminUser {
   @Prop({ type: String, required: true })
   name!: string;
 
-  @Prop({ type: String, required: true })
-  passwordHash!: string;
-
   @Prop({ type: String, required: true, enum: ['owner', 'editor'], default: 'editor' })
   role!: AdminRole;
 

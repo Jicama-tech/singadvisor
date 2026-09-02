@@ -5,7 +5,8 @@ export type OperatorDocument = HydratedDocument<Operator>;
 
 /**
  * Staff accounts with limited dashboard access — created by an admin from
- * the Settings → Operators tab. `accessTabs` carries the main-sidebar keys
+ * the Settings → Operators tab. They sign in with Google against this email;
+ * there is no password anywhere in the system. `accessTabs` carries the main-sidebar keys
  * (see access-tabs.ts) this operator may see; everything else in the
  * dashboard is hidden from them client-side (same enforcement model
  * eventsh's own operators use).
@@ -17,9 +18,6 @@ export class Operator {
 
   @Prop({ type: String, required: true, unique: true, lowercase: true, trim: true })
   email!: string;
-
-  @Prop({ type: String, required: true })
-  passwordHash!: string;
 
   @Prop({ type: [String], default: [] })
   accessTabs!: string[];

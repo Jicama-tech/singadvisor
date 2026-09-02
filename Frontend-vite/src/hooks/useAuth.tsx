@@ -28,7 +28,6 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   /** Performs the login POST against __API_URL__/auth/login. */
-  login: (email: string, password: string) => Promise<void>;
   loginWithToken: (token: string) => void;
   logout: () => void;
 }
@@ -86,38 +85,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, [applyToken]);
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const res = await fetch(`${__API_URL__}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!res.ok) {
-        let message = "Sign-in failed.";
-        try {
-          const data = await res.json();
-          if (data?.message) message = data.message;
-        } catch {
-          /* keep default message */
-        }
-        throw new Error(message);
-      }
-      const data = await res.json();
-      const token = data?.token ?? data?.access_token;
-      if (!token) throw new Error("Sign-in response was missing a session token.");
-      applyToken(token);
-    },
-    [applyToken],
-  );
-
   const logout = useCallback(() => {
     sessionStorage.removeItem(TOKEN_KEY);
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithToken: applyToken, logout }}>
+    <AuthContext.Provider value={{ user, loading, loginWithToken: applyToken, logout }}>
       {children}
     </AuthContext.Provider>
   );

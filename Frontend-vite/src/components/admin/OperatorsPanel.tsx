@@ -68,7 +68,7 @@ export function OperatorsPanel() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-[var(--text-secondary)]">
           {operators?.length ?? "…"} operator{operators?.length === 1 ? "" : "s"} — each signs in with their own
-          email/password and sees only the sections granted below.
+          Google account and sees only the sections granted below.
         </p>
         <Button size="sm" onClick={() => setEditing(editing === "new" ? null : "new")}>
           <Icon name="plus" size={16} />
@@ -169,12 +169,6 @@ function OperatorForm({
 }) {
   const [saving, setSaving] = useState(false);
   const [tabs, setTabs] = useState<string[]>(operator?.accessTabs ?? ["overview"]);
-  // Browsers ignore autoComplete="off" on password fields they can pair with
-  // the email input above and autofill the operator's saved password when the
-  // edit form reopens. readOnly-until-focus is the reliable block — the field
-  // becomes editable only once the user actually clicks in to type.
-  const [passwordFocused, setPasswordFocused] = useState(false);
-
   function toggleTab(tab: string) {
     setTabs((prev) => (prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]));
   }
@@ -184,7 +178,6 @@ function OperatorForm({
     const fd = new FormData(e.currentTarget);
     const name = String(fd.get("name") ?? "");
     const email = String(fd.get("email") ?? "");
-    const password = String(fd.get("password") ?? "");
 
     setSaving(true);
     onError("");
@@ -198,7 +191,6 @@ function OperatorForm({
             name,
             email,
             accessTabs: tabs,
-            ...(password ? { password } : {}),
           }),
         },
       );
@@ -222,25 +214,13 @@ function OperatorForm({
           <Field label="Name" htmlFor="op-name" required>
             <Input id="op-name" name="name" required defaultValue={operator?.name} />
           </Field>
-          <Field label="Email (their sign-in)" htmlFor="op-email" required>
-            <Input id="op-email" name="email" type="email" required defaultValue={operator?.email} />
-          </Field>
           <Field
-            label={operator ? "New password" : "Password"}
-            htmlFor="op-password"
-            required={!operator}
-            hint={operator ? "Leave blank to keep the current one." : "At least 8 characters."}
+            label="Google account"
+            htmlFor="op-email"
+            required
+            hint="The address they sign in with. There is no password."
           >
-            <Input
-              id="op-password"
-              name="password"
-              type="password"
-              autoComplete="off"
-              readOnly={Boolean(operator) && !passwordFocused}
-              onFocus={() => setPasswordFocused(true)}
-              required={!operator}
-              minLength={8}
-            />
+            <Input id="op-email" name="email" type="email" required defaultValue={operator?.email} />
           </Field>
         </div>
 

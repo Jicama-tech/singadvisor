@@ -8,10 +8,9 @@ export class CreateAdminDto {
   @MinLength(1)
   name!: string;
 
-  /** Plain password — AdminService hashes it before it ever touches Mongo. */
-  @IsString()
-  @MinLength(8)
-  password!: string;
+  // No password field: sign-in is Google-only, so there is nothing to set.
+  // Leaving it out means the global whitelist pipe strips one if a stale
+  // client still sends it, rather than silently accepting it.
 
   @IsOptional()
   @IsIn(['owner', 'editor'])

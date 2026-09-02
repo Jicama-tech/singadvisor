@@ -13,9 +13,9 @@ const ORGANIZER_ID = __EVENTSH_ORGANIZER_ID__;
  * Settings → Profile. Two identities live here:
  * - "Organizer details" — the organizer doc ON eventsh (the same fields as
  *   eventsh's own organizer Settings → Profile), read/written through the
- *   Backend's /eventsh/* proxy. Includes the password hash in the GET
+ *   Backend's /eventsh/* proxy. Includes a password hash in the GET
  *   response — that field is never read or rendered here.
- * - The logged-in user's own display name and password (works for admins AND
+ * - The logged-in user's own display name (works for admins AND
  *   operators — the backend dispatches by token role).
  *
  * Save-response gotcha: eventsh's profile PATCH swallows ALL errors and
@@ -87,7 +87,6 @@ export function ProfilePanel({
   onError: (m: string) => void;
 }) {
   const [savingName, setSavingName] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
 
   // ---- Organizer details (stored on eventsh) ----
   const [profile, setProfile] = useState<OrganizerProfile | null>(null);
@@ -233,36 +232,6 @@ export function ProfilePanel({
       onError(err instanceof Error ? err.message : "Could not save your name.");
     } finally {
       setSavingName(false);
-    }
-  }
-
-  async function changePassword(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const currentPassword = String(fd.get("currentPassword") ?? "");
-    const newPassword = String(fd.get("newPassword") ?? "");
-    if (newPassword.length < 8) {
-      onError("New password must be at least 8 characters.");
-      return;
-    }
-    setSavingPassword(true);
-    onError("");
-    try {
-      const res = await adminFetch(`${__API_URL__}/auth/change-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message || "Could not change your password.");
-      }
-      onMessage("Password changed.");
-      (e.currentTarget as HTMLFormElement).reset();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Could not change your password.");
-    } finally {
-      setSavingPassword(false);
     }
   }
 
@@ -515,24 +484,6 @@ export function ProfilePanel({
         </form>
       </Panel>
 
-      <Panel className="p-6">
-        <h2 className="text-lg">Change password</h2>
-        <form onSubmit={changePassword} className="mt-4 flex flex-col gap-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Current password" htmlFor="p-current" required>
-              <Input id="p-current" name="currentPassword" type="password" autoComplete="current-password" required />
-            </Field>
-            <Field label="New password" htmlFor="p-new" hint="At least 8 characters" required>
-              <Input id="p-new" name="newPassword" type="password" autoComplete="new-password" minLength={8} required />
-            </Field>
-          </div>
-          <div>
-            <Button type="submit" disabled={savingPassword}>
-              {savingPassword ? "Changing…" : "Change password"}
-            </Button>
-          </div>
-        </form>
-      </Panel>
     </div>
   );
 }

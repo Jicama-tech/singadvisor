@@ -46,16 +46,4 @@ export class OperatorsController {
   remove(@Param('id') id: string) {
     return this.operatorsService.remove(id);
   }
-
-  @Post('change-password')
-  changePassword(
-    @Req() req: Request & { user: SessionPayload },
-    @Body() body: { currentPassword: string; newPassword: string },
-  ) {
-    return this.operatorsService.changePassword(
-      req.user.sub,
-      body.currentPassword,
-      body.newPassword,
-    );
-  }
 }
