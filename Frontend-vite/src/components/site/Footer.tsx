@@ -11,6 +11,8 @@ import { SITE } from "@/lib/constants";
 type ContactSettings = {
   contactEmailEnabled: boolean;
   contactEmail: string;
+  officeAddressEnabled: boolean;
+  officeAddress: string;
 };
 
 const COLUMNS = [
@@ -118,10 +120,15 @@ export function Footer() {
             © {new Date().getFullYear()} {SITE.name}. All rights reserved.
           </p>
           <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <li className="flex items-center gap-2">
-              <Icon name="map-pin" size={15} />
-              {SITE.address}
-            </li>
+            {/* Admin-configured in Settings -> Contact; falls back to the
+                SITE constant until one is set, and disappears if the admin
+                explicitly turns the address off. */}
+            {(settings === null || settings.officeAddressEnabled) && (
+              <li className="flex items-center gap-2">
+                <Icon name="map-pin" size={15} />
+                {settings?.officeAddress || SITE.address}
+              </li>
+            )}
             {settings?.contactEmailEnabled && settings.contactEmail && (
               <li>
                 <a

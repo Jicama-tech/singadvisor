@@ -21,6 +21,14 @@ export interface SettingsPublicView {
   whatsappNumber: string;
   contactEmailEnabled: boolean;
   contactEmail: string;
+  contactPhoneEnabled: boolean;
+  contactPhone: string;
+  officeAddressEnabled: boolean;
+  officeAddress: string;
+  contactEmailNote: string;
+  contactPhoneNote: string;
+  whatsappNote: string;
+  officeAddressNote: string;
 }
 
 /** The shape the PUBLIC endpoint returns to the public event pages — only
@@ -37,6 +45,16 @@ export interface SettingsPublicPayload {
   whatsappNumber: string;
   contactEmailEnabled: boolean;
   contactEmail: string;
+  /** Contact page channels. A disabled channel comes back with an empty
+   * value so the page has nothing to render, same rule as the two above. */
+  contactPhoneEnabled: boolean;
+  contactPhone: string;
+  officeAddressEnabled: boolean;
+  officeAddress: string;
+  contactEmailNote: string;
+  contactPhoneNote: string;
+  whatsappNote: string;
+  officeAddressNote: string;
 }
 
 @Injectable()
@@ -72,6 +90,14 @@ export class SettingsService {
       whatsappNumber: s.whatsappNumber,
       contactEmailEnabled: s.contactEmailEnabled,
       contactEmail: s.contactEmail,
+      contactPhoneEnabled: s.contactPhoneEnabled,
+      contactPhone: s.contactPhone,
+      officeAddressEnabled: s.officeAddressEnabled,
+      officeAddress: s.officeAddress,
+      contactEmailNote: s.contactEmailNote,
+      contactPhoneNote: s.contactPhoneNote,
+      whatsappNote: s.whatsappNote,
+      officeAddressNote: s.officeAddressNote,
     };
   }
 
@@ -91,6 +117,17 @@ export class SettingsService {
       whatsappNumber: s.whatsappEnabled ? s.whatsappNumber : '',
       contactEmailEnabled: s.contactEmailEnabled && !!s.contactEmail,
       contactEmail: s.contactEmailEnabled ? s.contactEmail : '',
+      contactPhoneEnabled: s.contactPhoneEnabled && !!s.contactPhone,
+      contactPhone: s.contactPhoneEnabled ? s.contactPhone : '',
+      officeAddressEnabled: s.officeAddressEnabled && !!s.officeAddress,
+      officeAddress: s.officeAddressEnabled ? s.officeAddress : '',
+      // Notes are captions on the channels above — harmless on their own, and
+      // sent whether or not their channel is on, since the page only reads a
+      // note when it is already rendering that channel.
+      contactEmailNote: s.contactEmailNote,
+      contactPhoneNote: s.contactPhoneNote,
+      whatsappNote: s.whatsappNote,
+      officeAddressNote: s.officeAddressNote,
     };
   }
 
@@ -108,6 +145,16 @@ export class SettingsService {
     if (dto.whatsappNumber !== undefined) update.whatsappNumber = dto.whatsappNumber;
     if (dto.contactEmailEnabled !== undefined) update.contactEmailEnabled = dto.contactEmailEnabled;
     if (dto.contactEmail !== undefined) update.contactEmail = dto.contactEmail;
+    if (dto.contactPhoneEnabled !== undefined) update.contactPhoneEnabled = dto.contactPhoneEnabled;
+    if (dto.contactPhone !== undefined) update.contactPhone = dto.contactPhone;
+    if (dto.officeAddressEnabled !== undefined) {
+      update.officeAddressEnabled = dto.officeAddressEnabled;
+    }
+    if (dto.officeAddress !== undefined) update.officeAddress = dto.officeAddress;
+    if (dto.contactEmailNote !== undefined) update.contactEmailNote = dto.contactEmailNote;
+    if (dto.contactPhoneNote !== undefined) update.contactPhoneNote = dto.contactPhoneNote;
+    if (dto.whatsappNote !== undefined) update.whatsappNote = dto.whatsappNote;
+    if (dto.officeAddressNote !== undefined) update.officeAddressNote = dto.officeAddressNote;
 
     // Secrets: blank = keep existing, clear flags wipe, otherwise encrypt.
     // encryptSecret throws without SETTINGS_ENC_KEY — fail-safe, never
