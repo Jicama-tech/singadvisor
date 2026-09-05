@@ -80,6 +80,8 @@ export type PostDoc = {
   tags: string[];
   published: boolean;
   featured: boolean;
+  /** Absent on posts predating the flag — treat undefined as listed. */
+  listedOnBlog?: boolean;
   publishedAt: string | null;
   authorId: string | null;
   author?: { _id: string; name: string; title: string; bio: string; photo: string; linkedin: string | null };

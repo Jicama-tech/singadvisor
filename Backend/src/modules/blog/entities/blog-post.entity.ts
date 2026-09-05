@@ -51,6 +51,15 @@ export class BlogPost {
   @Prop({ type: Boolean, required: true, default: false })
   featured!: boolean;
 
+  /** Whether this post appears in the public blog listing. Unticked keeps it
+   * out of /blog and the home-page highlight while leaving /blog/<slug>
+   * reachable, so a newsletter-only article is read by following an issue's
+   * "Read full article" link and no other way. Posts written before this
+   * flag existed carry no such field, which is why the public query tests
+   * `$ne: false` rather than `=== true` — see BlogService.findPublished. */
+  @Prop({ type: Boolean, required: true, default: true })
+  listedOnBlog!: boolean;
+
   /** Null until first published; drives ordering and the visible date. */
   @Prop({ type: Date, required: false, default: null })
   publishedAt!: Date | null;

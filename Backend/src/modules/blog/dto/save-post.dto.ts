@@ -52,6 +52,10 @@ export class SavePostDto {
   featured?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  listedOnBlog?: boolean;
+
+  @IsOptional()
   @Type(() => Date)
   @IsDate()
   publishedAt?: Date | null;
