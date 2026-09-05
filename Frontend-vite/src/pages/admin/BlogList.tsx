@@ -82,6 +82,9 @@ export default function BlogList() {
                           {p.published ? "Live" : "Draft"}
                         </Badge>
                         {p.featured && <Badge tone="warn">Featured</Badge>}
+                        {p.listedOnBlog === false && (
+                          <Badge tone="neutral">Newsletter only</Badge>
+                        )}
                       </div>
                     </Td>
                     <Td>

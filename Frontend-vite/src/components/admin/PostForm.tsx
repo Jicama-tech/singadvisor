@@ -28,6 +28,8 @@ type Post = {
   tags: string;
   published: boolean;
   featured: boolean;
+  /** Absent on posts predating the flag — the toggle treats that as listed. */
+  listedOnBlog?: boolean;
   publishedAt: Date | null;
   writtenByName: string;
   writtenByPosition: string;
@@ -467,6 +469,16 @@ export function PostForm({
                 hint="Eligible for the home page highlight."
                 defaultChecked={
                   submitted ? values.featured === "true" : (post?.featured ?? false)
+                }
+              />
+              <Toggle
+                name="listedOnBlog"
+                label="List on blog page"
+                hint="Unticked hides it from the blog listing and the home page. The post is still published and still live at its own address — readers reach it only through a newsletter's Read-full-article link."
+                defaultChecked={
+                  submitted
+                    ? values.listedOnBlog === "true"
+                    : (post?.listedOnBlog ?? true)
                 }
               />
               <Field

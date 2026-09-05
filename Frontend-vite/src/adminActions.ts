@@ -282,6 +282,7 @@ export async function savePost(formData: FormData): Promise<FormState> {
     tags: linesToArray(str(formData, "tags")),
     published: bool(formData, "published"),
     featured: bool(formData, "featured"),
+    listedOnBlog: bool(formData, "listedOnBlog"),
     publishedAt,
     writtenByName: str(formData, "writtenByName"),
     writtenByPosition: str(formData, "writtenByPosition"),
