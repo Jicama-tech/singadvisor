@@ -27,10 +27,16 @@ export class BlogService {
   }
 
   /** Public list: published only, newest first (the old Prisma query's
-   * publishedAt ordering). */
+   * publishedAt ordering). Newsletter-only posts are left out — they stay
+   * reachable at /blog/<slug> for a reader following a newsletter link, but
+   * never surface in the listing (nor, since every public surface reads this
+   * one endpoint, in the home-page highlight).
+   *
+   * `$ne: false` rather than `true`: every post written before the flag
+   * existed has no such field, and those must keep showing. */
   findPublished() {
     return this.model
-      .find({ published: true })
+      .find({ published: true, listedOnBlog: { $ne: false } })
       .sort({ publishedAt: -1, createdAt: -1 })
       .exec();
   }
@@ -98,6 +104,7 @@ export class BlogService {
       ...(dto.tags !== undefined && { tags: dto.tags }),
       ...(dto.published !== undefined && { published: dto.published }),
       ...(dto.featured !== undefined && { featured: dto.featured }),
+      ...(dto.listedOnBlog !== undefined && { listedOnBlog: dto.listedOnBlog }),
       ...(dto.authorId !== undefined && { authorId }),
       ...(dto.writtenByName !== undefined && { writtenByName: dto.writtenByName }),
       ...(dto.writtenByPosition !== undefined && { writtenByPosition: dto.writtenByPosition }),

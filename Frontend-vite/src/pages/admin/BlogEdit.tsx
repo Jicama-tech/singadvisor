@@ -19,6 +19,7 @@ function toFormShape(p: PostDoc) {
     tags: JSON.stringify(p.tags ?? []),
     published: p.published,
     featured: p.featured,
+    listedOnBlog: p.listedOnBlog,
     publishedAt: p.publishedAt ? new Date(p.publishedAt) : null,
     writtenByName: p.writtenByName ?? "",
     writtenByPosition: p.writtenByPosition ?? "",
