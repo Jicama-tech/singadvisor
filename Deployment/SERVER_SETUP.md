@@ -25,6 +25,9 @@ the server already occupies 4000; the nginx /api proxy matches this port):
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD`
 - `EVENTSH_BACKEND_URL` (the eventsh instance's PUBLIC url), `EVENTSH_ORGANIZER_ID`, `EVENTSH_API_KEY`
 - `SETTINGS_ENC_KEY` (fresh `openssl rand -hex 32`)
+- `SITE_URL` (the public SPA origin, e.g. `https://singadvisor.com`) and
+  `PUBLIC_URL` (this Backend's own public origin) — both required by the
+  link-preview renderer, see §5
 - `SMTP_*` (fallback mailer)
 - `RAZORPAY_*` only if you prefer env over the Settings UI
 
@@ -86,7 +89,37 @@ it stays on the server as the rollback target. Re-point nginx's `root`
 back at the old app's serving directory (or restore the previous nginx
 config) to roll back instantly.
 
-## 5. Notes
+## 5. Link previews (cover image on WhatsApp / LinkedIn / …)
+
+The SPA writes its per-page `<meta>` tags in the browser, and no social
+crawler runs JavaScript — so without this, every shared link showed the same
+generic card. `nginx-singadvisor.conf` routes crawler user-agents (and only
+those) on `/blog/<slug>` and `/newsletter/<slug>` to the Backend's
+`/share/*` renderer, which returns the real Open Graph tags with that
+post's or issue's cover image.
+
+Requires: the `map` block at the top of `nginx-singadvisor.conf` copied into
+`http{}`, and `SITE_URL` + `PUBLIC_URL` set in `Backend/.env`.
+
+Verify after deploying — the second command must show the article's own
+title and cover, the first the SPA shell:
+
+```bash
+curl -s https://singadvisor.com/blog/<slug> | grep -i 'og:image'
+curl -s -A 'WhatsApp/2.23' https://singadvisor.com/blog/<slug> | grep -i 'og:'
+curl -s -A 'LinkedInBot/1.0' https://singadvisor.com/newsletter/<slug> | grep -i 'og:'
+```
+
+The cover URL in `og:image` must be publicly reachable and served as an
+image — open it in a browser if a preview looks wrong. Keep covers under
+~5 MB: WhatsApp silently drops an image it considers too large.
+
+Both platforms cache a URL's preview hard. After changing a cover, refresh
+it with LinkedIn's Post Inspector (`https://www.linkedin.com/post-inspector/`)
+or Facebook's Sharing Debugger; WhatsApp has no tool — share the link with a
+`?v=2` suffix to force a re-fetch.
+
+## 6. Notes
 
 - `sync_repo` hard-resets the working tree: the server is a deployment
   target, not a workspace. Gitignored files survive (`Backend/.env`,
