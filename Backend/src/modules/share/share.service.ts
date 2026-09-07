@@ -229,9 +229,15 @@ export class ShareService {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     ${tags}
-    <meta http-equiv="refresh" content="0; url=${e(card.url)}">
   </head>
   <body>
+    <!-- Deliberately NOT <meta http-equiv="refresh">. LinkedIn's and
+         Facebook's crawlers follow a meta refresh and then read the tags of
+         wherever it lands — which is the SPA shell, whose card is the site
+         logo. That silently undoes everything above. Only crawlers are
+         routed here (nginx matches on user-agent), so the redirect below is
+         a courtesy for a human who pasted a /share/* URL by hand; they run
+         JavaScript, and no crawler does. -->
     <p>Redirecting to <a href="${e(card.url)}">${e(card.title)}</a>…</p>
     <script>window.location.replace(${JSON.stringify(card.url)});</script>
   </body>
