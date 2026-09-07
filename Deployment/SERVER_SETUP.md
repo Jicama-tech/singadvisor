@@ -98,8 +98,25 @@ those) on `/blog/<slug>` and `/newsletter/<slug>` to the Backend's
 `/share/*` renderer, which returns the real Open Graph tags with that
 post's or issue's cover image.
 
-Requires: the `map` block at the top of `nginx-singadvisor.conf` copied into
-`http{}`, and `SITE_URL` + `PUBLIC_URL` set in `Backend/.env`.
+Requires two things that no deploy script applies for you:
+
+1. The `map` block at the top of `nginx-singadvisor.conf` copied into
+   `http{}`, and the `/blog|/newsletter` + `/__og/` locations into the server
+   block — with `proxy_pass` on the port the Backend actually runs on
+   (`PORT` in `Backend/.env`, the same one the `/api` block proxies to).
+2. `SITE_URL` and `PUBLIC_URL` in `Backend/.env`. `PUBLIC_URL` is wherever
+   `/uploads/*` is publicly reachable, which on the same-origin `/api` proxy
+   includes that path:
+
+   ```
+   SITE_URL=https://singadvisor.com
+   PUBLIC_URL=https://singadvisor.com/api
+   ```
+
+   Leave them unset and the renderer still answers, but every `og:image` it
+   emits points at `localhost` — unreachable to a crawler, so the preview
+   falls back to the site logo. Confirm the value by opening
+   `<PUBLIC_URL>/uploads/<some cover>` in a browser; it must return the image.
 
 Verify after deploying — the second command must show the article's own
 title and cover, the first the SPA shell:
