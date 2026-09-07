@@ -19,6 +19,9 @@ import { ConsultancyModule } from './modules/consultancy/consultancy.module';
 import { CareersModule } from './modules/careers/careers.module';
 import { BlogModule } from './modules/blog/blog.module';
 import { NewsletterModule } from './modules/newsletter/newsletter.module';
+// Server-rendered Open Graph cards for Blog/Newsletter links — the SPA's own
+// <meta> tags are written client-side and social crawlers never run JS.
+import { ShareModule } from './modules/share/share.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 import { SubscribersModule } from './modules/subscribers/subscribers.module';
@@ -59,6 +62,7 @@ import { EventsMirrorModule } from './modules/events-mirror/events-mirror.module
     CareersModule,
     BlogModule,
     NewsletterModule,
+    ShareModule,
     RegistrationsModule,
     ContactMessagesModule,
     SubscribersModule,

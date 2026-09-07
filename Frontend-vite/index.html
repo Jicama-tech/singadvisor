@@ -5,11 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#08111f" />
     <title>SingAdvisor — Training, events, consultancy and careers</title>
-    <!-- Static baseline OG tags; per-page values are set client-side via
-         react-helmet-async (accepted SEO tradeoff of the SPA migration). -->
+    <!-- Static baseline OG tags — the card every page falls back to. Social
+         crawlers never run JavaScript, so the per-page values react-helmet-async
+         writes at runtime are invisible to them and this is all they see.
+         Blog posts and newsletter issues are the exception: nginx routes
+         crawler user-agents on /blog/<slug> and /newsletter/<slug> to the
+         Backend's /share/* renderer, which serves the real cover image (see
+         Deployment/nginx-singadvisor.conf and Backend/src/modules/share). -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SingAdvisor" />
+    <meta property="og:locale" content="en_SG" />
     <meta property="og:title" content="SingAdvisor — Training, events, consultancy and careers" />
+    <meta property="og:description" content="Training, events, consultancy and careers — built around people." />
+    <!-- Absolute, because a crawler resolves og:image against nothing. Update
+         the host here if the site ever moves domain. -->
+    <meta property="og:image" content="https://singadvisor.com/Images/logo/Log.png" />
+    <meta property="og:image:secure_url" content="https://singadvisor.com/Images/logo/Log.png" />
+    <meta property="og:image:alt" content="SingAdvisor" />
+    <meta property="og:image:width" content="724" />
+    <meta property="og:image:height" content="206" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SingAdvisor — Training, events, consultancy and careers" />
+    <meta name="twitter:description" content="Training, events, consultancy and careers — built around people." />
+    <meta name="twitter:image" content="https://singadvisor.com/Images/logo/Log.png" />
     <meta name="description" content="Training, events, consultancy and careers — built around people." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Set the theme class before paint so there is no flash of the wrong
