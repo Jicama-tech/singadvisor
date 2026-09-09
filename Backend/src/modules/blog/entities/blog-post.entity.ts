@@ -75,5 +75,5 @@ export class BlogPost {
 }
 
 export const BlogPostSchema = SchemaFactory.createForClass(BlogPost);
-BlogPostSchema.index({ published: 1, publishedAt: -1 });
+BlogPostSchema.index({ published: 1, featured: -1, publishedAt: -1 });
 BlogPostSchema.index({ category: 1 });

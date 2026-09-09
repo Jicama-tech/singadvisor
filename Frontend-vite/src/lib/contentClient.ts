@@ -119,6 +119,8 @@ export type NewsletterDoc = {
   title: string;
   items: NewsletterItem[];
   published: boolean;
+  /** Pins the issue to the top of the newsletter listing. */
+  featured: boolean;
   createdAt: string;
   updatedAt: string;
 };

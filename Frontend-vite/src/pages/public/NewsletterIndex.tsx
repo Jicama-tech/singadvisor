@@ -9,7 +9,10 @@ import { fetchNewsletters, type NewsletterDoc } from "@/lib/contentClient";
 import { withBackendUrl } from "@/lib/media-url";
 import { formatDate } from "@/lib/utils";
 
-function sortByRecency(a: NewsletterDoc, b: NewsletterDoc): number {
+/** Featured issues first, then newest first — the same rule the blog listing
+ * uses, and the same one the Backend applies to the published list. */
+function sortByPriority(a: NewsletterDoc, b: NewsletterDoc): number {
+  if (Boolean(a.featured) !== Boolean(b.featured)) return a.featured ? -1 : 1;
   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 }
 
@@ -21,7 +24,7 @@ export default function NewsletterIndex() {
     void (async () => {
       const all = await fetchNewsletters();
       if (cancelled) return;
-      setItems(all.filter((n) => n.published).sort(sortByRecency));
+      setItems(all.filter((n) => n.published).sort(sortByPriority));
     })();
     return () => {
       cancelled = true;
