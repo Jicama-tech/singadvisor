@@ -59,6 +59,13 @@ export class Newsletter {
   @Prop({ type: Boolean, required: true, default: false })
   published!: boolean;
 
+  /** Pins the issue to the top of the public newsletter listing. Issues
+   * written before this flag existed carry no such field; Mongo orders a
+   * missing value below `false`, so a descending sort still leaves them
+   * among the unfeatured. */
+  @Prop({ type: Boolean, required: true, default: false })
+  featured!: boolean;
+
   // ---- Deprecated single-story fields (pre-`items` issues only) ----------
   // Optional now: a saved issue has these $unset, so requiring them would
   // make every subsequent update fail validation.
@@ -87,4 +94,4 @@ export class Newsletter {
 }
 
 export const NewsletterSchema = SchemaFactory.createForClass(Newsletter);
-NewsletterSchema.index({ published: 1, createdAt: -1 });
+NewsletterSchema.index({ published: 1, featured: -1, createdAt: -1 });

@@ -26,18 +26,23 @@ export class BlogService {
     return this.qwenService.generateBlogContent(dto.topic);
   }
 
-  /** Public list: published only, newest first (the old Prisma query's
-   * publishedAt ordering). Newsletter-only posts are left out — they stay
+  /** Public list: published only, featured posts pinned to the top and the
+   * rest newest first. Newsletter-only posts are left out — they stay
    * reachable at /blog/<slug> for a reader following a newsletter link, but
    * never surface in the listing (nor, since every public surface reads this
    * one endpoint, in the home-page highlight).
+   *
+   * Sorting on `featured` before the dates is what puts a featured article at
+   * the head of /blog, which is also the hero slot the listing gives its first
+   * post. Posts predating the flag have no such field; Mongo orders a missing
+   * value below `false`, so descending still leaves them among the unfeatured.
    *
    * `$ne: false` rather than `true`: every post written before the flag
    * existed has no such field, and those must keep showing. */
   findPublished() {
     return this.model
       .find({ published: true, listedOnBlog: { $ne: false } })
-      .sort({ publishedAt: -1, createdAt: -1 })
+      .sort({ featured: -1, publishedAt: -1, createdAt: -1 })
       .exec();
   }
 

@@ -355,6 +355,7 @@ export async function saveNewsletter(formData: FormData): Promise<FormState> {
     slug: str(formData, "slug") || slugify(title),
     items,
     published: bool(formData, "published"),
+    featured: bool(formData, "featured"),
   };
 
   try {

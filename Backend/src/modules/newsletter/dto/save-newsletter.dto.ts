@@ -65,4 +65,9 @@ export class SaveNewsletterDto {
   @IsOptional()
   @IsBoolean()
   published?: boolean;
+
+  /** Pins the issue to the top of the public listing. */
+  @IsOptional()
+  @IsBoolean()
+  featured?: boolean;
 }

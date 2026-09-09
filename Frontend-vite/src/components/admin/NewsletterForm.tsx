@@ -23,6 +23,7 @@ type Newsletter = {
   title: string;
   items: NewsletterItem[];
   published: boolean;
+  featured: boolean;
 };
 
 /** One story row in the repeater. `key` is a stable React key that survives
@@ -375,6 +376,16 @@ export function NewsletterForm({
                   Object.keys(values).length > 0
                     ? values.published === "true"
                     : (newsletter?.published ?? true)
+                }
+              />
+              <Toggle
+                name="featured"
+                label="Featured"
+                hint="Pins the issue to the top of the newsletter list, ahead of newer ones."
+                defaultChecked={
+                  Object.keys(values).length > 0
+                    ? values.featured === "true"
+                    : (newsletter?.featured ?? false)
                 }
               />
             </FormSection>

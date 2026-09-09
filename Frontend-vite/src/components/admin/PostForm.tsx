@@ -466,7 +466,7 @@ export function PostForm({
               <Toggle
                 name="featured"
                 label="Featured"
-                hint="Eligible for the home page highlight."
+                hint="Pins it to the top of the blog list, ahead of newer posts, and makes it eligible for the home page highlight."
                 defaultChecked={
                   submitted ? values.featured === "true" : (post?.featured ?? false)
                 }

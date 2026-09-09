@@ -18,6 +18,7 @@ export type NewsletterResponse = {
   title: string;
   items: NewsletterItem[];
   published: boolean;
+  featured: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 };
@@ -51,14 +52,20 @@ export class NewsletterService {
       title: raw.title,
       items,
       published: raw.published,
+      // Issues predating the flag have no such field — unfeatured by default.
+      featured: raw.featured ?? false,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
     };
   }
 
-  /** Public list: published only, newest first. */
+  /** Public list: published only, featured issues pinned to the top and the
+   * rest newest first — same ordering rule the blog listing uses. */
   async findPublished(): Promise<NewsletterResponse[]> {
-    const docs = await this.model.find({ published: true }).sort({ createdAt: -1 }).exec();
+    const docs = await this.model
+      .find({ published: true })
+      .sort({ featured: -1, createdAt: -1 })
+      .exec();
     return docs.map((doc) => this.present(doc));
   }
 
@@ -112,6 +119,7 @@ export class NewsletterService {
         })),
       }),
       ...(dto.published !== undefined && { published: dto.published }),
+      ...(dto.featured !== undefined && { featured: dto.featured }),
     };
 
     if (id) {

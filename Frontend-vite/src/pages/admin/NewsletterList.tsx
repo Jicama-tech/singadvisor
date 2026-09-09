@@ -70,9 +70,12 @@ export default function NewsletterList() {
                   </Td>
                   <Td className="text-[var(--text-secondary)]">{formatDate(n.createdAt)}</Td>
                   <Td>
-                    <Badge tone={n.published ? "success" : "neutral"}>
-                      {n.published ? "Live" : "Draft"}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge tone={n.published ? "success" : "neutral"}>
+                        {n.published ? "Live" : "Draft"}
+                      </Badge>
+                      {n.featured && <Badge tone="warn">Featured</Badge>}
+                    </div>
                   </Td>
                   <Td>
                     <div className="flex items-center justify-end gap-1">

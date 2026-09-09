@@ -31,7 +31,12 @@ function toCardData(p: PostDoc): PostCardData {
   };
 }
 
-function sortByRecency(a: PostDoc, b: PostDoc): number {
+/** Featured posts come first — the newest of them takes the hero slot below —
+ * and everything else falls back to newest first. Mirrors the ordering the
+ * Backend already applies, so a filtered view sorted here in the browser reads
+ * the same way as the unfiltered list. */
+function sortByPriority(a: PostDoc, b: PostDoc): number {
+  if (Boolean(a.featured) !== Boolean(b.featured)) return a.featured ? -1 : 1;
   const da = new Date(a.publishedAt ?? a.createdAt).getTime();
   const db = new Date(b.publishedAt ?? b.createdAt).getTime();
   if (da !== db) return db - da;
@@ -70,7 +75,7 @@ export default function BlogIndex() {
               p.excerpt.toLowerCase().includes(q) ||
               p.tags.some((tag) => tag.toLowerCase().includes(q)),
           )
-          .sort(sortByRecency),
+          .sort(sortByPriority),
         total: published.length,
         countFor,
       });

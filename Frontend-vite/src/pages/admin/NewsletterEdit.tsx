@@ -16,6 +16,7 @@ function toFormShape(n: NewsletterDoc) {
     // pre-`items` issues into one story before answering.
     items: n.items ?? [],
     published: n.published,
+    featured: n.featured ?? false,
   };
 }
 
