@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminEmpty, PageHeading, Panel } from "@/components/admin/AdminUI";
 import { CourseItemEditor, ModuleEditor } from "@/components/admin/CourseItemEditor";
@@ -11,6 +11,7 @@ import TrainingsShell from "@/components/admin/TrainingsShell";
 import { FormError } from "@/components/forms/FormShell";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
+import { useConfirm, type ConfirmOptions } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { formatMins, kindMeta, type CourseItemKind } from "@/lib/course-content";
 import {
@@ -70,8 +71,17 @@ type Draft =
 
 /** The one question this screen asks about unsaved work. Shared, so the two
  * places that have to ask it — a selection change and a click out of the
- * builder — ask it in the same words. */
-const DISCARD_PROMPT = "You have unsaved changes to this item. Discard them?";
+ * builder — ask it in the same words.
+ *
+ * `danger`, which opens the dialog with Cancel focused rather than Discard: an
+ * agreement here throws away typing that exists nowhere else, and this is the
+ * one screen in the admin with no autosave behind it. */
+const DISCARD_PROMPT: ConfirmOptions = {
+  title: "Discard your unsaved changes?",
+  message: "This item has edits that have not been saved. Moving away from it discards them.",
+  confirmLabel: "Discard",
+  tone: "danger",
+};
 
 /** Badge's `warn` tokens as a block rather than a pill — the publish-all
  * report is a list of sentences, and this app has no callout primitive. */
@@ -169,6 +179,10 @@ export default function CourseBuilder() {
   const { user } = useAuth();
   const { id: trainingId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  // The link guard below cancels the click it intercepts, so the navigation it
+  // agreed to is this page's to make — the <Link> that was clicked never gets
+  // to make it.
+  const navigate = useNavigate();
   const [tree, setTree] = useState<CurriculumTree | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   // The record as the server last handed it over. Save posts the difference
@@ -184,6 +198,7 @@ export default function CourseBuilder() {
   // Which record the draft was seeded from, so a reload can tell "the operator
   // moved to another row" from "the tree came back after a write".
   const seededFor = useRef<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const selectedId = searchParams.get("item");
 
@@ -288,6 +303,14 @@ export default function CourseBuilder() {
    * the Link's own handler, which React attaches at the root below. Only
    * anchors are looked at, and every control the builder owns is a <button>,
    * so none of them can reach this.
+   *
+   * What the catch cannot do is decide that click. The question is a dialog
+   * now, and its answer arrives long after this handler has returned — by then
+   * the Link's handler has run and the route has already moved. So a click
+   * that reaches the question is cancelled outright and the navigation is made
+   * here instead, once there is an answer to make it on. Everything that falls
+   * out of the tests below is left completely alone: it is never cancelled,
+   * never asked about, and reaches the Link exactly as it always did.
    */
   useEffect(() => {
     if (!dirty) return;
@@ -318,16 +341,24 @@ export default function CourseBuilder() {
       ) {
         return;
       }
-      if (confirm(DISCARD_PROMPT)) {
-        // Agreed to: let the click run on. The draft goes with the unmount,
-        // and clearing the flag now stops this guard re-arming on the way out.
-        setDirty(false);
-        return;
-      }
-      // Refused. Cancelling in the capture phase means the Link's own handler
-      // never runs, so the route does not move and the draft stays put.
+      // An in-app navigation away from unsaved work. Cancelling in the capture
+      // phase means the Link's own handler never runs, so nothing moves while
+      // the question is on screen — and the destination is read off the anchor
+      // now, because the row it sits in may be gone by the time it is needed.
       e.preventDefault();
       e.stopPropagation();
+      const to = `${link.pathname}${link.search}${link.hash}`;
+      void (async () => {
+        // Refused: the route did not move, the flag is still set, and the next
+        // click on that same link asks again. The guard is armed per click and
+        // is never spent by one.
+        if (!(await confirm(DISCARD_PROMPT))) return;
+        // Agreed to. Clearing the flag first stops this guard re-arming on the
+        // way out; the draft then goes with the unmount, exactly as it did
+        // when the click was allowed to run on by itself.
+        setDirty(false);
+        navigate(to);
+      })();
     };
     window.addEventListener("beforeunload", warn);
     document.addEventListener("click", guardLinks, true);
@@ -335,7 +366,9 @@ export default function CourseBuilder() {
       window.removeEventListener("beforeunload", warn);
       document.removeEventListener("click", guardLinks, true);
     };
-  }, [dirty]);
+    // Both are stable — useConfirm memoises `confirm`, react-router memoises
+    // `navigate` — so in practice this still only re-arms when `dirty` turns.
+  }, [dirty, confirm, navigate]);
 
   /**
    * Every mutation goes through here: one place that flags the write, clears
@@ -364,10 +397,19 @@ export default function CourseBuilder() {
     }
   }
 
-  /** The dirty guard for a selection change — the moment unsaved work would
-   * disappear inside the builder. Leaving it entirely is the effect above. */
-  function confirmDiscard(): boolean {
-    return !dirty || confirm(DISCARD_PROMPT);
+  /**
+   * The dirty guard for a selection change — the moment unsaved work would
+   * disappear inside the builder. Leaving it entirely is the effect above.
+   *
+   * A promise rather than the boolean it used to be, so each of the three
+   * moves behind it — select a row, add a module, add an item — awaits the
+   * answer and then does what it was going to do. Waiting costs those handlers
+   * nothing: the dialog's backdrop covers the outline, so the tree, the
+   * selection and the query string are all exactly as this render left them
+   * when the answer comes back.
+   */
+  async function confirmDiscard(): Promise<boolean> {
+    return !dirty || (await confirm(DISCARD_PROMPT));
   }
 
   /** Below lg the two panes stack, outline first — so selecting a row on a
@@ -394,8 +436,8 @@ export default function CourseBuilder() {
     setSearchParams(next, { replace: true });
   }
 
-  function handleSelect(sel: NonNullable<OutlineSelection>) {
-    if (!confirmDiscard()) return;
+  async function handleSelect(sel: NonNullable<OutlineSelection>) {
+    if (!(await confirmDiscard())) return;
     setDirty(false);
     openRecord(sel.id);
     scrollEditorIntoView();
@@ -476,7 +518,7 @@ export default function CourseBuilder() {
   }
 
   async function handleAddModule() {
-    if (!confirmDiscard()) return;
+    if (!(await confirmDiscard())) return;
     setDirty(false);
     await run(async () => {
       const created = await createModule(trainingId, { title: "Untitled module" });
@@ -485,7 +527,7 @@ export default function CourseBuilder() {
   }
 
   async function handleAddItem(moduleId: string, kind: CourseItemKind) {
-    if (!confirmDiscard()) return;
+    if (!(await confirmDiscard())) return;
     setDirty(false);
     await run(async () => {
       // Titled rather than left blank: the outline row has to say something,
@@ -757,6 +799,8 @@ export default function CourseBuilder() {
             )}
           </div>
         </div>
+
+        {confirmDialog}
       </div>
     </TrainingsShell>
   );

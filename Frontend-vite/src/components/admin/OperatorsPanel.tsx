@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { adminFetch } from "@/lib/adminFetch";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Field, Input } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
@@ -37,6 +38,7 @@ export function OperatorsPanel() {
   const [editing, setEditing] = useState<OperatorRow | "new" | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const { confirm, confirmDialog } = useConfirm();
 
   const load = useCallback(async () => {
     try {
@@ -61,7 +63,13 @@ export function OperatorsPanel() {
   }
 
   async function remove(id: string, name: string) {
-    if (!confirm(`Remove operator "${name}"? They will no longer be able to sign in.`)) return;
+    const agreed = await confirm({
+      title: `Remove operator "${name}"?`,
+      message: "They will no longer be able to sign in.",
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!agreed) return;
     await adminFetch(`${__API_URL__}/operators/${id}`, { method: "DELETE" });
     await load();
   }
@@ -157,6 +165,8 @@ export function OperatorsPanel() {
           </TableWrap>
         )}
       </Panel>
+
+      {confirmDialog}
     </div>
   );
 }

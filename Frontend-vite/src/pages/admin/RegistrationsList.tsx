@@ -4,6 +4,7 @@ import { adminFetch } from "@/lib/adminFetch";
 import { AdminEmpty, PageHeading, Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
 import { StatusSelect } from "@/components/admin/StatusSelect";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { REGISTRATION_STATUSES } from "@/lib/constants";
 import {
@@ -44,6 +45,7 @@ export default function RegistrationsList() {
    * it can succeed as a request while sending nothing at all. */
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const load = useCallback(async () => {
     const res = await adminFetch(`${__API_URL__}/registrations`);
@@ -63,15 +65,13 @@ export default function RegistrationsList() {
    */
   async function confirmPayment(r: RegistrationDoc) {
     const reference = r.paymentRef ?? "—";
-    if (
-      !confirm(
-        `Confirm ${formatPrice(r.amountCents, r.currency)} received from ${r.name}?\n\n` +
-          `Match reference ${reference} on the bank statement first. This marks the payment ` +
-          `received and confirms their place.`,
-      )
-    ) {
-      return;
-    }
+    const agreed = await confirm({
+      title: `Confirm ${formatPrice(r.amountCents, r.currency)} received from ${r.name}?`,
+      message: `Match reference ${reference} on the bank statement first.`,
+      detail: "This marks the payment received and confirms their place.",
+      confirmLabel: "Confirm payment",
+    });
+    if (!agreed) return;
     setVerifying(r._id);
     setError(null);
     try {
@@ -344,6 +344,8 @@ export default function RegistrationsList() {
             </TableWrap>
           )}
         </Panel>
+
+        {confirmDialog}
       </div>
   );
 }
