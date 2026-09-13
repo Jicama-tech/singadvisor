@@ -7,6 +7,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/site/ThemeToggle";
 import { isEventsDashboardRoute } from "@/components/admin/EventsNestedNav";
 import { isLandingDashboardRoute } from "@/components/admin/LandingNestedNav";
+import { isTrainingsDashboardRoute } from "@/components/admin/TrainingsNestedNav";
 import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
 import { cn } from "@/lib/utils";
 
@@ -71,7 +72,7 @@ export function AdminShell({
    * admin (owner/editor), who sees everything. */
   allowedTabs?: string[];
   /** Overrides the default content padding — pages that render their own
-   * secondary sidebar (EventsShell/LandingShell) pass "p-0" so the sidebar
+   * secondary sidebar (EventsShell/LandingShell/TrainingsShell) pass "p-0" so the sidebar
    * sits flush against the primary one instead of leaving a double-width
    * whitespace gutter; those shells pad their own columns internally. */
   mainClassName?: string;
@@ -104,7 +105,10 @@ export function AdminShell({
   // The user can also collapse/expand this by hand at any time (the toggle
   // button below) — that manual choice overrides the route-driven default
   // and is remembered across navigation.
-  const autoCollapsed = isEventsDashboardRoute(pathname) || isLandingDashboardRoute(pathname);
+  const autoCollapsed =
+    isEventsDashboardRoute(pathname) ||
+    isLandingDashboardRoute(pathname) ||
+    isTrainingsDashboardRoute(pathname);
   const [collapsed, toggleCollapsed] = useSidebarCollapse("admin-sidebar-collapsed", autoCollapsed);
 
   const nav = (

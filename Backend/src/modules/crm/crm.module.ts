@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Contact, ContactSchema } from './entities/contact.entity';
 import { Registration, RegistrationSchema } from '../registrations/entities/registration.entity';
+import { Enrolment, EnrolmentSchema } from '../enrolments/entities/enrolment.entity';
+import { CourseRun, CourseRunSchema } from '../course-runs/entities/course-run.entity';
+import { Training, TrainingSchema } from '../trainings/entities/training.entity';
 import {
   ConsultancyEnquiry,
   ConsultancyEnquirySchema,
@@ -25,8 +28,15 @@ import { CrmService } from './crm.service';
   imports: [
     MongooseModule.forFeature([
       { name: Contact.name, schema: ContactSchema },
-      // Read-only, backfill() only — see CrmService's constructor comment.
+      // Read-only — see CrmService's constructor comment. Registration and
+      // Enrolment carry a contact's courses as well as backfill().
       { name: Registration.name, schema: RegistrationSchema },
+      // CourseRun only so the enrolment pass can populate the training title.
+      { name: Enrolment.name, schema: EnrolmentSchema },
+      { name: CourseRun.name, schema: CourseRunSchema },
+      // Training for a course's live title and slug: Enrolment denormalizes
+      // neither, and Registration only snapshots the title.
+      { name: Training.name, schema: TrainingSchema },
       { name: ConsultancyEnquiry.name, schema: ConsultancyEnquirySchema },
       { name: JobApplication.name, schema: JobApplicationSchema },
       { name: ContactMessage.name, schema: ContactMessageSchema },

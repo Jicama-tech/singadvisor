@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
 import { PageHeading } from "@/components/admin/AdminUI";
 import { TrainingForm } from "@/components/admin/TrainingForm";
+import TrainingsShell from "@/components/admin/TrainingsShell";
 import { saveTraining } from "@/adminActions";
 import type { FormState } from "@/lib/form-state";
 import type { TrainingDoc, TrainerDoc } from "@/lib/contentClient";
@@ -29,7 +30,9 @@ function toFormShape(t: TrainingDoc) {
     published: t.published,
     featured: t.featured,
     sortOrder: t.sortOrder,
-    trainerId: t.trainerId ? String(t.trainerId) : null,
+    // `/trainings/id/:id` hands these back as plain string ids in credit
+    // order — already what the picker compares its checkboxes against.
+    trainerIds: t.trainerIds ?? [],
   };
 }
 
@@ -75,6 +78,7 @@ export default function TrainingEdit() {
   };
 
   return (
+    <TrainingsShell>
       <div className="flex flex-col gap-8">
         <PageHeading
           title={id ? "Edit training" : "New training"}
@@ -82,5 +86,6 @@ export default function TrainingEdit() {
         />
         {loaded && <TrainingForm training={training} trainers={trainers} action={onSubmit} />}
       </div>
+    </TrainingsShell>
   );
 }

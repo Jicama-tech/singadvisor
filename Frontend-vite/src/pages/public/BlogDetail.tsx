@@ -212,7 +212,7 @@ export default function BlogDetail() {
                     <span className="flex items-center gap-2.5">
                       <span className="relative h-9 w-9 overflow-hidden rounded-full surface-sunken">
                         <Image
-                          src={post.author.photo}
+                          src={withBackendUrl(post.author.photo)}
                           alt=""
                           fill
                           sizes="36px"
@@ -295,7 +295,7 @@ export default function BlogDetail() {
               <div className="mt-12 flex flex-col gap-5 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-6 sm:flex-row">
                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full surface-sunken">
                   <Image
-                    src={post.author.photo}
+                    src={withBackendUrl(post.author.photo)}
                     alt=""
                     fill
                     sizes="80px"

@@ -7,6 +7,7 @@ import { EnquiryForm } from "@/components/forms/EnquiryForm";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { fetchServiceBySlug, fetchServices, type ServiceDoc } from "@/lib/contentClient";
+import { withBackendUrl } from "@/lib/media-url";
 
 type ConsultancyDetailData = {
   service: ServiceDoc;
@@ -116,7 +117,7 @@ export default function ConsultancyDetail() {
             </div>
             <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-lift)]">
               <Image
-                src={service.image}
+                src={withBackendUrl(service.image)}
                 alt=""
                 fill
                 sizes="(max-width: 1024px) 100vw, 40vw"

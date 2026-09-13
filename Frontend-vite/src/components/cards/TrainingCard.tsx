@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
+import { withBackendUrl } from "@/lib/media-url";
 import { formatDuration, formatPrice } from "@/lib/utils";
 
 export type TrainingCardData = {
@@ -22,7 +23,11 @@ export function TrainingCard({ training }: { training: TrainingCardData }) {
     <Card interactive>
       <div className="relative aspect-[16/10] overflow-hidden surface-sunken">
         <Image
-          src={training.image}
+          // An uploaded cover lives on the Backend, a different origin from
+          // this SPA — a bare "/uploads/..." would hit Vite's SPA fallback and
+          // render index.html as an image. Seeded "/Images/..." paths pass
+          // through untouched.
+          src={withBackendUrl(training.image)}
           alt=""
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

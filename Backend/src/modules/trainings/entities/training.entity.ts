@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 export type TrainingDocument = HydratedDocument<Training>;
 
@@ -67,8 +67,22 @@ export class Training {
   @Prop({ type: Number, required: true, default: 0 })
   sortOrder!: number;
 
-  @Prop({ type: Types.ObjectId, ref: 'Trainer', default: null })
-  trainerId!: Types.ObjectId | null;
+  /**
+   * Everyone who facilitates this course, in the order the admin arranged
+   * them — the public page credits them in that order, so this is a list and
+   * not a set. Replaces the single `trainerId`, which stays in the existing
+   * documents (see scripts/migrate-trainer-ids.ts) but is no longer read.
+   *
+   * Declared with `SchemaTypes.ObjectId` rather than the `Types.ObjectId` the
+   * old field used, following the newer LMS entities: @nestjs/mongoose builds
+   * `Types.ObjectId` as a Mixed path (see course-run.entity.ts), which casts
+   * nothing and so will store the string form of an id just as readily as the
+   * id. That ambiguity is exactly what TrainersService.usage() has to defend
+   * against when it counts who still references a facilitator, and a field
+   * introduced today should not add more of it.
+   */
+  @Prop({ type: [SchemaTypes.ObjectId], ref: 'Trainer', default: [] })
+  trainerIds!: Types.ObjectId[];
 
   @Prop({ type: Date })
   createdAt?: Date;

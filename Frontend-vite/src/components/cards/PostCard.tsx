@@ -73,7 +73,7 @@ export function PostCard({
               <span className="flex items-center gap-2">
                 <span className="relative h-6 w-6 overflow-hidden rounded-full surface-sunken">
                   <Image
-                    src={post.author.photo}
+                    src={withBackendUrl(post.author.photo)}
                     alt=""
                     fill
                     sizes="24px"

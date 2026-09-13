@@ -7,6 +7,8 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { AddNoteDto } from './dto/add-note.dto';
 import { Registration, RegistrationDocument } from '../registrations/entities/registration.entity';
+import { Enrolment, EnrolmentDocument } from '../enrolments/entities/enrolment.entity';
+import { Training, TrainingDocument } from '../trainings/entities/training.entity';
 import {
   ConsultancyEnquiry,
   ConsultancyEnquiryDocument,
@@ -51,6 +53,103 @@ export type UpsertContactInput = {
   };
 };
 
+export type ContactFilters = {
+  q?: string;
+  tag?: string;
+  source?: string;
+  role?: string;
+  /** A Training._id — everyone who has enquired about or enrolled on it. */
+  training?: string;
+};
+
+/**
+ * One programme in a person's history, derived at read time — never stored.
+ *
+ * Two different records make a course theirs, and both count:
+ *   - a Registration, the "I'm interested" form on the brochure page. This is
+ *     where nearly all the real data is; shown as Enquired.
+ *   - an Enrolment, a named allocated seat on a dated CourseRun. The richer
+ *     record; shown as Enrolled.
+ * Grouped by trainingId, so someone who enquired twice and then took two runs
+ * of the same programme is ONE entry with its history, not four rows.
+ *
+ * Nothing here is denormalized onto Contact: an enrolment's status, payment
+ * and attendance all change after the fact and there is no write path that
+ * would keep a stored copy fresh. The sources[] timeline is unaffected — that
+ * is the activity log, this is the roster.
+ */
+export type ContactCourse = {
+  /** Training._id as a string. Present on both source collections. */
+  trainingId: string;
+  /** The live Training's title, falling back to Registration.trainingTitle
+   * (the denormalized snapshot) and then to 'Deleted programme' —
+   * TrainingsService.remove hard-deletes and cascades only to course content,
+   * so both source collections can point at a training that is gone. */
+  title: string;
+  /** null when the Training no longer exists. Doubles as the "still linkable"
+   * flag — the admin editor is /admin/trainings/:trainingId. */
+  slug: string | null;
+  /** Registrations for this programme by this person. 0 = never enquired. */
+  enquiryCount: number;
+  /** Enrolments (seats) for this programme. 0 = enquired but never seated,
+   * which is the common case today — nothing creates an Enrolment yet. */
+  enrolmentCount: number;
+  /** Every run this person has been on, oldest first. Duplicate-free by
+   * construction: one seat per person per run (EnrolmentSchema's unique index
+   * on { courseRunId, email }) and CourseRun.runCode is unique. */
+  runCodes: string[];
+  /** The four below are the LATEST enrolment's, latest meaning highest
+   * createdAt — the order { email: 1, createdAt: -1 } is indexed for. All four
+   * are null when enrolmentCount is 0 and never null when it is not, since
+   * each is required with a default on the entity. */
+  status: string | null;
+  paymentStatus: string | null;
+  attendancePct: number | null;
+  assessmentOutcome: string | null;
+  /** The span across BOTH kinds of record — earliest of any registration or
+   * enrolment, and latest of any. */
+  firstAt: Date;
+  lastAt: Date;
+};
+
+/** What the list view's Courses column renders, and nothing more. findAll is
+ * unpaginated, so sending ten fields per course for every row would multiply
+ * the payload for a cell that shows titles. */
+export type ContactCourseSummary = {
+  trainingId: string;
+  title: string;
+  enquired: boolean;
+  enrolled: boolean;
+};
+
+type LeanContact = Contact & { _id: Types.ObjectId };
+export type ContactWithCourses = LeanContact & { courses: ContactCourse[] };
+export type ContactListRow = LeanContact & { courses: ContactCourseSummary[] };
+
+/** The grouping key both aggregations below share: this person, this
+ * programme. `email` is already folded to lowercase on either side. */
+type CourseGroupId = { email: string; trainingId: Types.ObjectId };
+
+type EnquiryGroupRow = {
+  _id: CourseGroupId;
+  title: string;
+  count: number;
+  firstAt: Date;
+  lastAt: Date;
+};
+
+type EnrolmentGroupRow = {
+  _id: CourseGroupId;
+  count: number;
+  runCodes: string[];
+  status: string;
+  paymentStatus: string;
+  attendancePct: number;
+  assessmentOutcome: string;
+  firstAt: Date;
+  lastAt: Date;
+};
+
 @Injectable()
 export class CrmService {
   private readonly logger = new Logger(CrmService.name);
@@ -58,11 +157,19 @@ export class CrmService {
   constructor(
     @InjectModel(Contact.name)
     private readonly model: Model<ContactDocument>,
-    // Read-only cross-module injections, backfill() only — same pattern
-    // PlatformSyncService already uses to read BlogPost/Newsletter counts
-    // from outside their own modules.
+    // Read-only cross-module injections — same pattern PlatformSyncService
+    // already uses to read BlogPost/Newsletter counts from outside their own
+    // modules. Registration, Enrolment and Training also carry coursesFor()'s
+    // join; the rest are backfill() only.
     @InjectModel(Registration.name)
     private readonly registrationModel: Model<RegistrationDocument>,
+    @InjectModel(Enrolment.name)
+    private readonly enrolmentModel: Model<EnrolmentDocument>,
+    // The live title and slug for a contact's courses. Enrolment denormalizes
+    // neither (Registration keeps a title snapshot, which is only good enough
+    // once the Training itself has been deleted).
+    @InjectModel(Training.name)
+    private readonly trainingModel: Model<TrainingDocument>,
     @InjectModel(ConsultancyEnquiry.name)
     private readonly enquiryModel: Model<ConsultancyEnquiryDocument>,
     @InjectModel(JobApplication.name)
@@ -160,7 +267,167 @@ export class CrmService {
     return existing;
   }
 
-  async findAll(filters: { q?: string; tag?: string; source?: string; role?: string }) {
+  /**
+   * Every listed contact's course history in three queries, not two per
+   * contact — the same discipline CourseContentService.summary follows.
+   * backfill() is the precedent for *which* collections and keys these are,
+   * and deliberately not for the query shape: a find() plus an await per row
+   * is fine for a one-off migration and catastrophic on a list read.
+   *
+   * `emails` must already be lowercase, which Contact.email always is.
+   */
+  private async coursesFor(emails: string[]): Promise<Map<string, ContactCourse[]>> {
+    if (emails.length === 0) return new Map();
+
+    const [enquiries, enrolments] = await Promise.all([
+      this.registrationModel.aggregate<EnquiryGroupRow>([
+        // Normalized before matching rather than after, and to exactly what
+        // Contact.email is (`lowercase: true, trim: true`, and upsertContact's
+        // own .toLowerCase().trim()): the live form only lowercases
+        // (RegistrationsService.create) and import-content.ts wrote legacy rows
+        // verbatim, so this collection genuinely holds mixed case and stray
+        // whitespace while the Contact it upserted has neither. Matching on the
+        // raw address would split one person in two and match neither — and a
+        // near-miss here shows a real student an empty course list rather than
+        // failing loudly. $trim as well as $toLower for that reason: the rows
+        // that need the fold are the same unnormalized legacy rows that can
+        // carry a leading space. Costs nothing — registrations has no email
+        // index for a plain $in to have used either.
+        { $addFields: { emailLower: { $toLower: { $trim: { input: '$email' } } } } },
+        // A row whose trainingId never resolved on import (the same script
+        // writes `?? null` past a required:true, with validators off) has no
+        // programme to be grouped under.
+        { $match: { emailLower: { $in: emails }, trainingId: { $ne: null } } },
+        // $sort before $group is what makes $first/$last mean oldest/newest.
+        { $sort: { createdAt: 1 } },
+        {
+          $group: {
+            _id: { email: '$emailLower', trainingId: '$trainingId' },
+            // Only ever a fallback for a deleted Training — the live one wins.
+            title: { $last: '$trainingTitle' },
+            count: { $sum: 1 },
+            firstAt: { $first: '$createdAt' },
+            lastAt: { $last: '$createdAt' },
+          },
+        },
+      ]),
+      this.enrolmentModel.aggregate<EnrolmentGroupRow>([
+        // A plain indexed $in here, deliberately unlike the pass above: every
+        // enrolment write normalizes the address (EnrolmentsService's
+        // normalizeEmail) and { email: 1, createdAt: -1 } exists for exactly
+        // this read — "every run this person has ever been on".
+        { $match: { email: { $in: emails } } },
+        { $sort: { createdAt: 1 } },
+        {
+          $group: {
+            _id: { email: '$email', trainingId: '$trainingId' },
+            count: { $sum: 1 },
+            // $push, not $addToSet: the sort above makes this chronological,
+            // and duplicates are impossible (one seat per person per run).
+            runCodes: { $push: '$runCode' },
+            status: { $last: '$status' },
+            paymentStatus: { $last: '$paymentStatus' },
+            attendancePct: { $last: '$attendancePct' },
+            assessmentOutcome: { $last: '$assessmentOutcome' },
+            firstAt: { $first: '$createdAt' },
+            lastAt: { $last: '$createdAt' },
+          },
+        },
+      ]),
+    ]);
+
+    const key = (id: CourseGroupId) => `${id.email} ${String(id.trainingId)}`;
+    const enquiryRows = new Map(enquiries.map((r) => [key(r._id), r]));
+    const enrolmentRows = new Map(enrolments.map((r) => [key(r._id), r]));
+    // Keyed by the group id itself rather than parsed back out of the string,
+    // and seeded from both sides — a person who only enquired and a person who
+    // only has a seat both get a row.
+    const groups = new Map<string, CourseGroupId>();
+    for (const r of enquiries) groups.set(key(r._id), r._id);
+    for (const r of enrolments) groups.set(key(r._id), r._id);
+    // Most contacts are not students — no group, no third query.
+    if (groups.size === 0) return new Map();
+
+    // The third query: the live title and slug. Enrolment denormalizes
+    // neither, so without this an enrolment-only course has no name at all.
+    const trainings = await this.trainingModel
+      .find({ _id: { $in: [...groups.values()].map((g) => g.trainingId) } })
+      .select('title slug')
+      .lean<{ _id: Types.ObjectId; title: string; slug: string }[]>()
+      .exec();
+    const trainingsById = new Map(trainings.map((t) => [String(t._id), t]));
+
+    const byEmail = new Map<string, ContactCourse[]>();
+    for (const [k, id] of groups) {
+      const enquiry = enquiryRows.get(k);
+      const enrolment = enrolmentRows.get(k);
+      const training = trainingsById.get(String(id.trainingId));
+      // createdAt is optional on both entities — `timestamps: true` fills it
+      // in, but taking .getTime() of a row that somehow predates that would
+      // 500 the entire list, so the span is built from what is really there.
+      const stamps = [enquiry?.firstAt, enquiry?.lastAt, enrolment?.firstAt, enrolment?.lastAt]
+        .filter((d): d is Date => d instanceof Date)
+        .map((d) => d.getTime());
+      const course: ContactCourse = {
+        trainingId: String(id.trainingId),
+        title: training?.title ?? enquiry?.title ?? 'Deleted programme',
+        slug: training?.slug ?? null,
+        enquiryCount: enquiry?.count ?? 0,
+        enrolmentCount: enrolment?.count ?? 0,
+        runCodes: enrolment?.runCodes ?? [],
+        status: enrolment?.status ?? null,
+        paymentStatus: enrolment?.paymentStatus ?? null,
+        attendancePct: enrolment?.attendancePct ?? null,
+        assessmentOutcome: enrolment?.assessmentOutcome ?? null,
+        firstAt: new Date(Math.min(...stamps)),
+        lastAt: new Date(Math.max(...stamps)),
+      };
+      const list = byEmail.get(id.email) ?? [];
+      list.push(course);
+      byEmail.set(id.email, list);
+    }
+    // Most recent programme first, which is also the order the list view's
+    // "first two" relies on.
+    for (const list of byEmail.values()) {
+      list.sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
+    }
+    return byEmail;
+  }
+
+  /** One join for the whole page, never one per contact. */
+  private async withCourses(contacts: LeanContact[]): Promise<ContactWithCourses[]> {
+    const byEmail = await this.coursesFor(contacts.map((c) => c.email));
+    return contacts.map((c) => ({ ...c, courses: byEmail.get(c.email) ?? [] }));
+  }
+
+  private async attachCourses(contact: LeanContact): Promise<ContactWithCourses> {
+    const [withCourses] = await this.withCourses([contact]);
+    return withCourses;
+  }
+
+  /** The programme filter, resolved to the people it names — a contact holds
+   * no trainingId, so this cannot be a clause on `contacts`. Both collections
+   * count, for the same reason both are shown: enrolments are the richer
+   * record but registrations are where the data currently is. */
+  private async emailsForTraining(training: string): Promise<string[]> {
+    if (!Types.ObjectId.isValid(training)) {
+      throw new BadRequestException('Invalid training id');
+    }
+    const trainingId = new Types.ObjectId(training);
+    // RegistrationSchema.index({ trainingId: 1 }) backs the first,
+    // EnrolmentSchema.index({ trainingId: 1, completedAt: -1 }) the second.
+    const [enquired, enrolled] = await Promise.all([
+      this.registrationModel.distinct('email', { trainingId }),
+      this.enrolmentModel.distinct('email', { trainingId }),
+    ]);
+    // Normalized the same way and for the same reason as coursesFor's fold
+    // above — these addresses come back exactly as each collection stored
+    // them, and are about to be matched against Contact.email, which is always
+    // lowercased and trimmed.
+    return [...new Set([...enquired, ...enrolled].map((e) => e.trim().toLowerCase()))];
+  }
+
+  async findAll(filters: ContactFilters): Promise<ContactListRow[]> {
     const query: Record<string, unknown> = {};
     if (filters.q) {
       const re = new RegExp(filters.q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -176,41 +443,68 @@ export class CrmService {
       const escaped = filters.role.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.role = new RegExp(`^${escaped}$`, 'i');
     }
+    // Pure AND with everything above, exactly as tag/source/role already are:
+    // match the search *and* have the programme. Never skipped when the set
+    // comes back empty — nobody having that programme is a real answer, and
+    // dropping the clause would silently show everyone instead.
+    if (filters.training) {
+      query.email = { $in: await this.emailsForTraining(filters.training) };
+    }
 
-    return this.model.find(query).sort({ lastActivityAt: -1 }).exec();
+    const contacts = await this.model
+      .find(query)
+      .sort({ lastActivityAt: -1 })
+      .lean<LeanContact[]>()
+      .exec();
+    // Projected down after the join, not before it: the join is the same work
+    // either way, and the list only ever renders titles. See
+    // ContactCourseSummary.
+    return (await this.withCourses(contacts)).map(({ courses, ...c }) => ({
+      ...c,
+      courses: courses.map((x) => ({
+        trainingId: x.trainingId,
+        title: x.title,
+        enquired: x.enquiryCount > 0,
+        enrolled: x.enrolmentCount > 0,
+      })),
+    }));
   }
 
   async findById(id: string) {
-    const doc = await this.model.findById(id).exec();
+    const doc = await this.model.findById(id).lean<LeanContact | null>().exec();
     if (!doc) throw new NotFoundException(`No contact with id "${id}"`);
-    return doc;
+    return this.attachCourses(doc);
   }
 
   async createManual(dto: CreateContactDto) {
     const email = dto.email.toLowerCase().trim();
-    const existing = await this.model.findOne({ email }).exec();
-    if (existing) return existing;
-
     const now = new Date();
-    return this.model.create({
-      email,
-      name: dto.name ?? '',
-      phone: dto.phone ?? '',
-      whatsapp: dto.whatsapp ?? '',
-      role: dto.role ?? '',
-      company: dto.company ?? '',
-      sources: [{ type: 'manual', refId: null, label: 'Added manually', createdAt: now }],
-      firstSeenAt: now,
-      lastActivityAt: now,
-    });
+    // A known email still returns the contact that already exists rather than
+    // a duplicate — and that one has a history, so it carries its courses like
+    // every other contact response.
+    const contact =
+      (await this.model.findOne({ email }).exec()) ??
+      (await this.model.create({
+        email,
+        name: dto.name ?? '',
+        phone: dto.phone ?? '',
+        whatsapp: dto.whatsapp ?? '',
+        role: dto.role ?? '',
+        company: dto.company ?? '',
+        sources: [{ type: 'manual', refId: null, label: 'Added manually', createdAt: now }],
+        firstSeenAt: now,
+        lastActivityAt: now,
+      }));
+    return this.attachCourses(contact.toObject());
   }
 
   async update(id: string, dto: UpdateContactDto) {
     const doc = await this.model
       .findByIdAndUpdate(id, { $set: dto }, { new: true, runValidators: true })
+      .lean<LeanContact | null>()
       .exec();
     if (!doc) throw new NotFoundException(`No contact with id "${id}"`);
-    return doc;
+    return this.attachCourses(doc);
   }
 
   async addNote(id: string, dto: AddNoteDto, authorName: string) {
@@ -218,7 +512,10 @@ export class CrmService {
     if (!doc) throw new NotFoundException(`No contact with id "${id}"`);
     doc.notes.push({ text: dto.text, authorName, createdAt: new Date() });
     await doc.save();
-    return doc;
+    // Courses on every contact-returning response, not just the reads: the
+    // detail page replaces its whole contact state from this one too, so
+    // leaving them off here would blank the panel on adding a note.
+    return this.attachCourses(doc.toObject());
   }
 
   async deleteNote(id: string, noteId: string) {
@@ -226,7 +523,7 @@ export class CrmService {
     if (!doc) throw new NotFoundException(`No contact with id "${id}"`);
     doc.notes = doc.notes.filter((n) => String((n as unknown as { _id: Types.ObjectId })._id) !== noteId);
     await doc.save();
-    return doc;
+    return this.attachCourses(doc.toObject());
   }
 
   async remove(id: string) {
@@ -235,8 +532,9 @@ export class CrmService {
     return doc;
   }
 
-  /** CSV of the current filtered list — same filters as findAll. */
-  async exportCsv(filters: { q?: string; tag?: string; source?: string; role?: string }) {
+  /** CSV of the current filtered list — same filters as findAll, including
+   * the programme one, so an export matches the view it was taken from. */
+  async exportCsv(filters: ContactFilters) {
     const contacts = await this.findAll(filters);
     // Column names match what the importer accepts, so an export can be
     // edited in Excel and fed straight back in.
@@ -248,6 +546,10 @@ export class CrmService {
       'Role',
       'Company',
       'Tags',
+      // Derived, not editable, so it sits after that block — and ignored on
+      // re-import (normalizeHeader resolves it to 'courses', which
+      // importFromSpreadsheet never reads), so the round trip still holds.
+      'Courses',
       'First seen',
       'Last activity',
     ];
@@ -259,6 +561,7 @@ export class CrmService {
       c.role,
       c.company,
       c.tags.join('; '),
+      c.courses.map((x) => `${x.title}${x.enrolled ? ' (enrolled)' : ''}`).join('; '),
       c.firstSeenAt.toISOString(),
       c.lastActivityAt.toISOString(),
     ]);
@@ -267,7 +570,7 @@ export class CrmService {
   }
 
   /**
-   * One-off migration: walks every existing registration/enquiry/
+   * One-off migration: walks every existing registration/enrolment/enquiry/
    * application/message/subscriber and upserts a Contact for each,
    * backdated to the source record's own createdAt — so history that
    * predates the CRM still shows up correctly. Safe to re-run (upsertContact
@@ -287,6 +590,29 @@ export class CrmService {
         company: r.company ?? undefined,
         at: r.createdAt,
         source: { type: 'registration', refId: r._id, label: `Registered for ${r.trainingTitle}` },
+      });
+      scanned++;
+    }
+
+    // Same label EnrolmentsService writes live. Withdrawn seats included, as
+    // cancelled registrations are above: the contact still happened.
+    const enrolments = await this.enrolmentModel
+      .find()
+      .populate('courseRunId', 'trainingTitle')
+      .exec();
+    for (const e of enrolments) {
+      const run = e.courseRunId as unknown as { trainingTitle?: string } | null;
+      await this.upsertContact({
+        email: e.email,
+        name: e.name,
+        phone: e.phone ?? undefined,
+        company: e.company ?? undefined,
+        at: e.createdAt,
+        source: {
+          type: 'enrolment',
+          refId: e._id,
+          label: `Enrolled in ${run?.trainingTitle ?? 'a programme'} (${e.runCode})`,
+        },
       });
       scanned++;
     }

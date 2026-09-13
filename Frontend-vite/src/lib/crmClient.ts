@@ -12,12 +12,55 @@ export type ContactNote = {
   createdAt: string;
 };
 
-/** registration | enquiry | application | message | subscriber | manual */
+/** registration | enrolment | enquiry | application | message | subscriber |
+ * ticket | sponsor | feedback | space-booking | manual | import */
 export type ContactSource = {
   type: string;
   refId: string | null;
   label: string;
   createdAt: string;
+};
+
+/**
+ * One programme in this person's history. Derived on the Backend at read time
+ * by grouping their registrations and enrolments by trainingId — never stored
+ * on the contact, because an enrolment's status, payment and attendance all
+ * change after the fact and no write path would keep a copy fresh.
+ *
+ * Two records make a course theirs and both count: a Registration (the
+ * "I'm interested" form on the brochure page, where nearly all the real data
+ * is) shows as Enquired, an Enrolment (a named seat on a dated run, the richer
+ * record) as Enrolled. See the Backend's CrmService.ContactCourse.
+ */
+export type ContactCourse = {
+  trainingId: string;
+  title: string;
+  /** null once the programme has been deleted — also the "is it linkable"
+   * flag, since /admin/trainings/:trainingId is then a dead route. */
+  slug: string | null;
+  enquiryCount: number;
+  /** 0 = enquired but never seated, the common case today. */
+  enrolmentCount: number;
+  /** Oldest first; empty when never enrolled. */
+  runCodes: string[];
+  /** The four below describe the most recent enrolment, and are all null
+   * exactly when enrolmentCount is 0. */
+  status: string | null;
+  paymentStatus: string | null;
+  attendancePct: number | null;
+  assessmentOutcome: string | null;
+  /** The span across both kinds of record. */
+  firstAt: string;
+  lastAt: string;
+};
+
+/** What GET /crm/contacts sends per row. The list is unpaginated, so it gets
+ * titles and two flags rather than each course's full history. */
+export type ContactCourseSummary = {
+  trainingId: string;
+  title: string;
+  enquired: boolean;
+  enrolled: boolean;
 };
 
 /** Suggested roles, not an allow-list — `Contact.role` is a free-form string
@@ -35,7 +78,7 @@ export const CONTACT_ROLES = [
   "Other",
 ] as const;
 
-export type ContactDoc = {
+type ContactBase = {
   _id: string;
   email: string;
   name: string;
@@ -52,7 +95,24 @@ export type ContactDoc = {
   updatedAt: string;
 };
 
-export type ContactFilters = { q?: string; tag?: string; source?: string; role?: string };
+/** Every contact-returning route except the list — the detail read, the create,
+ * the patch and both note writes all carry the full course history, because
+ * CrmDetail replaces its whole contact state from each of them and a response
+ * without `courses` would blank the panel. */
+export type ContactDoc = ContactBase & { courses: ContactCourse[] };
+
+/** GET /crm/contacts only — same contact, lighter courses. */
+export type ContactListItem = ContactBase & { courses: ContactCourseSummary[] };
+
+export type ContactFilters = {
+  q?: string;
+  tag?: string;
+  source?: string;
+  role?: string;
+  /** A Training._id. Applied server-side across both registrations and
+   * enrolments, so the CSV export honours it too. */
+  training?: string;
+};
 
 function query(filters: ContactFilters): string {
   const sp = new URLSearchParams();
@@ -60,13 +120,14 @@ function query(filters: ContactFilters): string {
   if (filters.tag) sp.set("tag", filters.tag);
   if (filters.source) sp.set("source", filters.source);
   if (filters.role) sp.set("role", filters.role);
+  if (filters.training) sp.set("training", filters.training);
   const s = sp.toString();
   return s ? `?${s}` : "";
 }
 
 const json = { "Content-Type": "application/json" } as const;
 
-export function fetchContacts(filters: ContactFilters = {}): Promise<ContactDoc[]> {
+export function fetchContacts(filters: ContactFilters = {}): Promise<ContactListItem[]> {
   return apiJson(`/crm/contacts${query(filters)}`, { admin: true });
 }
 

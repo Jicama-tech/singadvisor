@@ -4,11 +4,11 @@ import { HydratedDocument } from 'mongoose';
 export type TrainerDocument = HydratedDocument<Trainer>;
 
 /**
- * Mirrors Frontend/prisma/schema.prisma's `Trainer` model 1:1. Referenced by
- * Training (`trainerId`, the "Facilitator" picker) and BlogPost (`authorId`,
- * the "Author" picker). The current admin UI has no trainer management page,
- * so this collection is read-only from the API's point of view today —
- * records arrive via the import script only.
+ * Mirrors Frontend/prisma/schema.prisma's `Trainer` model 1:1 — shown in the
+ * admin as "Facilitators" and managed there (TrainersController). Referenced
+ * by Training (`trainerIds`, the "Facilitators" picker), CourseRun and
+ * CourseRunSession (`trainerId`, the trainer on the day), and older BlogPosts
+ * (`authorId`, from before the Author picker gave way to "Written by" text).
  */
 @Schema({ collection: 'trainers', timestamps: true })
 export class Trainer {

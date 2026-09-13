@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { FormSection } from "@/components/admin/AdminForm";
 import { PageHeading, Panel } from "@/components/admin/AdminUI";
 import { DeleteButton } from "@/components/admin/DeleteButton";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { PhoneField } from "@/components/ui/PhoneField";
@@ -22,6 +22,7 @@ import { formatDate } from "@/lib/utils";
 
 const SOURCE_LABELS: Record<string, string> = {
   registration: "Registration",
+  enrolment: "Enrolment",
   enquiry: "Enquiry",
   application: "Application",
   message: "Message",
@@ -46,6 +47,51 @@ const SOURCE_ADMIN_HREF: Record<string, string> = {
   message: "/admin/messages",
   ticket: "/admin/events/participants",
 };
+
+/** The three enrolment vocabularies, each straight off the Backend entity's
+ * own docblock. Label and tone together because they are never wanted apart —
+ * the same shape CourseContentList's curriculumStatus returns. */
+type Vocab = Record<string, { label: string; tone: BadgeTone }>;
+
+/** Enrolment.status. A confirmed seat carries the same accent weight as the
+ * Role badge; a no-show is the only one that costs us a room and a trainer
+ * day for nothing. */
+const ENROLMENT_STATUS: Vocab = {
+  invited: { label: "Invited", tone: "info" },
+  confirmed: { label: "Confirmed", tone: "accent" },
+  withdrawn: { label: "Withdrawn", tone: "neutral" },
+  "no-show": { label: "No-show", tone: "danger" },
+  completed: { label: "Completed", tone: "success" },
+};
+
+/** Enrolment.paymentStatus — money still owed is the only one worth warning
+ * about; waived was a deliberate decision, not an outstanding balance. */
+const PAYMENT_STATUS: Vocab = {
+  unpaid: { label: "Unpaid", tone: "warn" },
+  invoiced: { label: "Invoiced", tone: "info" },
+  paid: { label: "Paid", tone: "success" },
+  waived: { label: "Waived", tone: "neutral" },
+};
+
+/** Enrolment.assessmentOutcome. The vocabulary forks on the run's funding
+ * scheme — internal courses are pass/fail, WSQ is Competent / Not Yet
+ * Competent — so both halves are spelled out here: a WSQ outcome must never
+ * be rendered with internal-course wording. */
+const ASSESSMENT_OUTCOME: Vocab = {
+  pending: { label: "Assessment pending", tone: "neutral" },
+  pass: { label: "Passed", tone: "success" },
+  fail: { label: "Failed", tone: "danger" },
+  competent: { label: "Competent", tone: "success" },
+  "not-yet-competent": { label: "Not yet competent", tone: "warn" },
+};
+
+/** Falls back to the raw value rather than dropping the badge: these lists
+ * live on the Backend entity, and a value added there should show up here
+ * unstyled rather than silently vanish from the record. */
+function VocabBadge({ vocab, value }: { vocab: Vocab; value: string }) {
+  const known = vocab[value];
+  return <Badge tone={known?.tone ?? "neutral"}>{known?.label ?? value}</Badge>;
+}
 
 export default function CrmDetail() {
   const { user } = useAuth();
@@ -221,6 +267,101 @@ export default function CrmDetail() {
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? "Saving…" : "Save changes"}
               </Button>
+            </div>
+          </FormSection>
+
+          {/* The structured roster, deliberately in the main column rather than
+              beside Activity: Activity is the raw sources[] log of everything
+              this person has ever done, this is the answer to "what have they
+              taken with us", and an admin should have it before writing a note
+              about it. */}
+          <FormSection
+            title="Courses"
+            description="Every programme this person has enquired about or taken a seat on."
+          >
+            <div className="flex flex-col gap-3">
+              {contact.courses.length === 0 && (
+                <p className="text-sm text-[var(--text-muted)]">No courses yet.</p>
+              )}
+              {contact.courses.map((course) => {
+                // Both stamps through formatDate before comparing: two records
+                // hours apart are one day to the reader, and "12 Sep 2026 –
+                // 12 Sep 2026" is not a span.
+                const first = formatDate(course.firstAt);
+                const last = formatDate(course.lastAt);
+                return (
+                  <div
+                    key={course.trainingId}
+                    className="rounded-xl border border-[var(--border-subtle)] p-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      {/* A null slug means the programme has been deleted —
+                          TrainingsService.remove leaves its registrations and
+                          enrolments pointing at nothing, so there is no editor
+                          page left to link to. */}
+                      {course.slug ? (
+                        <Link
+                          to={`/admin/trainings/${course.trainingId}`}
+                          className="text-sm font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
+                        >
+                          {course.title}
+                        </Link>
+                      ) : (
+                        <span className="text-sm font-medium text-[var(--text-primary)]">
+                          {course.title}
+                        </span>
+                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {course.enquiryCount > 0 && (
+                          <Badge tone="neutral">
+                            Enquired
+                            {course.enquiryCount > 1 && ` ×${course.enquiryCount}`}
+                          </Badge>
+                        )}
+                        {course.enrolmentCount > 0 && (
+                          <Badge tone="accent">
+                            Enrolled
+                            {course.enrolmentCount > 1 && ` ×${course.enrolmentCount}`}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* The seat's own state, and only when there is a seat —
+                        the four fields are null together. */}
+                    {course.enrolmentCount > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                        {course.status && (
+                          <VocabBadge vocab={ENROLMENT_STATUS} value={course.status} />
+                        )}
+                        {course.paymentStatus && (
+                          <VocabBadge vocab={PAYMENT_STATUS} value={course.paymentStatus} />
+                        )}
+                        {course.assessmentOutcome && (
+                          <VocabBadge
+                            vocab={ASSESSMENT_OUTCOME}
+                            value={course.assessmentOutcome}
+                          />
+                        )}
+                        {/* attendancePct defaults to 0 and stays there until
+                            the run has actually happened — "0% attended" on a
+                            confirmed future seat is noise, not information. */}
+                        {course.attendancePct !== null && course.attendancePct > 0 && (
+                          <span className="text-xs text-[var(--text-muted)]">
+                            {course.attendancePct}% attended
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">
+                      {course.runCodes.length > 0 && <>{course.runCodes.join(", ")} · </>}
+                      {first}
+                      {last !== first && <> – {last}</>}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </FormSection>
 

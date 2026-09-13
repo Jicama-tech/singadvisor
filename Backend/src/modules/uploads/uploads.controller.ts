@@ -21,6 +21,14 @@ const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB — generous for a short hero c
 // Event cover/gallery photos — images only, no video (unlike the hero).
 const ALLOWED_IMAGE_MIME = /^image\/(jpeg|png|webp|gif)$/;
 
+// Course content: images and short lesson video, plus PDF handouts. Same
+// 50MB cap as `landing`. NOTE: everything under uploads/ is served by
+// useStaticAssets with NO guard (main.ts), so this is fine for a marketing
+// preview and wrong for gated paid video — the editor says so in a hint, and
+// the real fix is the guarded RESUME_DIR + streamed-response pattern.
+const ALLOWED_COURSE_MIME =
+  /^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm)|application\/pdf)$/;
+
 @Controller('uploads')
 export class UploadsController {
   /**
@@ -136,6 +144,40 @@ export class UploadsController {
   uploadNewsletterImage(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file uploaded');
     return { url: `/uploads/newsletters/${file.filename}` };
+  }
+
+  /** Lesson media for the course-content builder — video, images and PDF
+   * handouts, guarded and uuid-named like `content` above. Wider allow-list
+   * than the other content routes because an item's payload is a video as
+   * often as it is a picture, and an attachment is usually a PDF. */
+  @Post('course-media')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: join(process.cwd(), 'uploads', 'course-media'),
+        filename: (_req, file, cb) => {
+          cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`);
+        },
+      }),
+      limits: { fileSize: MAX_SIZE_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_COURSE_MIME.test(file.mimetype)) {
+          cb(
+            new BadRequestException(
+              'Only JPEG/PNG/WebP/GIF images, MP4/WebM video or PDF files are allowed',
+            ),
+            false,
+          );
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadCourseMedia(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return { url: `/uploads/course-media/${file.filename}` };
   }
 
   /**
