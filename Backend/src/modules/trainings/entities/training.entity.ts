@@ -45,6 +45,41 @@ export class Training {
   @Prop({ type: String, required: true, default: 'In-person' })
   format!: string;
 
+  /**
+   * Where an Online or Hybrid course is actually run from: the Google
+   * Classroom link a confirmed registrant is emailed. Hybrid carries this and
+   * not an address deliberately — a hybrid course here is still run out of the
+   * classroom, and whoever chooses to sit in the room does not need a link
+   * posted to them.
+   *
+   * A capability, not a description. Anyone holding this link can join the
+   * class, so it never appears in a public response: both public readers
+   * project it away (TrainingsService' PRIVATE_TRAINING_FIELDS), and the only
+   * way it leaves this Backend is inside a confirmed registrant's own email.
+   * Same standing, and the same treatment, as CourseRun.joinUrl.
+   *
+   * Null until the classroom exists — a course can be published, and places
+   * taken on it, well before anyone opens one.
+   */
+  @Prop({ type: String, required: false, default: null })
+  googleClassroomLink!: string | null;
+
+  /**
+   * Where an In-person course is held, as one block of free text the
+   * confirmation email prints as it was typed. One field rather than
+   * CourseRun's venue/address pair: the course form asks the admin for the one
+   * thing an attendee needs — where to turn up — and a run is the place to
+   * describe a sitting in more detail.
+   *
+   * Not a secret; a street address is exactly what a public page for an
+   * in-person course may say. It is kept off both public reads only because
+   * neither page renders it — see TrainingsService' PRIVATE_TRAINING_FIELDS,
+   * which is where to undo that if one ever does. Null until the room is
+   * booked.
+   */
+  @Prop({ type: String, required: false, default: null })
+  venueAddress!: string | null;
+
   /** Minor units — 0 renders as "Free" on the public page. */
   @Prop({ type: Number, required: true, default: 0 })
   priceCents!: number;

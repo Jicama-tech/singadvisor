@@ -24,6 +24,12 @@ function toFormShape(t: TrainingDoc) {
     level: t.level,
     durationHrs: t.durationHrs,
     format: t.format,
+    // Optional on TrainingDoc because the public reads drop them (the
+    // Classroom link is a capability and never leaves the Backend in a page
+    // payload) — this one is `/trainings/id/:id`, which carries both, and the
+    // form wants a definite "nothing stored yet" either way.
+    googleClassroomLink: t.googleClassroomLink ?? null,
+    venueAddress: t.venueAddress ?? null,
     priceCents: t.priceCents,
     outcomes: JSON.stringify(t.outcomes ?? []),
     modules: JSON.stringify(t.modules ?? []),

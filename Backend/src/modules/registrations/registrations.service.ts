@@ -14,6 +14,7 @@ import { Registration, RegistrationDocument } from './entities/registration.enti
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { ClaimPaymentDto } from './dto/claim-payment.dto';
 import { CrmService } from '../crm/crm.service';
+import { MailService } from '../mail/mail.service';
 import { PaynowService } from '../paynow/paynow.service';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class RegistrationsService {
     private readonly trainingModel: Model<Training>,
     private readonly configService: ConfigService,
     private readonly crmService: CrmService,
+    private readonly mail: MailService,
     private readonly paynow: PaynowService,
   ) {}
 
@@ -164,18 +166,42 @@ export class RegistrationsService {
     return registration;
   }
 
+  /**
+   * Admin: move a booking between pending, confirmed and cancelled.
+   *
+   * The write is conditional on the status actually changing, and that is what
+   * makes the confirmation email fire on the transition into `confirmed`
+   * rather than on every press of a button that already reads that way.
+   * Matching on `status: { $ne: status }` instead of reading the row and
+   * comparing also settles two admins confirming at once: exactly one of the
+   * two writes matches, so exactly one email goes out. Same reason claimPayment
+   * below writes conditionally rather than read-then-write.
+   *
+   * A no-op is a success, not a 404: nothing matched means either no such
+   * booking or one already in that state, and only the first of those is an
+   * error, so the row is read back to tell them apart.
+   */
   async updateStatus(id: string, status: string) {
-    const doc = await this.model
-      .findByIdAndUpdate(id, { status }, { new: true, runValidators: true })
+    const transitioned = await this.model
+      .findOneAndUpdate(
+        { _id: id, status: { $ne: status } },
+        { status },
+        { new: true, runValidators: true },
+      )
       .exec();
+    const doc = transitioned ?? (await this.model.findById(id).exec());
     if (!doc) throw new NotFoundException(`No registration with id "${id}"`);
-    return doc;
+    if (!transitioned || status !== 'confirmed') return doc;
+
+    const { registration } = await this.sendConfirmation(doc);
+    return registration;
   }
 
-  /** The row behind a payment route, by an id that came straight off a URL —
-   * so anything that is not an ObjectId is a 400 here rather than the 500
-   * Mongoose's cast error would otherwise surface as. */
-  private async findForPayment(id: string): Promise<RegistrationDocument> {
+  /** The row behind a route that takes an id straight off a URL — the payment
+   * steps and the confirmation resend — so anything that is not an ObjectId is
+   * a 400 here rather than the 500 Mongoose's cast error would otherwise
+   * surface as. */
+  private async findOrFail(id: string): Promise<RegistrationDocument> {
     if (!Types.ObjectId.isValid(id)) throw new BadRequestException('Invalid registration id');
     const doc = await this.model.findById(id).exec();
     if (!doc) throw new NotFoundException(`No registration with id "${id}"`);
@@ -221,7 +247,7 @@ export class RegistrationsService {
    * programme is the one refusal: it has no payment step to describe.
    */
   async paynowQr(id: string) {
-    const doc = await this.findForPayment(id);
+    const doc = await this.findOrFail(id);
     if (doc.paymentStatus === 'not-required' || doc.amountCents <= 0) {
       throw new BadRequestException('This programme is free — there is nothing to pay.');
     }
@@ -260,7 +286,7 @@ export class RegistrationsService {
    * person holding the bank statement always wins that race.
    */
   async claimPayment(id: string, dto: ClaimPaymentDto) {
-    const doc = await this.findForPayment(id);
+    const doc = await this.findOrFail(id);
     if (doc.paymentStatus === 'not-required') {
       throw new BadRequestException('This programme is free — there is nothing to pay.');
     }
@@ -283,7 +309,7 @@ export class RegistrationsService {
     // Nothing matched, so verifyPayment landed between the read and the write.
     // The claim is moot; report the state that won rather than the stale one
     // this call started from.
-    return this.paymentView(await this.findForPayment(id));
+    return this.paymentView(await this.findOrFail(id));
   }
 
   /**
@@ -301,26 +327,208 @@ export class RegistrationsService {
    *
    * Idempotent: re-verifying keeps the first `paymentVerifiedAt`, so the row
    * says when the money was confirmed rather than when the button was last
-   * clicked.
+   * clicked — and a second verification sends no second confirmation email,
+   * because what sends one is winning the conditional write below and not
+   * merely reaching it.
+   *
+   * Two writes rather than one, which is the price of that: the payment is a
+   * fact to record every time, while confirming the place is a transition only
+   * one caller can make. The brief window between them shows a booking paid
+   * but not yet confirmed — a state this flow passes through anyway whenever a
+   * transfer lands before an admin gets to it.
    */
   async verifyPayment(id: string) {
-    const doc = await this.findForPayment(id);
+    const doc = await this.findOrFail(id);
     if (doc.paymentStatus === 'not-required') {
       throw new BadRequestException('This programme is free — there is nothing to verify.');
     }
 
-    const updated = await this.model
+    // The money first, and unconditionally: re-verifying has to keep saying
+    // the transfer arrived, while `paymentVerifiedAt` keeps the moment it was
+    // first confirmed rather than the moment the button was last pressed.
+    const paid = await this.model
       .findByIdAndUpdate(
         doc._id,
         {
           paymentStatus: 'paid',
           ...(doc.paymentVerifiedAt ? {} : { paymentVerifiedAt: new Date() }),
-          ...(doc.status === 'cancelled' ? {} : { status: 'confirmed' }),
         },
         { new: true, runValidators: true },
       )
       .exec();
-    if (!updated) throw new NotFoundException(`No registration with id "${id}"`);
-    return updated;
+    if (!paid) throw new NotFoundException(`No registration with id "${id}"`);
+
+    // Then the place, as its own conditional write — the same shape
+    // updateStatus uses above, and for the same reason. Reading `status` and
+    // then deciding on it would let two admins verifying the same booking at
+    // once both see `pending`, both write `confirmed`, and both send the
+    // joining details; matching on the status instead means exactly one of the
+    // two writes finds a row, so exactly one email goes out.
+    //
+    // Both excluded states are excluded in the match rather than after it.
+    // `confirmed` because the details have already gone (by this route or the
+    // status one) and must not go twice, and `cancelled` because recording a
+    // transfer against a dropped place is fair but quietly reinstating it is
+    // not. Nothing matching is the ordinary outcome, not an error: it means
+    // the booking was already in one of those two states, and the row carrying
+    // the payment we just wrote is the right thing to answer with.
+    const transitioned = await this.model
+      .findOneAndUpdate(
+        { _id: doc._id, status: { $nin: ['confirmed', 'cancelled'] } },
+        { status: 'confirmed' },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!transitioned) return paid;
+
+    const { registration } = await this.sendConfirmation(transitioned);
+    return registration;
   }
+
+  /**
+   * Admin: send the confirmation again.
+   *
+   * Not a convenience. This deployment has no SMTP_HOST configured, so every
+   * confirmation sent at the moment a place is confirmed fails, and without
+   * this route those registrants could never be told where to turn up once
+   * mail is working. It mirrors TicketsService.resendEmail: same best-effort
+   * send, same `{ sent }` answer, no pretending.
+   *
+   * Only a confirmed booking has a confirmation to send. Mailing "your place
+   * is confirmed" to someone still pending, or to someone whose place an admin
+   * cancelled, would be a worse failure than not mailing at all.
+   */
+  async resendConfirmation(id: string) {
+    const doc = await this.findOrFail(id);
+    if (doc.status !== 'confirmed') {
+      throw new BadRequestException('Only a confirmed booking has a confirmation to send.');
+    }
+
+    const { sent, registration } = await this.sendConfirmation(doc);
+    return {
+      sent,
+      confirmationEmailAttemptedAt: registration.confirmationEmailAttemptedAt,
+      confirmationEmailSentAt: registration.confirmationEmailSentAt,
+    };
+  }
+
+  /**
+   * Where to turn up, chosen by the course's format — the same split the
+   * course form offers the admin. Online and Hybrid both carry the Google
+   * Classroom link and nothing else: a hybrid course here is run out of the
+   * classroom, and whoever chooses to sit in the room does not need an address
+   * emailed to them.
+   *
+   * Neither field is required to save a course, so a place can be confirmed
+   * before the classroom is opened or the room is booked. That is ordinary,
+   * not an error, and it must not read as one: an unset field becomes a plain
+   * promise that the details will follow, never a "join here" pointing at
+   * nothing. A course deleted after the booking was taken leaves the same gap
+   * — registrations are not swept with it — with no format left to read, so it
+   * makes the promise in the most general terms it can.
+   */
+  private joiningDetails(training: Training | null): string {
+    if (!training) {
+      return '<p>We will send you the joining details before the course starts.</p>';
+    }
+    if (training.format === 'In-person') {
+      const address = training.venueAddress?.trim();
+      return address
+        ? `<p><strong>Where:</strong><br />${escapeHtml(address).replace(/\n/g, '<br />')}</p>`
+        : '<p>We will send you the venue address before the course starts.</p>';
+    }
+    const link = training.googleClassroomLink?.trim();
+    return link
+      ? `<p><strong>Join here:</strong> <a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>`
+      : '<p>We will send you the Google Classroom link before the course starts.</p>';
+  }
+
+  /**
+   * The confirmation email, and the only place either confirming route or the
+   * resend builds one.
+   *
+   * Best-effort by construction: sendBestEffort never throws, so nothing here
+   * can fail a confirmation that has already been written — the same standing
+   * the CRM upsert in create() has, and the ticket flow's own mail. What it
+   * does do is record the attempt honestly. With no SMTP_HOST configured the
+   * expected answer is `false`, and the two dates it writes are what let the
+   * admin list say so instead of assuming a delivery that never happened.
+   *
+   * The Training is re-read rather than taken from the booking: the joining
+   * details are whatever they are on the day the place is confirmed, and a
+   * classroom link added after the booking was taken is the ordinary case, not
+   * the exception. Only the title is used from the snapshot, because that is
+   * the course the person actually signed up to.
+   */
+  private async sendConfirmation(
+    registration: RegistrationDocument,
+  ): Promise<{ sent: boolean; registration: RegistrationDocument }> {
+    const training = await this.trainingModel.findById(registration.trainingId).exec();
+
+    // Worded off `paymentStatus` rather than assumed: verifyPayment always
+    // arrives here with the money in, while the status route can confirm a
+    // place whose transfer has not turned up yet, and telling that person they
+    // have paid would be a lie the booking itself contradicts.
+    const amount =
+      registration.amountCents > 0
+        ? `<p><strong>${registration.paymentStatus === 'paid' ? 'Paid' : 'Amount due'}:</strong> ` +
+          `${formatAmount(registration.amountCents, registration.currency)}</p>`
+        : '';
+
+    const attemptedAt = new Date();
+    const sent = await this.mail.sendBestEffort({
+      to: registration.email,
+      subject: `Your place on ${registration.trainingTitle} is confirmed`,
+      html: `
+        <p>Hi ${escapeHtml(registration.name)},</p>
+        <p>Your place on <strong>${escapeHtml(registration.trainingTitle)}</strong> is confirmed.</p>
+        <p><strong>Seats:</strong> ${registration.seats}</p>
+        ${amount}
+        ${this.joiningDetails(training)}
+        <p>If anything here looks wrong, reply to this email and we will put it right.</p>
+      `,
+    });
+
+    const updated = await this.model
+      .findByIdAndUpdate(
+        registration._id,
+        {
+          confirmationEmailAttemptedAt: attemptedAt,
+          ...(sent ? { confirmationEmailSentAt: new Date() } : {}),
+        },
+        { new: true },
+      )
+      .exec();
+    if (!sent) {
+      this.logger.warn(
+        `Confirmation email not sent for registration ${String(registration._id)} — see prior warning for why`,
+      );
+    }
+    // The row can only be missing if it was deleted between confirming and
+    // this write; the caller still has a document to answer with, just one a
+    // moment out of date.
+    return { sent, registration: updated ?? registration };
+  }
+}
+
+/** Escapes a value for use inside an HTML attribute or text node — the same
+ * guard ShareService puts on everything it interpolates, and needed for the
+ * same reason: a name, a course title and a venue address are all typed by
+ * somebody, and this template is HTML. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Minor units → something a reader recognises. SGD gets an explicit "S$" for
+ * the reason Frontend-vite's own formatter gives: a bare "$" on a Singapore
+ * booking reads as US dollars. Anything else keeps its ISO code, which is
+ * plainer but never ambiguous. */
+function formatAmount(cents: number, currency: string): string {
+  const amount = (cents / 100).toFixed(2);
+  return currency === 'SGD' ? `S$${amount}` : `${amount} ${currency}`;
 }

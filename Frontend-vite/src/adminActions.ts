@@ -52,6 +52,17 @@ const nullable = (fd: FormData, key: string) => {
   return v === "" ? null : v;
 };
 
+/**
+ * A field the form only renders for some of its choices — the joining details,
+ * which follow the course's format. `undefined` means the input was never on
+ * screen, which is emphatically not the same as an input the admin cleared:
+ * the Backend writes only the keys it is sent, so an omitted key leaves the
+ * stored value alone where an empty string clears it. `str` cannot tell the
+ * two apart, since both read as "".
+ */
+const rendered = (fd: FormData, key: string) =>
+  fd.has(key) ? str(fd, key).trim() : undefined;
+
 /** Every value submitted under one name, in the order the form submitted them
  * — a checkbox list, where the ticked boxes are separate inputs sharing a
  * `name`. The scalar readers above all go through `fd.get`, which sees only
@@ -123,6 +134,19 @@ export async function saveTraining(formData: FormData): Promise<FormState> {
   if (!title)
     return { ok: false, errors: { title: "Title is required." }, values: collectValues(formData) };
 
+  const googleClassroomLink = rendered(formData, "googleClassroomLink");
+  const venueAddress = rendered(formData, "venueAddress");
+  // The rule SaveTrainingDto already enforces, deliberately spelled the same
+  // way — case-sensitivity included — so nothing passes here only to come back
+  // a 400. Checked at all for the reason saveTrainer checks a LinkedIn URL: a
+  // complaint on the field beats a form-level message after a round trip.
+  if (googleClassroomLink && !/^https:\/\//.test(googleClassroomLink))
+    return {
+      ok: false,
+      errors: { googleClassroomLink: "Use the full link, starting with https://" },
+      values: collectValues(formData),
+    };
+
   const body = {
     title,
     slug: str(formData, "slug") || slugify(title),
@@ -133,6 +157,12 @@ export async function saveTraining(formData: FormData): Promise<FormState> {
     level: str(formData, "level") || "All levels",
     durationHrs: num(formData, "durationHrs", 2),
     format: str(formData, "format") || "In-person",
+    // Omitted rather than sent empty when the format did not render it: the
+    // Backend's save() writes only the keys present, so an Online course saved
+    // today keeps the venue address it had as an In-person one, and vice
+    // versa. Sending "" would clear the field the admin never looked at.
+    ...(googleClassroomLink !== undefined && { googleClassroomLink }),
+    ...(venueAddress !== undefined && { venueAddress }),
     priceCents: Math.round(num(formData, "price") * 100),
     outcomes: linesToArray(str(formData, "outcomes")),
     modules: linesToArray(str(formData, "modules")),
@@ -562,6 +592,34 @@ export async function updateRegistrationStatus(id: string, status: string): Prom
 export async function verifyRegistrationPayment(id: string): Promise<void> {
   const result = await sendJson("PATCH", `/registrations/${id}/verify-payment`);
   if (!result.ok) throw new Error(backendMessage(result.data, "Could not confirm the payment."));
+}
+
+/** What the resend answers with: whether a mail server took the message, plus
+ * the row's own two dates so the list can re-render the outcome without
+ * waiting on a refetch. */
+export type ConfirmationEmailResult = {
+  sent: boolean;
+  confirmationEmailAttemptedAt: string | null;
+  confirmationEmailSentAt: string | null;
+};
+
+/**
+ * Send a confirmed booking's joining details again — the Classroom link or the
+ * venue address, whichever its format calls for.
+ *
+ * Throws when the Backend refuses, like verifyRegistrationPayment above: only
+ * a confirmed booking has a confirmation to send. A `sent: false` is not a
+ * refusal though — the request succeeded and no mail server took the message,
+ * which is the ordinary answer wherever SMTP is unconfigured. Callers must
+ * show that as the failure it is; a silent success here is the one thing the
+ * two dates exist to prevent.
+ */
+export async function resendRegistrationConfirmation(
+  id: string,
+): Promise<ConfirmationEmailResult> {
+  const result = await sendJson("POST", `/registrations/${id}/resend-confirmation`);
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not send the confirmation."));
+  return result.data as ConfirmationEmailResult;
 }
 
 export async function updateEnquiryStatus(id: string, status: string): Promise<void> {

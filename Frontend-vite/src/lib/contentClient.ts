@@ -17,6 +17,23 @@ export type TrainingDoc = {
   level: string;
   durationHrs: number;
   format: string;
+  /**
+   * Where an Online or Hybrid course is run from — the Google Classroom link a
+   * confirmed registrant is emailed, and the course form's field for either of
+   * those formats.
+   *
+   * Admin reads only, and optional for that reason rather than for a legacy
+   * one: it is a capability (anyone holding the link can join), so both public
+   * readers project it away server-side and the key is absent — not null — on
+   * anything `fetchTrainings`/`fetchTrainingBySlug` below return.
+   */
+  googleClassroomLink?: string | null;
+  /** Where an In-person course is held, as one block of free text.
+   *
+   * Admin reads only, like the link above, but for a much weaker reason: an
+   * address is not a capability, and nothing stops a public page printing one.
+   * It is simply that none of them do, so the Backend does not send it. */
+  venueAddress?: string | null;
   priceCents: number;
   currency: string;
   outcomes: string[];
@@ -189,6 +206,16 @@ export type RegistrationDoc = {
   payerReference: string | null;
   paymentClaimedAt: string | null;
   paymentVerifiedAt: string | null;
+  /**
+   * The confirmation email — the one carrying the joining details — as two
+   * dates rather than one flag, because they answer different questions:
+   * `attemptedAt` is when the Backend last tried, `sentAt` when a mail server
+   * last actually took the message. Attempted-but-never-sent is the normal
+   * state on a deployment with no SMTP host configured, and it is the one
+   * state the admin list must not read as a delivery.
+   */
+  confirmationEmailAttemptedAt: string | null;
+  confirmationEmailSentAt: string | null;
   trainingId: string;
   trainingTitle: string;
   createdAt: string;
