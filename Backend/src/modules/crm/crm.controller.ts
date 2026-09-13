@@ -42,8 +42,13 @@ export class CrmController {
     @Query('tag') tag?: string,
     @Query('source') source?: string,
     @Query('role') role?: string,
+    /** A Training._id — everyone who has enquired about or enrolled on it.
+     * Checked for validity in CrmService.emailsForTraining, not by a DTO: the
+     * global whitelist/transform pipe does not reach params destructured one
+     * by one, the same reason EnrolmentsService.findAll guards its own id. */
+    @Query('training') training?: string,
   ) {
-    return this.crmService.findAll({ q, tag, source, role });
+    return this.crmService.findAll({ q, tag, source, role, training });
   }
 
   @Get('export')
@@ -53,8 +58,9 @@ export class CrmController {
     @Query('tag') tag?: string,
     @Query('source') source?: string,
     @Query('role') role?: string,
+    @Query('training') training?: string,
   ) {
-    const csv = await this.crmService.exportCsv({ q, tag, source, role });
+    const csv = await this.crmService.exportCsv({ q, tag, source, role, training });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="contacts.csv"');
     res.send(csv);

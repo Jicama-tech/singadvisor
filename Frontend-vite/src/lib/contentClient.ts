@@ -24,8 +24,17 @@ export type TrainingDoc = {
   published: boolean;
   featured: boolean;
   sortOrder: number;
-  trainerId: string | null;
-  trainer?: { _id: string; name: string; title: string; bio: string; photo: string; linkedin: string | null };
+  /** Everyone who facilitates this course, in the order they are credited.
+   * Plain ids — what `/trainings` and the admin's `/trainings/id/:id` carry.
+   * Optional because the public detail read sends `trainers` below *instead*
+   * (the Backend drops the id list once it has populated it), and because a
+   * course written before facilitators became a list has no array stored at
+   * all until the Backend's `migrate:trainers` has run. */
+  trainerIds?: string[];
+  /** The facilitators themselves, in that same order — `/trainings/:slug`
+   * only. The Backend re-keys the populated path to `trainers`, so there is
+   * no populated-or-id ambiguity left for a caller to resolve. */
+  trainers?: { _id: string; name: string; title: string; bio: string; photo: string; linkedin: string | null }[];
   createdAt: string;
   updatedAt: string;
 };
@@ -94,7 +103,18 @@ export type PostDoc = {
   updatedAt: string;
 };
 
-export type TrainerDoc = { _id: string; name: string; title: string };
+/** A facilitator — the Backend's `trainers` collection. */
+export type TrainerDoc = {
+  _id: string;
+  name: string;
+  title: string;
+  bio: string;
+  photo: string;
+  linkedin: string | null;
+  /** Admin list only: how many trainings and blog posts name this person. */
+  trainingCount?: number;
+  postCount?: number;
+};
 
 /** One image, a <=500-word message, and a reference link the reader follows
  * to the full article — the public detail page routes by slug. */
@@ -144,6 +164,31 @@ export type RegistrationDoc = {
   seats: number;
   message: string | null;
   status: "pending" | "confirmed" | "cancelled";
+  /**
+   * What the booking owes, in minor units — the training's price × `seats`,
+   * snapshotted server-side when the place was taken and never recomputed, so
+   * a later price edit cannot change what an existing registrant owes.
+   *
+   * 0, with `paymentStatus` "not-required", on a free programme and on every
+   * row taken before the payment step existed — the honest reading, since
+   * nothing was ever collected against those.
+   */
+  amountCents: number;
+  currency: string;
+  /**
+   * Where the money got to, which is not where the place got to: `status`
+   * above is the booking, this is the transfer. "claimed" means the registrant
+   * pressed "I have paid", an assertion with no PayNow callback behind it;
+   * only "paid", set by an admin who found the transfer, means money arrived.
+   */
+  paymentStatus: "not-required" | "unpaid" | "claimed" | "paid";
+  /** Ours — the code in the QR and on the bank statement. Null when free. */
+  paymentRef: string | null;
+  /** Theirs, typed into a public form and verified by nobody. It helps an
+   * admin find the right line on the statement, never stands in for it. */
+  payerReference: string | null;
+  paymentClaimedAt: string | null;
+  paymentVerifiedAt: string | null;
   trainingId: string;
   trainingTitle: string;
   createdAt: string;
@@ -205,22 +250,14 @@ export async function fetchTrainings(): Promise<TrainingDoc[]> {
   }
 }
 
-/** The Backend populates the trainer INTO the `trainerId` field (populate
- * keeps the field's own name) — normalize it into the `trainer` key the
- * page components expect. */
-function normalizeTraining(raw: TrainingDoc): TrainingDoc {
-  const trainerId = raw.trainerId as unknown;
-  if (trainerId && typeof trainerId === "object" && "name" in (trainerId as object)) {
-    return { ...raw, trainer: trainerId as TrainingDoc["trainer"] };
-  }
-  return raw;
-}
-
+/** No normalize step, unlike its blog sibling below: the trainings module
+ * re-keys its populated facilitators to `trainers` server-side, so nothing
+ * arrives here still sitting on the id field it replaced. */
 export async function fetchTrainingBySlug(slug: string): Promise<TrainingDoc | null> {
   try {
     const res = await fetch(`${__API_URL__}/trainings/${encodeURIComponent(slug)}`);
     if (!res.ok) return null;
-    return normalizeTraining((await res.json()) as TrainingDoc);
+    return (await res.json()) as TrainingDoc;
   } catch {
     return null;
   }
@@ -276,7 +313,9 @@ export async function fetchPosts(): Promise<PostDoc[]> {
   }
 }
 
-/** Same normalize as normalizeTraining, for the blog post's `authorId`. */
+/** The blog module still populates its author INTO `authorId` (populate keeps
+ * the field's own name) — normalize it into the `author` key the page
+ * components expect. Trainings no longer need this; they re-key server-side. */
 function normalizePost(raw: PostDoc): PostDoc {
   const authorId = raw.authorId as unknown;
   if (authorId && typeof authorId === "object" && "name" in (authorId as object)) {

@@ -89,7 +89,10 @@ export class SaveTrainingDto {
   @IsNumber()
   sortOrder?: number;
 
+  /** Ordered: the public page credits the facilitators in the order they
+   * arrive, so the arrangement in the picker is part of the payload. */
   @IsOptional()
-  @IsString()
-  trainerId?: string;
+  @IsArray()
+  @IsString({ each: true })
+  trainerIds?: string[];
 }

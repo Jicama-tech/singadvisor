@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 
 /**
@@ -17,6 +17,12 @@ const AdminLayout = lazy(() => import("@/components/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("@/pages/admin/AdminOverview"));
 const TrainingsList = lazy(() => import("@/pages/admin/TrainingsList"));
 const TrainingEdit = lazy(() => import("@/pages/admin/TrainingEdit"));
+const FacilitatorsList = lazy(() => import("@/pages/admin/FacilitatorsList"));
+const FacilitatorEdit = lazy(() => import("@/pages/admin/FacilitatorEdit"));
+const CourseContentList = lazy(() => import("@/pages/admin/CourseContentList"));
+const CourseBuilder = lazy(() => import("@/pages/admin/CourseBuilder"));
+const TrainingsPlaceholder = lazy(() => import("@/pages/admin/TrainingsPlaceholder"));
+const FacilitatorRedirect = lazy(() => import("@/pages/admin/FacilitatorRedirect"));
 const ConsultancyList = lazy(() => import("@/pages/admin/ConsultancyList"));
 const ConsultancyEdit = lazy(() => import("@/pages/admin/ConsultancyEdit"));
 const CareersList = lazy(() => import("@/pages/admin/CareersList"));
@@ -91,7 +97,22 @@ export default function App() {
           <Route path="landing/:key" element={<LandingSectionEdit />} />
           <Route path="trainings" element={<TrainingsList />} />
           <Route path="trainings/new" element={<TrainingEdit />} />
+          {/* Literal child tabs BEFORE :id — the same rule (and the same bug
+              it prevents) as the events/* block below. `trainings/content/:id`
+              and `trainings/facilitators/:id` sit at depth 3 and can never
+              shadow `trainings/:id`; only the bare literals need to precede it. */}
+          <Route path="trainings/facilitators" element={<FacilitatorsList />} />
+          <Route path="trainings/facilitators/new" element={<FacilitatorEdit />} />
+          <Route path="trainings/facilitators/:id" element={<FacilitatorEdit />} />
+          <Route path="trainings/content" element={<CourseContentList />} />
+          <Route path="trainings/content/:id" element={<CourseBuilder />} />
           <Route path="trainings/:id" element={<TrainingEdit />} />
+          {/* Facilitators moved under the Trainings nested nav; an old
+              bookmark would otherwise fall through to the public 404 (an
+              unmatched child under /admin means /admin itself doesn't match). */}
+          <Route path="facilitators" element={<Navigate to="/admin/trainings/facilitators" replace />} />
+          <Route path="facilitators/new" element={<Navigate to="/admin/trainings/facilitators/new" replace />} />
+          <Route path="facilitators/:id" element={<FacilitatorRedirect />} />
           <Route path="consultancy" element={<ConsultancyList />} />
           <Route path="consultancy/new" element={<ConsultancyEdit />} />
           <Route path="consultancy/:id" element={<ConsultancyEdit />} />

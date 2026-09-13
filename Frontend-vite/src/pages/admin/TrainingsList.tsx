@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
 import { AdminEmpty, PageHeading, Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
 import { DeleteButton } from "@/components/admin/DeleteButton";
+import TrainingsShell from "@/components/admin/TrainingsShell";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -20,11 +21,15 @@ type AdminTraining = {
   currency: string;
   published: boolean;
   featured: boolean;
-  // After the Backend's populate, `trainerId` carries the trainer object
-  // itself (the field keeps its own name) — it is NOT moved to `trainer`.
-  trainerId?: { _id: string; name: string } | null;
+  // The Backend populates the facilitators and re-keys them off the stored
+  // `trainerIds` onto `trainers`, so a row never ships the same people twice.
+  // Empty array for a course nobody is credited on — never null.
+  trainers: { _id: string; name: string }[];
   registrationCount?: number;
 };
+
+/** Credit order is the Backend's, so joining is enough — no sort here. */
+const facilitatorNames = (t: AdminTraining) => t.trainers.map((f) => f.name).join(", ");
 
 export default function TrainingsList() {
   const { user } = useAuth();
@@ -47,6 +52,7 @@ export default function TrainingsList() {
   if (!user) return null;
 
   return (
+    <TrainingsShell>
       <div className="flex flex-col gap-8">
         <PageHeading
           title="Trainings"
@@ -68,7 +74,7 @@ export default function TrainingsList() {
                 <tr>
                   <Th>Title</Th>
                   <Th>Category</Th>
-                  <Th>Facilitator</Th>
+                  <Th>Facilitators</Th>
                   <Th>Duration</Th>
                   <Th>Price</Th>
                   <Th>Signups</Th>
@@ -91,7 +97,18 @@ export default function TrainingsList() {
                     <Td>
                       <Badge tone="accent">{t.category}</Badge>
                     </Td>
-                    <Td className="text-[var(--text-secondary)]">{t.trainerId?.name ?? "—"}</Td>
+                    <Td className="text-[var(--text-secondary)]">
+                      {t.trainers.length === 0 ? (
+                        "—"
+                      ) : (
+                        // Clipped to one line: a course with five facilitators
+                        // must not be the row that wraps while every other one
+                        // sits on a single line. The full list is the tooltip.
+                        <span className="block max-w-56 truncate" title={facilitatorNames(t)}>
+                          {facilitatorNames(t)}
+                        </span>
+                      )}
+                    </Td>
                     <Td className="text-[var(--text-secondary)]">{formatDuration(t.durationHrs)}</Td>
                     <Td className="text-[var(--text-secondary)]">{formatPrice(t.priceCents, t.currency)}</Td>
                     <Td className="text-[var(--text-secondary)]">{t.registrationCount ?? 0}</Td>
@@ -130,5 +147,6 @@ export default function TrainingsList() {
           )}
         </Panel>
       </div>
+    </TrainingsShell>
   );
 }

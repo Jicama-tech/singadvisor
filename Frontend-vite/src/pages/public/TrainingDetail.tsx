@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { fetchTrainingBySlug, fetchTrainings, type TrainingDoc } from "@/lib/contentClient";
 import { formatDuration, formatPrice } from "@/lib/utils";
+import { withBackendUrl } from "@/lib/media-url";
 
 type TrainingDetailData = {
   training: TrainingDoc;
@@ -85,6 +86,9 @@ export default function TrainingDetail() {
   // The Backend returns these as real arrays — no JSON parsing needed.
   const outcomes = training.outcomes;
   const modules = training.modules;
+  // Populated, and in credit order, by the slug read alone — a course nobody
+  // has been assigned to yet simply has none.
+  const trainers = training.trainers ?? [];
 
   return (
     <MarketingShell>
@@ -144,7 +148,9 @@ export default function TrainingDetail() {
 
             <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-lift)]">
               <Image
-                src={training.image}
+                // Uploaded covers live on the Backend origin; seeded
+                // "/Images/..." paths pass through untouched.
+                src={withBackendUrl(training.image)}
                 alt=""
                 fill
                 sizes="(max-width: 1024px) 100vw, 40vw"
@@ -205,28 +211,38 @@ export default function TrainingDetail() {
             </section>
           )}
 
-          {training.trainer && (
+          {trainers.length > 0 && (
             <section>
-              <h2 className="text-2xl">Your facilitator</h2>
-              <div className="mt-5 flex flex-col gap-5 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-6 sm:flex-row">
-                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full surface-sunken">
-                  <Image
-                    src={training.trainer.photo}
-                    alt=""
-                    fill
-                    sizes="96px"
-                    className="object-cover"
-                  />
-                </div>
-                <div>
-                  <h3 className="text-lg">{training.trainer.name}</h3>
-                  <p className="text-sm text-[var(--accent)]">
-                    {training.trainer.title}
-                  </p>
-                  <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-                    {training.trainer.bio}
-                  </p>
-                </div>
+              <h2 className="text-2xl">
+                Your facilitator{trainers.length === 1 ? "" : "s"}
+              </h2>
+              {/* One card each, stacked. A single facilitator reads exactly as
+                  it always has; several read as a list of equals rather than a
+                  hero with also-rans beneath. */}
+              <div className="mt-5 flex flex-col gap-4">
+                {trainers.map((t) => (
+                  <div
+                    key={t._id}
+                    className="flex flex-col gap-5 rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-6 sm:flex-row"
+                  >
+                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full surface-sunken">
+                      <Image
+                        src={withBackendUrl(t.photo)}
+                        alt=""
+                        fill
+                        sizes="96px"
+                        className="object-cover"
+                      />
+                    </div>
+                    <div>
+                      <h3 className="text-lg">{t.name}</h3>
+                      <p className="text-sm text-[var(--accent)]">{t.title}</p>
+                      <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
+                        {t.bio}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
           )}

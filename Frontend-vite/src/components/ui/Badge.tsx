@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-type Tone = "accent" | "neutral" | "warn" | "success" | "danger" | "info";
+/** Exported because callers keep their own tone tables — the course-content
+ * item-kind table maps each kind to a Badge tone, and needs the union to type
+ * that row. */
+export type BadgeTone = "accent" | "neutral" | "warn" | "success" | "danger" | "info";
 
-const tones: Record<Tone, string> = {
+const tones: Record<BadgeTone, string> = {
   accent:
     "bg-[var(--accent-soft)] text-[var(--accent-on-soft)] ring-[var(--accent)]/20",
   neutral:
@@ -22,7 +25,7 @@ export function Badge({
   className,
 }: {
   children: ReactNode;
-  tone?: Tone;
+  tone?: BadgeTone;
   className?: string;
 }) {
   return (

@@ -33,6 +33,17 @@ import { PlatformSyncModule } from './modules/platform-sync/platform-sync.module
 import { CrmModule } from './modules/crm/crm.module';
 import { SpaceBookingsModule } from './modules/space-bookings/space-bookings.module';
 import { EventsMirrorModule } from './modules/events-mirror/events-mirror.module';
+// Trainings LMS spine (branch LMS): dated intakes of a Training, their
+// per-session structure, the named roster and per-session attendance. Runs,
+// sessions and the roster have an admin API; attendance is still schema-only
+// — see course-runs.module.ts for why the entities landed first.
+import { CourseRunsModule } from './modules/course-runs/course-runs.module';
+import { EnrolmentsModule } from './modules/enrolments/enrolments.module';
+// The Coursera-style curriculum authored under Trainings → Content: modules
+// and their polymorphic items (video/reading/quiz/assignment/discussion/
+// resource). It hangs off Training, not CourseRun — a run records which
+// syllabus it taught (CourseRun.versionLabel), it does not own one.
+import { CourseContentModule } from './modules/course-content/course-content.module';
 
 @Module({
   imports: [
@@ -73,6 +84,9 @@ import { EventsMirrorModule } from './modules/events-mirror/events-mirror.module
     PlatformSyncModule,
     CrmModule,
     SpaceBookingsModule,
+    CourseRunsModule,
+    EnrolmentsModule,
+    CourseContentModule,
     // Shadow-copies every eventsh event into this database. Events are
     // owned by eventsh (see EventshProxyModule) and were the one domain
     // with nothing stored locally.

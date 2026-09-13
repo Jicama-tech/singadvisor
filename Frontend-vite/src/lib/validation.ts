@@ -35,9 +35,15 @@ const optionalUrl = z
   .optional()
   .or(z.literal("").transform(() => undefined));
 
+/**
+ * Training enrolment. No `email`, and that absence is the point: the address is
+ * now taken from a Google ID token the Backend verifies against Google's public
+ * keys, so the form has nothing to say about it. A typed address is an identity
+ * claim nobody checked, and accepting one let anyone reserve a place — and
+ * receive whatever follows it — under anyone else's email.
+ */
 export const registrationSchema = z.object({
   name,
-  email,
   phone,
   company: z.string().trim().max(160).optional(),
   seats: z.coerce
@@ -48,6 +54,23 @@ export const registrationSchema = z.object({
   message: z.string().trim().max(2000).optional(),
 });
 export type RegistrationInput = z.infer<typeof registrationSchema>;
+
+/**
+ * The one deployment that still types its own address.
+ *
+ * GOOGLE_CLIENT_ID may still be the .env.example placeholder, and
+ * `<GoogleSignInButton>` renders nothing at all in that case
+ * (`googleSignInConfigured`), so there is no token to take an address from —
+ * demanding one would leave such a deployment unable to take a single booking.
+ * It keeps exactly the field it always had, which is no weaker than before.
+ *
+ * Not a way round the check: which of the two schemas runs is decided by
+ * whether the form produced a credential, and the Backend forks the same way
+ * off its own config — the moment a real client id is configured a typed
+ * address is ignored outright and a missing token is a 400. See
+ * `registerForTraining`.
+ */
+export const registrationFallbackSchema = registrationSchema.extend({ email });
 
 export const enquirySchema = z.object({
   name,

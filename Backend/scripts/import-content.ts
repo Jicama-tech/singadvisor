@@ -119,6 +119,13 @@ async function main() {
 
   // ---- trainings ----------------------------------------------------------
   for (const t of exportData.trainings as any[]) {
+    // The legacy export credits one trainer per training; facilitators are an
+    // ordered list now, so it arrives as a list of one (or none, where the
+    // export named a trainer it does not itself carry). The old `trainerId` is
+    // deliberately not written: it is off the schema, and Mongoose drops
+    // unknown paths from a strict update in silence, so an import would land
+    // every course with no facilitator at all and say nothing about it.
+    const trainer = t.trainerId ? trainerIdByLegacy.get(t.trainerId) : undefined;
     await upsert(Training, t.id, {
       slug: t.slug,
       title: t.title,
@@ -136,7 +143,7 @@ async function main() {
       published: t.published,
       featured: t.featured,
       sortOrder: t.sortOrder,
-      trainerId: t.trainerId ? trainerIdByLegacy.get(t.trainerId) ?? null : null,
+      trainerIds: trainer ? [trainer] : [],
       createdAt: toDateOrNull(t.createdAt) ?? new Date(),
       updatedAt: toDateOrNull(t.updatedAt) ?? new Date(),
     });

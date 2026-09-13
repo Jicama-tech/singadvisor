@@ -6,6 +6,7 @@ import { AdminShell, type AdminCounts } from "@/components/admin/AdminShell";
 import { tabForPath } from "@/lib/access-tabs";
 import { isEventsDashboardRoute } from "@/components/admin/EventsNestedNav";
 import { isLandingDashboardRoute } from "@/components/admin/LandingNestedNav";
+import { isTrainingsDashboardRoute } from "@/components/admin/TrainingsNestedNav";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 
 /**
@@ -83,7 +84,10 @@ export default function AdminLayout() {
   // Pages that render their own secondary sidebar need the content area
   // flush so the nested nav sits next to the primary sidebar (its own
   // padding is the only gutter) instead of main's default p-8.
-  const flush = isEventsDashboardRoute(location.pathname) || isLandingDashboardRoute(location.pathname);
+  const flush =
+    isEventsDashboardRoute(location.pathname) ||
+    isLandingDashboardRoute(location.pathname) ||
+    isTrainingsDashboardRoute(location.pathname);
 
   // Enforce tab access for operators: a route outside their grant renders
   // the access-denied panel instead of the page (the sidebar already hides

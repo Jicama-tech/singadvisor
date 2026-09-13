@@ -41,6 +41,7 @@ export class OverviewController {
       enquiries,
       contactMessages,
       applications,
+      enrolments,
       pendingRegistrations,
       newEnquiries,
       receivedApplications,
@@ -54,6 +55,10 @@ export class OverviewController {
       this.count('consultancy-enquiries'),
       this.count('contact-messages'),
       this.count('job-applications'),
+      // Seats actually allocated. Kept apart from registrations (enquiries)
+      // rather than added to them — see TrainingsService.findAll. There is no
+      // inbox figure: a seat is not something awaiting a reply.
+      this.count('enrolments', { status: { $ne: 'withdrawn' } }),
       this.count('registrations', { status: 'pending' }),
       this.count('consultancy-enquiries', { status: 'new' }),
       this.count('job-applications', { status: 'received' }),
@@ -115,7 +120,7 @@ export class OverviewController {
         applications: receivedApplications,
         messages: unhandledMessages,
       },
-      totals: { registrations, enquiries, applications, contactMessages },
+      totals: { registrations, enrolments, enquiries, applications, contactMessages },
     };
   }
 }

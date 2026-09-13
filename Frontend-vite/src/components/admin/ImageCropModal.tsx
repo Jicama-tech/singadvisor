@@ -25,7 +25,22 @@ interface ImageCropModalProps {
   onCropComplete: (file: File) => void;
   /** Optional initial locked ratio (e.g. 16/9). Omit for free cropping. */
   defaultAspect?: number;
+  /**
+   * What the cropped file is encoded as. Defaults to JPEG because the event
+   * photo fields that have used this modal since Phase 8a expect it, and
+   * silently re-encoding their uploads is not this prop's job — new callers
+   * opt into "image/webp" instead, which is materially smaller at the same
+   * quality. If the browser cannot produce the requested type, canvas.toBlob
+   * hands back either null or a PNG; both are caught below and retried as
+   * JPEG rather than failing the crop.
+   */
+  outputType?: "image/jpeg" | "image/webp";
 }
+
+const EXTENSION: Record<string, string> = {
+  "image/webp": "webp",
+  "image/jpeg": "jpg",
+};
 
 const ASPECT_RATIOS: { label: string; value: number | undefined }[] = [
   { label: "Free", value: undefined },
@@ -47,6 +62,7 @@ export function ImageCropModal({
   onClose,
   onCropComplete,
   defaultAspect,
+  outputType = "image/jpeg",
 }: ImageCropModalProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [crop, setCrop] = useState<Crop>();
@@ -110,10 +126,22 @@ export function ImageCropModal({
         canvas.height,
       );
 
-      const blob: Blob = await new Promise((res, rej) =>
-        canvas.toBlob((b) => (b ? res(b) : rej(new Error("Could not create image"))), "image/jpeg", 0.92),
-      );
-      const file = new File([blob], `cropped-${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+      const encode = (type: string) =>
+        new Promise<Blob | null>((res) => canvas.toBlob(res, type, 0.92));
+
+      // A browser that cannot encode the requested type returns null, or
+      // quietly falls back to PNG — neither is an error, so both are checked
+      // rather than trusted, and JPEG (universally supported) is the retry.
+      let blob = await encode(outputType);
+      let type = blob?.type || "";
+      if (!blob || (outputType === "image/webp" && type !== "image/webp")) {
+        blob = await encode("image/jpeg");
+        type = blob?.type || "image/jpeg";
+      }
+      if (!blob) throw new Error("Could not create image");
+
+      const ext = EXTENSION[type] ?? "jpg";
+      const file = new File([blob], `cropped-${Date.now()}.${ext}`, { type });
       onCropComplete(file);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Please try again.");

@@ -7,8 +7,47 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { slugify } from '../../common/utils/slugify';
 import { Training, TrainingDocument } from './entities/training.entity';
-import { Trainer, TrainerDocument } from './entities/trainer.entity';
 import { SaveTrainingDto } from './dto/save-training.dto';
+
+/** As much of a facilitator as each reader credits: a name for the admin
+ * list's column, a whole card for the public page. */
+type TrainerName = { _id: Types.ObjectId; name: string };
+type TrainerCard = TrainerName & {
+  title: string;
+  bio: string;
+  photo: string;
+  linkedin: string | null;
+};
+
+/**
+ * What the two detail readers hand back. Both are spelled out rather than
+ * inferred because this module is compiled with `declaration: true`, and the
+ * type of a spread lean() document is far too large for the compiler to write
+ * into a .d.ts (TS7056) — the same reason findAll() below is annotated.
+ */
+type AdminTraining = Omit<Training, 'trainerIds'> & {
+  _id: Types.ObjectId;
+  trainerIds: string[];
+};
+type PublicTraining = Omit<Training, 'trainerIds'> & {
+  _id: Types.ObjectId;
+  trainers: (Omit<TrainerCard, '_id'> & { _id: string })[];
+};
+
+/**
+ * populate() keeps the path's own name, so facilitators come back sitting on
+ * `trainerIds` where ids used to be. Both readers re-key them to `trainers`
+ * and hand the id back as a plain string, so no caller has to tell a populated
+ * document from the id it replaced — and the same row never ships the same
+ * people twice.
+ *
+ * The `?? []` is not belt-and-braces: lean() reads what is stored and applies
+ * no schema default, so a training written before the facilitators became a
+ * list — one that has not been through `npm run migrate:trainers` — has no
+ * array at all.
+ */
+const asTrainers = <T extends { _id: Types.ObjectId }>(rows: T[] | undefined) =>
+  (rows ?? []).map(({ _id, ...rest }) => ({ _id: String(_id), ...rest }));
 
 /**
  * Content editing here requires a signed-in admin session, so ownership is
@@ -20,8 +59,6 @@ export class TrainingsService {
   constructor(
     @InjectModel(Training.name)
     private readonly model: Model<TrainingDocument>,
-    @InjectModel(Trainer.name)
-    private readonly trainerModel: Model<TrainerDocument>,
   ) {}
 
   /** Public list: published only, display order first (matches the Prisma
@@ -30,44 +67,71 @@ export class TrainingsService {
     return this.model.find({ published: true }).sort({ sortOrder: 1 }).exec();
   }
 
-  /** Admin list: everything, newest edits first, trainer populated and
+  /** Admin list: everything, newest edits first, facilitators populated and
    * `registrationCount` attached (one aggregation — the old admin page
    * displayed both via Prisma's include/_count, the SPA list needs them in
-   * the document). */
-  async findAll(): Promise<(Training & { registrationCount: number; trainer?: { name: string } | null })[]> {
-    const [docs, counts] = await Promise.all([
-      this.model.find().sort({ updatedAt: -1 }).populate('trainerId', 'name').lean().exec(),
+   * the document). `enrolmentCount` is the seats actually allocated across the
+   * training's runs, withdrawn ones excluded: an enquiry and the seat later
+   * allocated from it are the same person, so the two are kept apart rather
+   * than summed. */
+  async findAll(): Promise<
+    (Omit<Training, 'trainerIds'> & {
+      registrationCount: number;
+      enrolmentCount: number;
+      trainers: { _id: string; name: string }[];
+    })[]
+  > {
+    const [docs, registrations, enrolments] = await Promise.all([
+      this.model
+        .find()
+        .sort({ updatedAt: -1 })
+        .populate<{ trainerIds: TrainerName[] }>('trainerIds', 'name')
+        .lean()
+        .exec(),
       this.model.db
         .collection('registrations')
         .aggregate([{ $group: { _id: '$trainingId', count: { $sum: 1 } } }])
         .toArray(),
+      this.model.db
+        .collection('enrolments')
+        .aggregate([
+          { $match: { status: { $ne: 'withdrawn' } } },
+          { $group: { _id: '$trainingId', count: { $sum: 1 } } },
+        ])
+        .toArray(),
     ]);
-    const byId = new Map(counts.map((c) => [String(c._id), c.count]));
-    return docs.map((d) => ({
-      ...(d as Training & { trainer?: { name: string } | null }),
-      registrationCount: byId.get(String(d._id)) ?? 0,
+    const countsById = (rows: { _id: unknown; count: number }[]) =>
+      new Map(rows.map((c) => [String(c._id), c.count]));
+    const registrationsById = countsById(registrations as { _id: unknown; count: number }[]);
+    const enrolmentsById = countsById(enrolments as { _id: unknown; count: number }[]);
+    return docs.map(({ trainerIds, ...d }) => ({
+      ...d,
+      registrationCount: registrationsById.get(String(d._id)) ?? 0,
+      enrolmentCount: enrolmentsById.get(String(d._id)) ?? 0,
+      trainers: asTrainers(trainerIds),
     }));
   }
 
-  findById(id: string) {
-    return this.model.findById(id).exec();
+  /** Admin detail, read by the edit form — `trainerIds` as plain string ids,
+   * because that is what the picker compares its options against. */
+  async findById(id: string): Promise<AdminTraining | null> {
+    const doc = await this.model.findById(id).lean().exec();
+    if (!doc) return null;
+    return { ...doc, trainerIds: (doc.trainerIds ?? []).map((t) => String(t)) };
   }
 
   /** Public detail — unpublished trainings 404 just like the old page's
-   * `published:true` Prisma where-clause did. Trainer is populated so the
-   * public page can render the facilitator card. */
-  async findBySlugPublic(slug: string) {
+   * `published:true` Prisma where-clause did. Facilitators are populated so
+   * the public page can render a card for each, in the stored order. */
+  async findBySlugPublic(slug: string): Promise<PublicTraining> {
     const doc = await this.model
       .findOne({ slug, published: true })
-      .populate('trainerId', 'name title bio photo linkedin')
+      .populate<{ trainerIds: TrainerCard[] }>('trainerIds', 'name title bio photo linkedin')
+      .lean()
       .exec();
     if (!doc) throw new NotFoundException(`No training with slug "${slug}"`);
-    return doc;
-  }
-
-  /** Read-only picker list for the admin form's "Facilitator" select. */
-  findTrainers() {
-    return this.trainerModel.find().sort({ name: 1 }).select('name title').exec();
+    const { trainerIds, ...training } = doc;
+    return { ...training, trainers: asTrainers(trainerIds) };
   }
 
   async save(dto: SaveTrainingDto, id?: string) {
@@ -87,10 +151,13 @@ export class TrainingsService {
       if (clash) throw new BadRequestException('That slug is already in use.');
     }
 
-    const trainerId =
-      dto.trainerId && Types.ObjectId.isValid(dto.trainerId)
-        ? new Types.ObjectId(dto.trainerId)
-        : null;
+    // Order is carried through exactly as sent — it is the order the public
+    // page credits them in. An id that isn't one is dropped rather than
+    // refused, as the single `trainerId` was: a facilitator deleted between
+    // the form loading and saving should not cost the admin the whole edit.
+    const trainerIds = dto.trainerIds
+      ?.filter((t) => Types.ObjectId.isValid(t))
+      .map((t) => new Types.ObjectId(t));
 
     const data: Record<string, unknown> = {
       ...(slug !== undefined && { slug }),
@@ -109,7 +176,7 @@ export class TrainingsService {
       ...(dto.published !== undefined && { published: dto.published }),
       ...(dto.featured !== undefined && { featured: dto.featured }),
       ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
-      ...(dto.trainerId !== undefined && { trainerId }),
+      ...(dto.trainerIds !== undefined && { trainerIds }),
     };
 
     if (id) {
@@ -127,9 +194,18 @@ export class TrainingsService {
     });
   }
 
+  /** Sweeps the curriculum with it. Reached by raw collection name, the same
+   * way findAll() above counts registrations and enrolments — this module
+   * does not register the course-content schemas, and requiring it to would
+   * couple the two for one deleteMany. */
   async remove(id: string) {
     const doc = await this.model.findByIdAndDelete(id).exec();
     if (!doc) throw new NotFoundException(`No training with id "${id}"`);
+    const db = this.model.db;
+    await Promise.all([
+      db.collection('coursemodules').deleteMany({ trainingId: doc._id }),
+      db.collection('courseitems').deleteMany({ trainingId: doc._id }),
+    ]);
     return doc;
   }
 }
