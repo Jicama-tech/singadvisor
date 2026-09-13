@@ -68,10 +68,12 @@ export type CourseParticipant = {
   enrolled: boolean;
   enquiryCount: number;
   enrolmentCount: number;
-  /** The registration every action on this screen targets — the status
-   * dropdown and Confirm-payment both address a Registration by id
-   * (PATCH /registrations/:id/status, :id/verify-payment). Null for a
-   * seat-only participant, which is exactly when neither action applies. */
+  /** The registration every action on the roster targets — Confirm place,
+   * Confirm payment and Resend all address a Registration by id (PATCH
+   * /registrations/:id/status, :id/verify-payment, POST
+   * /registrations/:id/resend-confirmation). Null for a seat-only participant,
+   * which is exactly when none of them applies: an Enrolment is a seat, not a
+   * booking, so there is no record for any of the three to run against. */
   registrationId: string | null;
   /** pending | confirmed | cancelled */
   registrationStatus: string | null;
@@ -84,6 +86,26 @@ export type CourseParticipant = {
   currency: string | null;
   /** The reference to match on the bank statement, when there is one to match. */
   paymentRef: string | null;
+  /**
+   * The confirmation email — the one carrying the joining details — as the
+   * latest registration's two dates rather than one flag, for the reason
+   * Registration states them that way: confirming a place and telling the
+   * person where to turn up are separate outcomes on a deployment with no
+   * SMTP_HOST, where every first attempt fails and the confirmation succeeds
+   * anyway. Without both, this screen could confirm somebody and show nothing
+   * to say whether they were ever actually told.
+   *
+   *   both null           — nothing confirmed, nothing attempted.
+   *   attempted, not sent — confirmed, but the mail did not go out. The state
+   *                         the resend route exists for.
+   *   both set            — they have the joining details.
+   *
+   * Null together for a seat-only participant: an Enrolment has no
+   * confirmation email of its own, and a missing one must not read as a failed
+   * one — hence the pair, never a `confirmationSent: boolean`.
+   */
+  confirmationEmailAttemptedAt: Date | null;
+  confirmationEmailSentAt: Date | null;
   /** Every run this person holds a seat on, oldest first. Duplicate-free by
    * construction — one seat per person per run, and runCode is unique. */
   runCodes: string[];
@@ -171,6 +193,10 @@ type EnquiryGroupRow = {
   amountCents: number;
   currency: string;
   paymentRef: string | null;
+  /** Nullable where the four above are not: both default to null on the entity
+   * and stay that way until a confirmation has been attempted. */
+  confirmationEmailAttemptedAt: Date | null;
+  confirmationEmailSentAt: Date | null;
   count: number;
   firstAt: Date | null;
   lastAt: Date | null;
@@ -306,6 +332,8 @@ export class ParticipantsService {
             amountCents: { $last: '$amountCents' },
             currency: { $last: '$currency' },
             paymentRef: { $last: '$paymentRef' },
+            confirmationEmailAttemptedAt: { $last: '$confirmationEmailAttemptedAt' },
+            confirmationEmailSentAt: { $last: '$confirmationEmailSentAt' },
             count: { $sum: 1 },
             firstAt: { $first: '$createdAt' },
             lastAt: { $last: '$createdAt' },
@@ -387,6 +415,8 @@ export class ParticipantsService {
         amountCents: enquiry?.amountCents ?? null,
         currency: enquiry?.currency ?? null,
         paymentRef: enquiry?.paymentRef ?? null,
+        confirmationEmailAttemptedAt: enquiry?.confirmationEmailAttemptedAt ?? null,
+        confirmationEmailSentAt: enquiry?.confirmationEmailSentAt ?? null,
         runCodes: seat?.runCodes ?? [],
         enrolmentStatus: seat?.status ?? null,
         enrolmentPaymentStatus: seat?.paymentStatus ?? null,

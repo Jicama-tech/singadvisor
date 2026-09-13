@@ -6,12 +6,15 @@
  * throws an Error carrying the Backend's own message; callers hold a local
  * `error` string and render it through <FormError>.
  *
- * Reads only, and that is the whole module. The two things an admin can DO to
- * somebody on this screen — move the booking's status, confirm that a payment
- * arrived — are writes against ONE Registration, and they already exist in
- * adminActions.ts behind the Registrations screen, which is where one booking
- * is worked on. Nothing here is stored either: every row below is derived at
- * read time from the registrations and enrolments that already exist.
+ * Reads only, and that is the whole module — which is not the same thing as a
+ * read-only screen. What an admin can DO to somebody on a roster (confirm the
+ * place, record the transfer that paid for it, send the joining details again)
+ * are writes against ONE Registration, and all three already exist in
+ * adminActions.ts; CourseParticipants calls them from there rather than growing
+ * a second copy here, so the roster and the Registrations screen move the same
+ * booking through the same three routes. Nothing here is stored either: every
+ * row below is derived at read time from the registrations and enrolments that
+ * already exist.
  *
  * The paths sit under /registrations/participants rather than at a prefix of
  * their own because the people on a course ARE that module's records seen from
@@ -61,9 +64,11 @@ export type CourseParticipant = {
   enrolled: boolean;
   enquiryCount: number;
   enrolmentCount: number;
-  /** The Registration that PATCH /registrations/:id/status and
-   * :id/verify-payment address. Null for a seat-only participant — exactly when
-   * neither action applies. This screen only reads it; see the file docblock. */
+  /** The Registration every action on the roster addresses — PATCH
+   * /registrations/:id/status, PATCH :id/verify-payment and POST
+   * :id/resend-confirmation. Null for a seat-only participant, which is exactly
+   * when none of the three applies: an Enrolment is not a booking, so there is
+   * no record for them to be run against. */
   registrationId: string | null;
   /** pending | confirmed | cancelled */
   registrationStatus: string | null;
@@ -75,6 +80,24 @@ export type CourseParticipant = {
   currency: string | null;
   /** Ours: the code in the QR and on the bank statement. Null when free. */
   paymentRef: string | null;
+  /**
+   * The confirmation email — the one carrying the joining details — as the
+   * latest registration's two dates rather than one flag, exactly as
+   * RegistrationDoc states them, because confirming a place and telling the
+   * person where to turn up are separate outcomes: the Backend's send is
+   * best-effort, and with no SMTP host configured every attempt fails while the
+   * confirmation itself succeeds.
+   *
+   *   both null           — nothing confirmed, nothing attempted.
+   *   attempted, not sent — confirmed, and the mail did not go out. The state
+   *                         the Resend button on the roster exists for.
+   *   both set            — they have the joining details.
+   *
+   * Null together for a seat-only participant, like `registrationId` above: a
+   * missing confirmation must not read as a failed one.
+   */
+  confirmationEmailAttemptedAt: string | null;
+  confirmationEmailSentAt: string | null;
   /** Every run this person holds a seat on, oldest first; empty when never
    * enrolled. */
   runCodes: string[];
