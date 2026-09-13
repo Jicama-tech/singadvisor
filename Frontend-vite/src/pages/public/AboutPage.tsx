@@ -10,6 +10,7 @@ import {
   fetchTrainings,
   type TrainingDoc,
 } from "@/lib/contentClient";
+import { withBackendUrl } from "@/lib/media-url";
 
 const PRINCIPLES = [
   {
@@ -30,7 +31,7 @@ const PRINCIPLES = [
   },
 ];
 
-type Trainer = NonNullable<TrainingDoc["trainer"]>;
+type Trainer = NonNullable<TrainingDoc["trainers"]>[number];
 
 export default function AboutPage() {
   const [trainers, setTrainers] = useState<Trainer[] | null>(null);
@@ -41,24 +42,29 @@ export default function AboutPage() {
       const trainings = await fetchTrainings();
 
       // The Backend has no public trainer-list endpoint, so the team is
-      // derived from the trainers attached to published trainings — one
-      // detail fetch per unique trainer (deduped by trainerId).
+      // derived from the facilitators attached to published trainings. A
+      // course credits several of them now, so what gets fetched is the
+      // smallest set of trainings that between them introduce everyone — one
+      // detail fetch per course that adds a new face, not one per course.
       const seen = new Set<string>();
       const unique = trainings.filter((t) => {
-        if (!t.trainerId || seen.has(t.trainerId)) return false;
-        seen.add(t.trainerId);
+        const ids = t.trainerIds ?? [];
+        if (ids.every((id) => seen.has(id))) return false;
+        ids.forEach((id) => seen.add(id));
         return true;
       });
       const details = await Promise.all(unique.map((t) => fetchTrainingBySlug(t.slug)));
 
       if (cancelled) return;
 
-      setTrainers(
-        details
-          .map((d) => d?.trainer)
-          .filter((tr): tr is Trainer => Boolean(tr))
-          .sort((a, b) => a.name.localeCompare(b.name)),
-      );
+      // Those courses still overlap — two of them can share a facilitator
+      // without either being redundant — so the people themselves are deduped
+      // by id, rather than relying on the course-level pass to have done it.
+      const byId = new Map<string, Trainer>();
+      for (const detail of details) {
+        for (const trainer of detail?.trainers ?? []) byId.set(trainer._id, trainer);
+      }
+      setTrainers([...byId.values()].sort((a, b) => a.name.localeCompare(b.name)));
     })();
     return () => {
       cancelled = true;
@@ -165,7 +171,7 @@ export default function AboutPage() {
             >
               <div className="relative aspect-[16/9]">
                 <Image
-                  src={item.image}
+                  src={withBackendUrl(item.image)}
                   alt=""
                   fill
                   sizes="(max-width: 768px) 100vw, 50vw"
@@ -228,7 +234,7 @@ export default function AboutPage() {
               >
                 <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full surface-sunken">
                   <Image
-                    src={t.photo}
+                    src={withBackendUrl(t.photo)}
                     alt=""
                     fill
                     sizes="96px"

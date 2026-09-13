@@ -14,7 +14,8 @@
     "drop:passwords": "tsx scripts/drop-passwords.ts",
     "seed:landing": "tsx scripts/seed-landing.ts",
     "import:events": "tsx scripts/import-events.ts",
-    "import:content": "tsx scripts/import-content.ts"
+    "import:content": "tsx scripts/import-content.ts",
+    "migrate:trainers": "tsx scripts/migrate-trainer-ids.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

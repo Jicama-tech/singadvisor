@@ -16,12 +16,13 @@ import {
   importContacts,
   runCrmBackfill,
   updateContact,
-  type ContactDoc,
+  type ContactListItem,
 } from "@/lib/crmClient";
 import { formatDate } from "@/lib/utils";
 
 const SOURCE_LABELS: Record<string, string> = {
   registration: "Registration",
+  enrolment: "Enrolment",
   enquiry: "Enquiry",
   application: "Application",
   message: "Message",
@@ -34,14 +35,20 @@ const SOURCE_LABELS: Record<string, string> = {
   import: "Imported",
 };
 
+/** The /trainings/admin payload, narrowed to what the programme filter needs
+ * — same narrowing CourseContentList applies to the same endpoint. */
+type AdminTraining = { _id: string; title: string };
+
 export default function CrmList() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const source = searchParams.get("source") ?? "";
   const role = searchParams.get("role") ?? "";
+  const training = searchParams.get("training") ?? "";
 
-  const [contacts, setContacts] = useState<ContactDoc[] | null>(null);
+  const [contacts, setContacts] = useState<ContactListItem[] | null>(null);
+  const [trainings, setTrainings] = useState<AdminTraining[]>([]);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -50,9 +57,20 @@ export default function CrmList() {
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const data = await fetchContacts({ q, source, role }).catch(() => []);
+    const data = await fetchContacts({ q, source, role, training }).catch(() => []);
     setContacts(data);
-  }, [q, source, role]);
+  }, [q, source, role, training]);
+
+  // Loaded once from /trainings/admin, NOT derived from the contacts on
+  // screen: filtering to a programme excludes everyone who does not have it,
+  // so a derived list would drop its own selected option — the same trap the
+  // roleOptions memo below works around.
+  useEffect(() => {
+    void (async () => {
+      const res = await adminFetch(`${__API_URL__}/trainings/admin`);
+      if (res.ok) setTrainings((await res.json()) as AdminTraining[]);
+    })();
+  }, []);
 
   // The presets plus whatever roles the data actually holds — imported
   // spreadsheets and hand-typed values are free-form, so the filter has to
@@ -71,6 +89,23 @@ export default function CrmList() {
     if (role && !seen.has(role.toLowerCase())) seen.set(role.toLowerCase(), role);
     return [...seen.values()].sort((a, b) => a.localeCompare(b));
   }, [contacts, role]);
+
+  // Alphabetical, not the /trainings/admin order (updatedAt descending) — a
+  // filter is scanned by name, not by when someone last edited the brochure.
+  // A selected programme that has since been deleted is appended for the same
+  // reason roleOptions keeps its own: otherwise the Select falls back to "All
+  // programmes" while the Backend carries on filtering by it.
+  const trainingOptions = useMemo(() => {
+    const options = [...trainings].sort((a, b) => a.title.localeCompare(b.title));
+    if (training && !options.some((t) => t._id === training)) {
+      const deleted = (contacts ?? [])
+        .flatMap((c) => c.courses)
+        .find((c) => c.trainingId === training);
+      // The Backend keeps Registration's title snapshot for exactly this.
+      options.push({ _id: training, title: deleted?.title ?? "Deleted programme" });
+    }
+    return options;
+  }, [trainings, training, contacts]);
 
   useEffect(() => {
     void load();
@@ -106,7 +141,7 @@ export default function CrmList() {
     setExporting(true);
     try {
       const res = await adminFetch(
-        `${__API_URL__}${crmExportPath({ q, source, role })}`,
+        `${__API_URL__}${crmExportPath({ q, source, role, training })}`,
       );
       if (!res.ok) {
         window.alert("Could not export contacts.");
@@ -212,7 +247,9 @@ export default function CrmList() {
           </Button>
         </form>
 
-        <div className="flex gap-2">
+        {/* Wraps rather than overflowing — three selects no longer fit beside
+            the search box on a laptop. */}
+        <div className="flex flex-wrap gap-2">
           <label htmlFor="crm-role" className="sr-only">
             Filter by role
           </label>
@@ -246,6 +283,25 @@ export default function CrmList() {
               </option>
             ))}
           </Select>
+
+          <label htmlFor="crm-training" className="sr-only">
+            Filter by programme
+          </label>
+          {/* Resolved server-side across both registrations and enrolments, so
+              it stays true as the list grows and the CSV export honours it. */}
+          <Select
+            id="crm-training"
+            value={training}
+            onChange={(e) => setFilter("training", e.target.value)}
+            className="sm:w-56"
+          >
+            <option value="">All programmes</option>
+            {trainingOptions.map((t) => (
+              <option key={t._id} value={t._id}>
+                {t.title}
+              </option>
+            ))}
+          </Select>
         </div>
       </div>
 
@@ -259,6 +315,9 @@ export default function CrmList() {
                 <Th>Contact</Th>
                 <Th>Role</Th>
                 <Th>Company</Th>
+                {/* Courses (what they did with us) beside Sources (how they
+                    got here); Actions stays last. */}
+                <Th>Courses</Th>
                 <Th>Sources</Th>
                 <Th>Last activity</Th>
                 <Th className="text-right">Actions</Th>
@@ -291,6 +350,33 @@ export default function CrmList() {
                       {c.role ? <Badge tone="accent">{c.role}</Badge> : <span className="text-[var(--text-muted)]">—</span>}
                     </Td>
                     <Td className="text-[var(--text-secondary)]">{c.company || "—"}</Td>
+                    <Td>
+                      {c.courses.length === 0 ? (
+                        <span className="text-[var(--text-muted)]">—</span>
+                      ) : (
+                        // No flex-wrap and a hard cap per badge: a person with
+                        // eight programmes must not make their row eight lines
+                        // tall. The two shown are the two most recent — the
+                        // Backend already sorts a contact's courses by lastAt
+                        // descending — and the rest become a count.
+                        <div className="flex items-center gap-1">
+                          {c.courses.slice(0, 2).map((course) => (
+                            <Badge
+                              key={course.trainingId}
+                              tone={course.enrolled ? "accent" : "neutral"}
+                              className="max-w-[9rem]"
+                            >
+                              <span className="min-w-0 truncate">{course.title}</span>
+                            </Badge>
+                          ))}
+                          {c.courses.length > 2 && (
+                            <span className="shrink-0 text-xs text-[var(--text-muted)]">
+                              +{c.courses.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </Td>
                     <Td>
                       <div className="flex flex-wrap gap-1">
                         {sourceTypes.map((t) => (

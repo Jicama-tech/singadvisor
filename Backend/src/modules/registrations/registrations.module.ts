@@ -8,6 +8,9 @@ import { RegistrationsService } from './registrations.service';
 // enrolment-time published check.
 import { Training, TrainingSchema } from '../trainings/entities/training.entity';
 import { CrmModule } from '../crm/crm.module';
+// PaynowModule already exports PaynowService (the sponsor and ticket flows
+// inject it the same way) — importing it is all the paid-enrolment QR needs.
+import { PaynowModule } from '../paynow/paynow.module';
 
 @Module({
   imports: [
@@ -16,6 +19,7 @@ import { CrmModule } from '../crm/crm.module';
       { name: Training.name, schema: TrainingSchema },
     ]),
     CrmModule,
+    PaynowModule,
   ],
   controllers: [RegistrationsController],
   providers: [RegistrationsService],

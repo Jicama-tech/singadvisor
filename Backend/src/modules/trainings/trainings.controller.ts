@@ -61,17 +61,3 @@ export class TrainingsController {
     return this.trainingsService.remove(id);
   }
 }
-
-/** Read-only today: the admin form's "Facilitator" picker needs the list, but
- * no trainer management page exists upstream, so nothing writes here — records
- * arrive via the import script (see scripts/import-content.ts). */
-@Controller('trainers')
-export class TrainersController {
-  constructor(private readonly trainingsService: TrainingsService) {}
-
-  @Get()
-  @UseGuards(JwtAuthGuard)
-  list() {
-    return this.trainingsService.findTrainers();
-  }
-}

@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { OAuth2Client } from 'google-auth-library';
+import { googleClientId, verifyGoogleCredential } from '../../common/utils/google-identity';
 import { BlogPost, BlogPostDocument } from './entities/blog-post.entity';
 import { BlogFeedback, BlogFeedbackDocument } from './entities/blog-feedback.entity';
 import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
@@ -17,7 +17,6 @@ import { CrmService } from '../crm/crm.service';
 @Injectable()
 export class BlogFeedbackService {
   private readonly logger = new Logger(BlogFeedbackService.name);
-  private oauthClient: OAuth2Client;
 
   constructor(
     @InjectModel(BlogPost.name) private readonly postModel: Model<BlogPostDocument>,
@@ -25,40 +24,23 @@ export class BlogFeedbackService {
     private readonly feedbackModel: Model<BlogFeedbackDocument>,
     private readonly configService: ConfigService,
     private readonly crmService: CrmService,
-  ) {
-    this.oauthClient = new OAuth2Client(this.configService.get<string>('GOOGLE_CLIENT_ID'));
-  }
-
-  private async verifyGoogleCredential(credential: string) {
-    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
-    if (!clientId || clientId === 'your-google-oauth-client-id') {
-      throw new InternalServerErrorException(
-        'GOOGLE_CLIENT_ID is not configured. Add a real OAuth client ID to Backend/.env to enable blog feedback.',
-      );
-    }
-
-    let ticket;
-    try {
-      ticket = await this.oauthClient.verifyIdToken({ idToken: credential, audience: clientId });
-    } catch (err) {
-      throw new BadRequestException(
-        `Invalid Google sign-in: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    const payload = ticket.getPayload();
-    if (!payload?.sub || !payload?.email) {
-      throw new BadRequestException('Google sign-in did not return the expected profile data.');
-    }
-
-    return { sub: payload.sub, email: payload.email, name: payload.name || '' };
-  }
+  ) {}
 
   async submitFeedback(slug: string, dto: SubmitFeedbackDto) {
     const post = await this.postModel.findOne({ slug, published: true }).exec();
     if (!post) throw new NotFoundException('Post not found');
 
-    const identity = await this.verifyGoogleCredential(dto.credential);
+    // Reader feedback is Google-only by design — there is no anonymous path to
+    // fall back to here, so an unconfigured deployment is a misconfiguration to
+    // surface rather than a fork to take (unlike training enrolment, which
+    // still has its typed-email form to fall back on).
+    const clientId = googleClientId(this.configService);
+    if (!clientId) {
+      throw new InternalServerErrorException(
+        'GOOGLE_CLIENT_ID is not configured. Add a real OAuth client ID to Backend/.env to enable blog feedback.',
+      );
+    }
+    const identity = await verifyGoogleCredential(clientId, dto.credential);
 
     const feedback = await this.feedbackModel
       .findOneAndUpdate(

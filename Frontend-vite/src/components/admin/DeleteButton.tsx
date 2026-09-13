@@ -10,18 +10,18 @@ export function DeleteButton({
   id,
   action,
   label,
+  consequence = "This also removes any submissions attached to it and cannot be undone.",
 }: {
   id: string;
   action: (id: string) => Promise<void>;
   label: string;
+  /** The second line of the confirm dialog, for records whose deletion does
+   * something other than the default cascade. */
+  consequence?: string;
 }) {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (
-      !confirm(
-        `Delete “${label}”?\n\nThis also removes any submissions attached to it and cannot be undone.`,
-      )
-    ) {
+    if (!confirm(`Delete “${label}”?\n\n${consequence}`)) {
       return;
     }
     await action(id);

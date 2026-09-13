@@ -52,6 +52,13 @@ const nullable = (fd: FormData, key: string) => {
   return v === "" ? null : v;
 };
 
+/** Every value submitted under one name, in the order the form submitted them
+ * — a checkbox list, where the ticked boxes are separate inputs sharing a
+ * `name`. The scalar readers above all go through `fd.get`, which sees only
+ * the last of a repeated key, so an array field has to come through here. */
+const list = (fd: FormData, key: string) =>
+  fd.getAll(key).map(String).filter(Boolean);
+
 /** The Backend now stores these as real arrays (Prisma used JSON strings) —
  * the textarea one-per-line convention stays, only the encoding changes. */
 function linesToArray(text: string): string[] {
@@ -132,7 +139,11 @@ export async function saveTraining(formData: FormData): Promise<FormState> {
     published: bool(formData, "published"),
     featured: bool(formData, "featured"),
     sortOrder: num(formData, "sortOrder"),
-    trainerId: nullable(formData, "trainerId"),
+    // Ordered: the public page credits the facilitators in the order they
+    // arrive, which is the order the form's checkbox list rendered them in.
+    // Always sent, so unticking everyone clears the course's credits —
+    // exactly what the single `trainerId: null` used to do.
+    trainerIds: list(formData, "trainerIds"),
   };
 
   try {
@@ -149,6 +160,54 @@ export async function saveTraining(formData: FormData): Promise<FormState> {
 
 export async function deleteTraining(id: string): Promise<void> {
   await sendJson("DELETE", `/trainings/${id}`);
+}
+
+// ---------------------------------------------------------------------------
+// Facilitators (the Backend's `trainers`)
+// ---------------------------------------------------------------------------
+
+export async function saveTrainer(formData: FormData): Promise<FormState> {
+  const id = str(formData, "id") || null;
+  const name = str(formData, "name").trim();
+  if (!name)
+    return { ok: false, errors: { name: "Name is required." }, values: collectValues(formData) };
+
+  const linkedin = str(formData, "linkedin").trim();
+  if (linkedin && !/^https?:\/\/\S+\.\S+/i.test(linkedin))
+    return {
+      ok: false,
+      errors: { linkedin: "Use the full profile URL, starting with https://" },
+      values: collectValues(formData),
+    };
+
+  const body = {
+    name,
+    title: str(formData, "title"),
+    bio: str(formData, "bio"),
+    // Already uploaded by the time this submits — the photo field uploads on
+    // crop-confirm, as the blog cover image does (see FacilitatorForm).
+    photo: str(formData, "photo"),
+    linkedin: linkedin || null,
+  };
+
+  try {
+    const result = id
+      ? await sendJson("PATCH", `/trainers/${id}`, body)
+      : await sendJson("POST", "/trainers", body);
+    if (!result.ok)
+      return { ok: false, message: backendMessage(result.data, "Could not save the facilitator."), values: collectValues(formData) };
+    return { ok: true };
+  } catch (err) {
+    return errorState(err, formData, "Could not save the facilitator.");
+  }
+}
+
+/** Unlike the other deletes, this one is routinely refused — a facilitator
+ * still assigned to a training can't go — so the Backend's reason is thrown
+ * for the list page to show instead of being dropped. */
+export async function deleteTrainer(id: string): Promise<void> {
+  const result = await sendJson("DELETE", `/trainers/${id}`);
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not delete the facilitator."));
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +476,28 @@ export async function uploadContentImage(file: File): Promise<{ url: string }> {
   return data as { url: string };
 }
 
+/** Lesson media for the course-content builder — a video, an image or a PDF
+ * handout — into its own storage dir (`uploads/course-media`), on a wider
+ * allow-list than the other content routes. Uploaded the moment the file is
+ * chosen, like the two above, because the item draft has to hold the returned
+ * path before anything is saved. Deliberately not built on sendJson: a
+ * multipart body must NOT get sendJson's JSON Content-Type, fetch needs to
+ * compute the multipart boundary itself. */
+export async function uploadCourseMedia(file: File): Promise<{ url: string }> {
+  const token = sessionStorage.getItem("token");
+  if (!token) throw new Error("Not authorised.");
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${__API_URL__}/uploads/course-media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(backendMessage(data, "Could not upload the file."));
+  return data as { url: string };
+}
+
 /** "Generate with AI" — draft-only, nothing is saved until the admin hits
  * Publish/Save on the (now pre-filled) form. */
 export async function generateBlogContent(
@@ -463,6 +544,24 @@ export async function setFeedbackFeatured(
 
 export async function updateRegistrationStatus(id: string, status: string): Promise<void> {
   await sendJson("PATCH", `/registrations/${id}/status`, { status });
+}
+
+/**
+ * The transfer arrived. The only call in the app that can turn a registrant's
+ * claim into money — "I have paid" is an assertion nothing has checked, and
+ * PayNow gives no callback to check it with, so somebody reading the bank
+ * statement is the whole verification. It also confirms the place, which is
+ * what the enrolment flow means end to end; the Backend keeps a cancelled
+ * booking cancelled, so recording a payment never quietly reinstates a place
+ * an admin dropped.
+ *
+ * Unlike the status updaters above this throws when the Backend refuses.
+ * Swallowing a failed money write would leave the list showing an unconfirmed
+ * row with nothing to explain why.
+ */
+export async function verifyRegistrationPayment(id: string): Promise<void> {
+  const result = await sendJson("PATCH", `/registrations/${id}/verify-payment`);
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not confirm the payment."));
 }
 
 export async function updateEnquiryStatus(id: string, status: string): Promise<void> {

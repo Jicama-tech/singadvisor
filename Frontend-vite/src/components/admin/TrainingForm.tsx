@@ -1,10 +1,17 @@
 
+import { Link } from "react-router-dom";
 import { saveTraining } from "@/app/admin/actions";
 import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
+import { CoverImageField } from "@/components/admin/CoverImageField";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { TRAINING_CATEGORIES, TRAINING_FORMATS } from "@/lib/constants";
 import { jsonToLines } from "@/lib/utils";
+
+/** One row of the facilitator picker — `id`, not `_id`, like every other
+ * field on `Training` below (the form is still shaped after the Prisma rows
+ * it was written against; TrainingEdit's `toFormShape` does the mapping). */
+type TrainerOption = { id: string; name: string };
 
 type Training = {
   id: string;
@@ -23,7 +30,7 @@ type Training = {
   published: boolean;
   featured: boolean;
   sortOrder: number;
-  trainerId: string | null;
+  trainerIds: string[];
 };
 
 export function TrainingForm({
@@ -32,9 +39,21 @@ export function TrainingForm({
   action = saveTraining,
 }: {
   training?: Training;
-  trainers: { id: string; name: string }[];
+  trainers: TrainerOption[];
   action?: (formData: FormData) => Promise<FormState | void>;
 }) {
+  const credited = training?.trainerIds ?? [];
+  // A checkbox list submits in the order it renders, and that order is the
+  // order the public page credits — so the facilitators already on this
+  // course lead the picker, in their stored order, and anyone newly ticked
+  // joins the end. Without this, re-saving an untouched form would quietly
+  // re-sort the credits into whatever order /trainers happened to answer in.
+  // An id whose facilitator has since been deleted simply matches nothing.
+  const trainerOptions: TrainerOption[] = [
+    ...credited.flatMap((id) => trainers.filter((t) => t.id === id)),
+    ...trainers.filter((t) => !credited.includes(t.id)),
+  ];
+
   return (
     <AdminForm
       action={action}
@@ -83,14 +102,16 @@ export function TrainingForm({
               />
             </Field>
 
-            <Field
-              label="Image path"
-              htmlFor="t-image"
-              hint="A path under /public, e.g. /Images/Trainingimgae/times.webp"
-              error={errors.image}
-            >
-              <Input id="t-image" name="image" defaultValue={values.image ?? training?.image} />
-            </Field>
+            {/* Was a path text box. The upload writes the same string into a
+                hidden input under the same name, so saveTraining is unchanged
+                — and an existing /Images/... path still renders and survives
+                an edit that never touches the image. */}
+            <CoverImageField name="image" value={values.image ?? training?.image} />
+            {errors.image && (
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                {errors.image}
+              </p>
+            )}
           </FormSection>
 
           <FormSection title="Delivery">
@@ -122,16 +143,49 @@ export function TrainingForm({
                 </Select>
               </Field>
 
-              <Field label="Facilitator" htmlFor="t-trainer" error={errors.trainerId}>
-                <Select id="t-trainer" name="trainerId" key={values.trainerId ?? training?.trainerId ?? ""}
-            defaultValue={values.trainerId ?? training?.trainerId ?? ""}>
-                  <option value="">Not assigned</option>
-                  {trainers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </Select>
+              {/* A course can be run by several people. The fields around
+                  this one fall back to `values` after a failed save; this one
+                  deliberately doesn't — `collectValues` folds FormData into a
+                  Record, so repeated `trainerIds` would collapse to whichever
+                  box was ticked last. It doesn't need to either: AdminForm
+                  submits through a plain onSubmit, not a React 19 form action,
+                  so nothing resets these checkboxes in the first place. */}
+              <Field
+                label="Facilitators"
+                htmlFor="t-trainers"
+                hint="Credited on the public page in the order shown. Not listed? Add them under the Facilitators tab."
+                error={errors.trainerIds}
+              >
+                <div
+                  id="t-trainers"
+                  className="flex max-h-40 flex-col gap-1.5 overflow-y-auto rounded-xl border border-[var(--border-strong)] p-3"
+                >
+                  {trainerOptions.length === 0 ? (
+                    <p className="text-sm text-[var(--text-muted)]">
+                      No facilitators yet —{" "}
+                      <Link
+                        to="/admin/trainings/facilitators"
+                        className="font-medium text-[var(--accent)] hover:underline"
+                      >
+                        add one
+                      </Link>
+                      .
+                    </p>
+                  ) : (
+                    trainerOptions.map((t) => (
+                      <label key={t.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          name="trainerIds"
+                          value={t.id}
+                          defaultChecked={credited.includes(t.id)}
+                          className="h-4 w-4 shrink-0 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                        />
+                        {t.name}
+                      </label>
+                    ))
+                  )}
+                </div>
               </Field>
 
               <Field label="Duration (hours)" htmlFor="t-duration" error={errors.durationHrs}>
@@ -186,6 +240,22 @@ export function TrainingForm({
                 placeholder={"Where your week actually goes\nThe priority filter"}
               />
             </Field>
+
+            {/* Guarded on `training` — on /admin/trainings/new there is no
+                record yet and the link would point at .../content/undefined. */}
+            {training && (
+              <p className="text-xs text-[var(--text-muted)]">
+                This outline is the brochure summary the public page shows. Videos,
+                readings and quizzes live in{" "}
+                <Link
+                  to={`/admin/trainings/content/${training.id}`}
+                  className="font-medium text-[var(--accent)] hover:underline"
+                >
+                  Trainings → Content
+                </Link>
+                .
+              </p>
+            )}
           </FormSection>
 
           <FormSection title="Visibility">

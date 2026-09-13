@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Training, TrainingSchema } from './entities/training.entity';
 import { Trainer, TrainerSchema } from './entities/trainer.entity';
-import { TrainingsController, TrainersController } from './trainings.controller';
+import { TrainingsController } from './trainings.controller';
 import { TrainingsService } from './trainings.service';
+import { TrainersController } from './trainers.controller';
+import { TrainersService } from './trainers.service';
 
 @Module({
   imports: [
@@ -13,7 +15,7 @@ import { TrainingsService } from './trainings.service';
     ]),
   ],
   controllers: [TrainingsController, TrainersController],
-  providers: [TrainingsService],
+  providers: [TrainingsService, TrainersService],
   exports: [TrainingsService],
 })
 export class TrainingsModule {}
