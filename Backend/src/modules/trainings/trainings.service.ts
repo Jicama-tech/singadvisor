@@ -29,10 +29,34 @@ type AdminTraining = Omit<Training, 'trainerIds'> & {
   _id: Types.ObjectId;
   trainerIds: string[];
 };
-type PublicTraining = Omit<Training, 'trainerIds'> & {
+type PublicTraining = Omit<
+  Training,
+  'trainerIds' | 'googleClassroomLink' | 'venueAddress'
+> & {
   _id: Types.ObjectId;
   trainers: (Omit<TrainerCard, '_id'> & { _id: string })[];
 };
+
+/**
+ * Never sent to a public caller — by either reader, the listing or the detail.
+ *
+ * The two fields are withheld for quite different reasons, and it is worth
+ * keeping them straight. `googleClassroomLink` is a capability: anyone holding
+ * it can join the class, so it leaves this Backend only inside a confirmed
+ * registrant's email and its absence here is a security property.
+ * `venueAddress` is not secret at all — a street address is exactly what a
+ * public page for an in-person course may say — and it is withheld only
+ * because nothing public renders it: TrainingDetail prints the format badge
+ * and never the room. The day a page wants to show it, take it out of this
+ * list; until then a field no reader renders is a field no reader should be
+ * sent.
+ *
+ * Excluded with a deselecting projection, the way CourseRunsService keeps its
+ * own joinUrl off the public catalogue, rather than by trusting each reader to
+ * remember to strip it: a field that is never fetched cannot be leaked by the
+ * next person who adds a spread here.
+ */
+const PRIVATE_TRAINING_FIELDS = '-googleClassroomLink -venueAddress';
 
 /**
  * populate() keeps the path's own name, so facilitators come back sitting on
@@ -62,9 +86,14 @@ export class TrainingsService {
   ) {}
 
   /** Public list: published only, display order first (matches the Prisma
-   * query the old `/trainings` page used). */
+   * query the old `/trainings` page used), minus the joining details a card
+   * neither shows nor should hold. */
   findPublished() {
-    return this.model.find({ published: true }).sort({ sortOrder: 1 }).exec();
+    return this.model
+      .find({ published: true })
+      .select(PRIVATE_TRAINING_FIELDS)
+      .sort({ sortOrder: 1 })
+      .exec();
   }
 
   /** Admin list: everything, newest edits first, facilitators populated and
@@ -122,12 +151,16 @@ export class TrainingsService {
 
   /** Public detail — unpublished trainings 404 just like the old page's
    * `published:true` Prisma where-clause did. Facilitators are populated so
-   * the public page can render a card for each, in the stored order. */
+   * the public page can render a card for each, in the stored order, and the
+   * joining details are projected away before the document ever exists in
+   * memory. The lean type is spelled out to follow that projection, so a
+   * caller cannot even reach for a field this read does not fetch. */
   async findBySlugPublic(slug: string): Promise<PublicTraining> {
     const doc = await this.model
       .findOne({ slug, published: true })
+      .select(PRIVATE_TRAINING_FIELDS)
       .populate<{ trainerIds: TrainerCard[] }>('trainerIds', 'name title bio photo linkedin')
-      .lean()
+      .lean<(Omit<PublicTraining, 'trainers'> & { trainerIds: TrainerCard[] }) | null>()
       .exec();
     if (!doc) throw new NotFoundException(`No training with slug "${slug}"`);
     const { trainerIds, ...training } = doc;
@@ -169,6 +202,18 @@ export class TrainingsService {
       ...(dto.level !== undefined && { level: dto.level }),
       ...(dto.durationHrs !== undefined && { durationHrs: dto.durationHrs }),
       ...(dto.format !== undefined && { format: dto.format }),
+      // Both joining fields are nullable, and an empty string off the form
+      // means "cleared" rather than "set to nothing" — the same reading
+      // CourseContentService gives its own optional link fields. Neither is
+      // tied to `format` here on purpose: switching a course from Online to
+      // In-person and back must not silently destroy the link it was run
+      // from, and the email picks the one the format calls for anyway.
+      ...(dto.googleClassroomLink !== undefined && {
+        googleClassroomLink: dto.googleClassroomLink || null,
+      }),
+      ...(dto.venueAddress !== undefined && {
+        venueAddress: dto.venueAddress || null,
+      }),
       ...(dto.priceCents !== undefined && { priceCents: dto.priceCents }),
       ...(dto.currency !== undefined && { currency: dto.currency }),
       ...(dto.outcomes !== undefined && { outcomes: dto.outcomes }),

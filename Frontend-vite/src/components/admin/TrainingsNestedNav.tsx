@@ -13,8 +13,9 @@ import { cn } from "@/lib/utils";
  * A "course" here is the existing Training, not a new entity: Courses is the
  * training list, Facilitators moved down from its own top-level sidebar entry
  * (keeping it at /admin/facilitators would light up both Trainings and
- * Facilitators at once, since AdminShell matches by prefix), and Content is
- * the curriculum an admin builds on top of a training.
+ * Facilitators at once, since AdminShell matches by prefix), Content is the
+ * curriculum an admin builds on top of a training, and Participants is the
+ * people on it — a course picker and then one course's roster.
  *
  * Collapse behavior matches the other two navs: full-width (labels) on the
  * parent Courses tab, icon-only once any tab has been clicked — the user
@@ -27,6 +28,14 @@ const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: TRAININGS_ROOT, label: "Courses", icon: "sparkles" },
   { href: "/admin/trainings/facilitators", label: "Facilitators", icon: "users" },
   { href: "/admin/trainings/content", label: "Content", icon: "layers" },
+  // A tick, because the register is what this tab is: names ticked off against
+  // a course. The obvious people glyph is spoken for twice over — `users` is
+  // Facilitators right above and CRM in the primary sidebar — and the two
+  // list-shaped ones are claimed by that same always-visible column (`inbox` by
+  // Enquiries, `layout` by Landing page), which would read as a duplicate
+  // rather than a sibling. A tick collides with nothing and is unmistakable at
+  // 16px beside a starburst, two heads and a stack of plates.
+  { href: "/admin/trainings/participants", label: "Participants", icon: "check" },
 ];
 
 /** A tab owns its own route and everything nested under it. The trailing slash

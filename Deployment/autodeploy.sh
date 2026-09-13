@@ -54,9 +54,41 @@ deploy_backend() {
   cd "$PROJ/Backend"
   sync_repo
   npm ci 2>&1 | tee -a "$LOG"
+  run_migrations
   npm run build 2>&1 | tee -a "$LOG"
   pm2 restart singadvisor-backend 2>&1 | tee -a "$LOG"
   log "Backend deployed!"
+}
+
+# Schema changes that existing documents do not already satisfy. Mongoose
+# applies a @Prop default when a document is WRITTEN, never when an old one is
+# read, so a field added to an entity is simply absent on every row already in
+# the database until something backfills it.
+#
+# Ordering is the whole point of this step, and it is not arbitrary:
+#   - after `npm ci`, because these run through tsx, which npm ci installs;
+#   - before `pm2 restart`, so the new build never serves a request against
+#     data it assumes has already been migrated. The old build is still
+#     running while this executes, which is safe precisely because every
+#     migration here only ADDS the new shape and leaves the old field in
+#     place — the running code cannot see, and does not care about, either.
+#
+# `set -eo pipefail` at the top of this script means a failing migration
+# aborts the deploy BEFORE the restart, leaving the previous build serving
+# the un-migrated data it was written for. That is the correct failure: a
+# deploy that stops is recoverable, one that restarts into a half-migrated
+# database is not.
+#
+# Every migration must be idempotent — this runs on each deploy, and the
+# second run has to be a no-op rather than a second pass over the data.
+run_migrations() {
+  log "--- Running data migrations ---"
+  # Training.trainerId -> trainerIds[] (a course credits several facilitators).
+  # Without this the Facilitators tab counts 0 trainings against everyone and
+  # its delete guard, which counts trainerIds, hard-deletes a facilitator that
+  # courses still credit through the legacy field.
+  npm run migrate:trainers 2>&1 | tee -a "$LOG"
+  log "--- Migrations done ---"
 }
 
 case "${1:-both}" in

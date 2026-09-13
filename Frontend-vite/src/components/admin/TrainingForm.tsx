@@ -1,4 +1,5 @@
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { saveTraining } from "@/app/admin/actions";
 import type { FormState } from "@/lib/form-state";
@@ -24,6 +25,8 @@ type Training = {
   level: string;
   durationHrs: number;
   format: string;
+  googleClassroomLink: string | null;
+  venueAddress: string | null;
   priceCents: number;
   outcomes: string;
   modules: string;
@@ -42,6 +45,15 @@ export function TrainingForm({
   trainers: TrainerOption[];
   action?: (formData: FormData) => Promise<FormState | void>;
 }) {
+  // The one control on this form React has to know the value of: which
+  // joining field belongs on screen is a question about the *current*
+  // selection, and a `defaultValue` answers only what it started as. Nothing
+  // else is converted — every other field keeps the values/errors restore path
+  // below — and this one does not need it: AdminForm submits through a plain
+  // onSubmit, so nothing resets the form after a failed save and the format
+  // the admin last picked is still the format held here.
+  const [format, setFormat] = useState(training?.format ?? "In-person");
+
   const credited = training?.trainerIds ?? [];
   // A checkbox list submits in the order it renders, and that order is the
   // order the public page credits — so the facilitators already on this
@@ -125,9 +137,16 @@ export function TrainingForm({
                 </Select>
               </Field>
 
+              {/* Controlled, unlike its neighbours — see the state above. The
+                  remount `key` the others carry goes with the defaultValue it
+                  existed to replace. */}
               <Field label="Format" htmlFor="t-format" error={errors.format}>
-                <Select id="t-format" name="format" key={values.format ?? training?.format ?? "In-person"}
-            defaultValue={values.format ?? training?.format ?? "In-person"}>
+                <Select
+                  id="t-format"
+                  name="format"
+                  value={format}
+                  onChange={(e) => setFormat(e.target.value)}
+                >
                   {TRAINING_FORMATS.map((f) => (
                     <option key={f}>{f}</option>
                   ))}
@@ -215,6 +234,54 @@ export function TrainingForm({
                 />
               </Field>
             </div>
+          </FormSection>
+
+          {/* Exactly one field, chosen by the format above: Online and Hybrid
+              are both run out of the Google Classroom, In-person has an address
+              instead. The other field is not hidden but genuinely unrendered,
+              and an input that is not on screen contributes nothing to
+              FormData — which is the point. `saveTraining` sends only the keys
+              the form actually submitted, and the Backend writes only the keys
+              it is sent, so flipping the format to look at the other field
+              leaves the one now off screen exactly as it was stored. What that
+              costs is small and worth saying: an edit typed in and then hidden
+              by a format flip is discarded, because the field comes back
+              showing the saved value rather than the unsaved one. */}
+          <FormSection
+            title="Joining details"
+            description="Where this course is actually run from. Sent to each participant in the email that confirms their place."
+          >
+            {format === "In-person" ? (
+              <Field
+                label="Venue address"
+                htmlFor="t-venue"
+                hint="Sent to the participant in their confirmation email, printed as you type it — the line breaks are yours to arrange."
+                error={errors.venueAddress}
+              >
+                <Textarea
+                  id="t-venue"
+                  name="venueAddress"
+                  rows={3}
+                  defaultValue={values.venueAddress ?? training?.venueAddress ?? ""}
+                  placeholder={"Asia Square Tower 1, Level 12\n8 Marina View, Singapore 018960"}
+                />
+              </Field>
+            ) : (
+              <Field
+                label="Google Classroom link"
+                htmlFor="t-classroom"
+                hint="Sent to the participant in their confirmation email — and nowhere else. Anyone holding this link can join the class, so it never appears on the public page."
+                error={errors.googleClassroomLink}
+              >
+                <Input
+                  id="t-classroom"
+                  name="googleClassroomLink"
+                  type="url"
+                  defaultValue={values.googleClassroomLink ?? training?.googleClassroomLink ?? ""}
+                  placeholder="https://classroom.google.com/c/..."
+                />
+              </Field>
+            )}
           </FormSection>
 
           <FormSection

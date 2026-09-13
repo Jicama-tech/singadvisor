@@ -4,8 +4,13 @@ import { adminFetch } from "@/lib/adminFetch";
 import { AdminEmpty, PageHeading, Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
 import { StatusSelect } from "@/components/admin/StatusSelect";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { Icon } from "@/components/ui/Icon";
 import { REGISTRATION_STATUSES } from "@/lib/constants";
-import { updateRegistrationStatus, verifyRegistrationPayment } from "@/adminActions";
+import {
+  resendRegistrationConfirmation,
+  updateRegistrationStatus,
+  verifyRegistrationPayment,
+} from "@/adminActions";
 import { formatDate, formatDateTime, formatPrice } from "@/lib/utils";
 import type { RegistrationDoc } from "@/lib/contentClient";
 
@@ -33,6 +38,11 @@ export default function RegistrationsList() {
   const { user } = useAuth();
   const [registrations, setRegistrations] = useState<RegistrationDoc[] | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [resending, setResending] = useState<string | null>(null);
+  /** What the last Resend actually did. Separate from `error` below because a
+   * resend has three endings, not two — it can be refused, it can go out, and
+   * it can succeed as a request while sending nothing at all. */
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -74,11 +84,51 @@ export default function RegistrationsList() {
     }
   }
 
+  /**
+   * Send the joining details again — the Classroom link or the venue address,
+   * whichever the course's format calls for.
+   *
+   * Honest about the answer, because here the answer is usually no: with no
+   * SMTP host configured the Backend's best-effort send returns `sent: false`
+   * and the request itself still succeeds. Reporting that as "done" would undo
+   * the entire point of the column this button sits beside.
+   */
+  async function resendConfirmation(r: RegistrationDoc) {
+    setResending(r._id);
+    setNotice(null);
+    try {
+      const result = await resendRegistrationConfirmation(r._id);
+      setNotice(
+        result.sent
+          ? { ok: true, text: `Joining details sent to ${r.email}.` }
+          : {
+              ok: false,
+              text:
+                `Nothing was sent to ${r.email} — no mail server took the message. ` +
+                `${r.name} still has not been told where to turn up; check the mail configuration and try again.`,
+            },
+      );
+      await load();
+    } catch (err) {
+      setNotice({
+        ok: false,
+        text: err instanceof Error ? err.message : "Could not send the confirmation.",
+      });
+    } finally {
+      setResending(null);
+    }
+  }
+
   if (!user) return null;
 
   const rows = registrations ?? [];
   const pending = rows.filter((r) => r.status === "pending").length;
   const claimed = rows.filter((r) => r.paymentStatus === "claimed").length;
+  // Confirmed, and the email carrying the joining details never got out.
+  // Unlike the two counts above, nobody will chase this one — the registrant
+  // was never told an email was coming — so it has to be visible without
+  // reading down a column to find it.
+  const untold = rows.filter((r) => r.status === "confirmed" && !r.confirmationEmailSentAt).length;
 
   return (
       <div className="flex flex-col gap-8">
@@ -86,7 +136,8 @@ export default function RegistrationsList() {
           title="Registrations"
           description={
             `${registrations?.length ?? "…"} total · ${pending} awaiting confirmation` +
-            (claimed > 0 ? ` · ${claimed} payment${claimed === 1 ? "" : "s"} to check` : "")
+            (claimed > 0 ? ` · ${claimed} payment${claimed === 1 ? "" : "s"} to check` : "") +
+            (untold > 0 ? ` · ${untold} confirmed without joining details` : "")
           }
         />
 
@@ -96,6 +147,19 @@ export default function RegistrationsList() {
             className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/50 dark:text-red-200"
           >
             {error}
+          </p>
+        )}
+
+        {notice && (
+          <p
+            role={notice.ok ? "status" : "alert"}
+            className={
+              notice.ok
+                ? "rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
+                : "rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/50 dark:text-red-200"
+            }
+          >
+            {notice.text}
           </p>
         )}
 
@@ -114,6 +178,7 @@ export default function RegistrationsList() {
                   <Th>Payment</Th>
                   <Th>Received</Th>
                   <Th>Status</Th>
+                  <Th>Joining details</Th>
                   <Th className="text-right">Actions</Th>
                 </tr>
               </thead>
@@ -185,12 +250,73 @@ export default function RegistrationsList() {
                         id={r._id}
                         value={r.status}
                         options={REGISTRATION_STATUSES}
-                        action={updateRegistrationStatus}
+                        action={async (id, status) => {
+                          await updateRegistrationStatus(id, status);
+                          // Confirming here is what sends the joining details,
+                          // so the column beside this select is only truthful
+                          // after a re-read. Its failure is swallowed on
+                          // purpose: StatusSelect reverts itself when its
+                          // action throws, and a refresh that could not run is
+                          // not a status that did not save.
+                          await load().catch(() => undefined);
+                        }}
                         label={`Status for ${r.name}`}
                       />
                     </Td>
+                    {/* Deliberately not styled like the payment column: this
+                        one answers "has this person been told where to turn
+                        up", which a confirmed booking can fail silently — the
+                        send is best-effort server-side and a deployment with no
+                        SMTP host never manages one. Hence a date for a real
+                        delivery, and the attempt behind a failure rather than
+                        a blank. */}
                     <Td>
-                      <div className="flex justify-end">
+                      {r.confirmationEmailSentAt ? (
+                        <>
+                          <Badge tone="success">
+                            <Icon name="mail" size={13} />
+                            Sent
+                          </Badge>
+                          <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                            {formatDateTime(r.confirmationEmailSentAt)}
+                          </span>
+                        </>
+                      ) : r.confirmationEmailAttemptedAt || r.status === "confirmed" ? (
+                        <>
+                          <Badge tone="danger">
+                            <Icon name="alert" size={13} />
+                            Not sent
+                          </Badge>
+                          {r.confirmationEmailAttemptedAt && (
+                            <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                              Tried {formatDateTime(r.confirmationEmailAttemptedAt)}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-[var(--text-muted)]">—</span>
+                      )}
+                    </Td>
+                    <Td>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {/* Offered wherever a confirmed place has not had its
+                            joining details out — the Backend refuses anything
+                            else, and there is nothing to resend to a booking
+                            still pending or since cancelled. Outlined rather
+                            than filled: the money button beside it is the one
+                            that should take a second's thought. */}
+                        {r.status === "confirmed" && !r.confirmationEmailSentAt && (
+                          <button
+                            type="button"
+                            onClick={() => void resendConfirmation(r)}
+                            disabled={resending === r._id}
+                            aria-label={`Resend joining details to ${r.email}`}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--border-strong)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)]/50 hover:text-[var(--accent)] disabled:pointer-events-none disabled:opacity-50"
+                          >
+                            <Icon name="mail" size={13} />
+                            {resending === r._id ? "Sending…" : "Resend"}
+                          </button>
+                        )}
                         {/* Offered only against an actual claim: "unpaid" has
                             nobody waiting on it and a free booking has no
                             transfer to confirm, so a money button on every row

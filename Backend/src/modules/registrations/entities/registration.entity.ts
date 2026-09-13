@@ -151,6 +151,35 @@ export class Registration {
   @Prop({ type: Date, required: false, default: null })
   paymentVerifiedAt!: Date | null;
 
+  /**
+   * The confirmation email — the one carrying the joining details — in two
+   * dates rather than one flag, because they answer different questions and
+   * this deployment makes the difference matter. No SMTP_HOST is configured,
+   * so every first attempt fails: MailService.sendBestEffort logs a warning
+   * and returns false, and the confirmation succeeds anyway. An admin list
+   * reading a "sent" date alone could not tell a booking nobody has confirmed
+   * yet from one whose email quietly never arrived.
+   *
+   *   both null           — nothing confirmed, nothing attempted.
+   *   attempted, not sent — confirmed, but the mail did not go out. Needs
+   *                         POST /registrations/:id/resend-confirmation once
+   *                         SMTP is configured; until then this person has not
+   *                         been told where to turn up.
+   *   both set            — the registrant has the joining details.
+   *
+   * Written only by RegistrationsService.sendConfirmation, the single place
+   * either confirming route's email is built and the resend route's too.
+   * `attemptedAt` is the latest attempt, not the first: what an admin needs
+   * from it is how stale the failure is.
+   */
+  @Prop({ type: Date, required: false, default: null })
+  confirmationEmailAttemptedAt!: Date | null;
+
+  /** When a confirmation email was last actually accepted by the mail server.
+   * Null while it has never got out — see the field above. */
+  @Prop({ type: Date, required: false, default: null })
+  confirmationEmailSentAt!: Date | null;
+
   @Prop({ type: Types.ObjectId, ref: 'Training', required: true })
   trainingId!: Types.ObjectId;
 
