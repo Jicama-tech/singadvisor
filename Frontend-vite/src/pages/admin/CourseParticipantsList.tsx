@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { fetchParticipantCourses, type ParticipantCourseRow } from "@/lib/participantsClient";
 import { formatDate } from "@/lib/utils";
+import { publicUrl } from "@/lib/publicUrl";
 
 /**
  * /admin/trainings/participants — pick a course, then read its people.
@@ -105,7 +106,9 @@ export default function CourseParticipantsList() {
                           so the row stays — there is just no course page left
                           behind the name. */}
                       <span className="block text-xs text-[var(--text-muted)]">
-                        {c.slug ? `/${c.slug}` : "Course deleted — these people are still on file"}
+                        {c.slug
+                          ? publicUrl("trainings", c.slug)
+                          : "Course deleted — these people are still on file"}
                       </span>
                     </Td>
                     <Td className="text-[var(--text-secondary)]">{count(c.participantCount)}</Td>

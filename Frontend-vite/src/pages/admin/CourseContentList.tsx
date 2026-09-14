@@ -9,6 +9,7 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { formatMins } from "@/lib/course-content";
 import { fetchCurriculumSummaries, type CurriculumSummary } from "@/lib/courseContentClient";
+import { publicUrl } from "@/lib/publicUrl";
 
 /** The /trainings/admin payload, narrowed to what this table shows — a course
  * is the existing Training, there is no separate Course record. */
@@ -112,7 +113,7 @@ export default function CourseContentList() {
                           {training.title}
                         </Link>
                         <span className="block text-xs text-[var(--text-muted)]">
-                          /{training.slug}
+                          {publicUrl("trainings", training.slug)}
                         </span>
                       </Td>
                       <Td className="text-[var(--text-secondary)]">

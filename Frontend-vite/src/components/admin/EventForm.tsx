@@ -10,6 +10,7 @@ import { VenueCanvas, SEAT_SIZE, type CanvasTemplate, type PlacedItem, type Venu
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { SCHEDULED_SPACE_FACILITY_TYPES } from "@/lib/facility-court-lines";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { SlugField } from "@/components/admin/SlugField";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -1111,9 +1112,13 @@ export function EventForm({
                       <Field label="Title" htmlFor="e-title" required error={errors.title}>
                         <Input id="e-title" name="title" required defaultValue={values.title ?? event?.title} />
                       </Field>
-                      <Field label="URL slug" htmlFor="e-slug" hint="Leave blank to generate from the title." error={errors.slug}>
-                        <Input id="e-slug" name="slug" defaultValue={values.slug ?? event?.slug} />
-                      </Field>
+                      <SlugField
+                        section="events"
+                        id="e-slug"
+                        hint="Leave blank to generate from the title."
+                        error={errors.slug}
+                        defaultValue={values.slug ?? event?.slug}
+                      />
                     </div>
 
                     <Field label="Summary" htmlFor="e-summary" error={errors.summary}>

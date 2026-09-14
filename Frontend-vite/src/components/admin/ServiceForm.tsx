@@ -3,6 +3,7 @@ import { saveService } from "@/app/admin/actions";
 import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { SlugField } from "@/components/admin/SlugField";
 import { ENGAGEMENT_MODELS } from "@/lib/constants";
 import { jsonToLines } from "@/lib/utils";
 
@@ -50,14 +51,13 @@ export function ServiceForm({
                 <Input id="s-title" name="title" required defaultValue={values.title ?? service?.title} />
               </Field>
 
-              <Field
-                label="URL slug"
-                htmlFor="s-slug"
+              <SlugField
+                section="consultancy"
+                id="s-slug"
                 hint="Leave blank to generate from the title."
                 error={errors.slug}
-              >
-                <Input id="s-slug" name="slug" defaultValue={values.slug ?? service?.slug} />
-              </Field>
+                defaultValue={values.slug ?? service?.slug}
+              />
             </div>
 
             <Field label="Summary" htmlFor="s-summary" error={errors.summary}>

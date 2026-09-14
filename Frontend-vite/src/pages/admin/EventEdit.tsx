@@ -8,6 +8,7 @@ import { saveEvent } from "@/eventsActions";
 import { fetchEventAdmin, EventsServiceError } from "@/lib/events-admin-client";
 import type { EventRow } from "@/lib/events-client";
 import type { FormState } from "@/lib/form-state";
+import { publicUrl } from "@/lib/publicUrl";
 
 export default function EventEdit() {
   const { user } = useAuth();
@@ -57,7 +58,9 @@ export default function EventEdit() {
           <>
             <PageHeading
               title={id ? event?.title ?? "Event" : "New event"}
-              description={event?.slug ? `/events/${event.slug}` : "Create a new event."}
+              description={
+                event?.slug ? publicUrl("events", event.slug) : "Create a new event."
+              }
             />
             {loaded && <EventForm event={event} action={onSubmit} />}
           </>

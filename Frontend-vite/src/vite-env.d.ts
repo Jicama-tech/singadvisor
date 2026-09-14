@@ -14,3 +14,6 @@ declare const __EVENTSH_ORGANIZER_ID__: string;
  * feature — empty string until configured, in which case the feature shows
  * a graceful "not available" state instead of a broken sign-in button. */
 declare const __GOOGLE_CLIENT_ID__: string;
+/** Public origin of the live site, no trailing slash — what the admin's slug
+ * fields prefix so a slug is shown as the URL it becomes. */
+declare const __SITE_URL__: string;

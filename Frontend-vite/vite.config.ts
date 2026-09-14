@@ -26,6 +26,14 @@ export default defineConfig(({ mode }) => {
       // id (not a secret; Google's own docs say so), verified against the
       // matching GOOGLE_CLIENT_ID server-side on every submission.
       __GOOGLE_CLIENT_ID__: JSON.stringify(env.VITE_GOOGLE_CLIENT_ID),
+      // The public origin the admin's slug fields print in front of every
+      // slug, so the form shows the address the page will really have. The
+      // same SITE_URL scripts/generate-sitemap.ts reads, and already set in
+      // .env.production (see Deployment/autodeploy.sh); the fallback keeps
+      // local dev showing the live domain rather than an empty prefix.
+      __SITE_URL__: JSON.stringify(
+        (env.SITE_URL || "https://singadvisor.com").replace(/\/$/, ""),
+      ),
     },
     build: {
       chunkSizeWarningLimit: 1000,
