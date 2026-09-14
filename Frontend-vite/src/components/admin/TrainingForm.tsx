@@ -32,7 +32,6 @@ type Training = {
   modules: string;
   published: boolean;
   featured: boolean;
-  sortOrder: number;
   trainerIds: string[];
 };
 
@@ -338,20 +337,6 @@ export function TrainingForm({
               hint="Highlighted on the home page."
               defaultChecked={submitted ? values.featured === "true" : (training?.featured ?? false)}
             />
-            <Field
-              label="Sort order"
-              htmlFor="t-sort"
-              hint="Lower numbers appear first."
-              error={errors.sortOrder}
-            >
-              <Input
-                id="t-sort"
-                name="sortOrder"
-                type="number"
-                defaultValue={values.sortOrder ?? training?.sortOrder ?? 0}
-                className="max-w-32"
-              />
-            </Field>
           </FormSection>
         </>
         );

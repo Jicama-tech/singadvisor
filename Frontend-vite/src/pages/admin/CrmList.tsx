@@ -52,6 +52,9 @@ export default function CrmList() {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  /** An export that would not run, reported on the page rather than in the
+   * browser's own alert() chrome. Cleared when another one is tried. */
+  const [exportErr, setExportErr] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -139,12 +142,13 @@ export default function CrmList() {
 
   async function handleExport() {
     setExporting(true);
+    setExportErr(null);
     try {
       const res = await adminFetch(
         `${__API_URL__}${crmExportPath({ q, source, role, training })}`,
       );
       if (!res.ok) {
-        window.alert("Could not export contacts.");
+        setExportErr("Could not export contacts.");
         return;
       }
       const blob = await res.blob();
@@ -226,6 +230,14 @@ export default function CrmList() {
       {importMsg && (
         <p role="status" className="text-sm text-[var(--text-secondary)]">
           {importMsg}
+        </p>
+      )}
+      {exportErr && (
+        <p
+          role="alert"
+          className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/50 dark:text-red-200"
+        >
+          {exportErr}
         </p>
       )}
 

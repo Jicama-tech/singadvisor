@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 
 /**
@@ -15,13 +16,24 @@ export function DeleteButton({
   id: string;
   action: (id: string) => Promise<void>;
   label: string;
-  /** The second line of the confirm dialog, for records whose deletion does
-   * something other than the default cascade. */
+  /** What the confirm dialog says under the question, for records whose
+   * deletion does something other than the default cascade. */
   consequence?: string;
 }) {
+  const { confirm, confirmDialog } = useConfirm();
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!confirm(`Delete “${label}”?\n\n${consequence}`)) {
+    // Unchanged on a refusal: Cancel, Escape and the backdrop all answer false
+    // and the delete never runs — the early return the native dialog gave.
+    if (
+      !(await confirm({
+        title: `Delete “${label}”?`,
+        message: consequence,
+        confirmLabel: "Delete",
+        tone: "danger",
+      }))
+    ) {
       return;
     }
     await action(id);
@@ -36,6 +48,9 @@ export function DeleteButton({
       >
         <Icon name="trash" size={16} />
       </button>
+      {/* Inside the form because that is this component's only element — the
+          dialog's own buttons are type="button", so none of them submits it. */}
+      {confirmDialog}
     </form>
   );
 }

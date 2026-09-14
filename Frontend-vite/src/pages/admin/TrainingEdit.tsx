@@ -35,7 +35,6 @@ function toFormShape(t: TrainingDoc) {
     modules: JSON.stringify(t.modules ?? []),
     published: t.published,
     featured: t.featured,
-    sortOrder: t.sortOrder,
     // `/trainings/id/:id` hands these back as plain string ids in credit
     // order — already what the picker compares its checkboxes against.
     trainerIds: t.trainerIds ?? [],

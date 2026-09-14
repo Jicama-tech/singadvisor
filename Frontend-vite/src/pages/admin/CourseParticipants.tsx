@@ -6,6 +6,7 @@ import TrainingsShell from "@/components/admin/TrainingsShell";
 import { FormError } from "@/components/forms/FormShell";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import {
   resendRegistrationConfirmation,
@@ -131,6 +132,7 @@ export default function CourseParticipants() {
    * endings rather than two — it can be refused, it can go out, and it can
    * succeed as a request while sending nothing at all. */
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   /** Which course the screen is showing, for the two reads that can outlive it.
    * The effect below has its own cancelled flag; a re-read fired by an action
@@ -239,19 +241,30 @@ export default function CourseParticipants() {
       p.amountCents === null
         ? "the payment"
         : formatPrice(p.amountCents, p.currency ?? undefined);
-    const prompt = claimed
-      ? `Confirm ${amount} received from ${who}?\n\n` +
-        `Match reference ${p.paymentRef ?? "—"} on the bank statement first. This marks the ` +
-        `payment received, confirms their place and sends the joining details.`
-      : `Confirm ${who}'s place on this course?\n\n` +
-        `This confirms the booking and sends them the joining details.` +
-        // Said out loud rather than left to the Payment column: this branch
-        // records nothing about money, and a place confirmed is exactly when
-        // everybody stops chasing the transfer behind it.
-        (p.registrationPaymentStatus === "unpaid"
-          ? ` It records no payment — ${amount} is still outstanding.`
-          : "");
-    if (!confirm(prompt)) return;
+    const agreed = await confirm(
+      claimed
+        ? {
+            title: `Confirm ${amount} received from ${who}?`,
+            message: `Match reference ${p.paymentRef ?? "—"} on the bank statement first.`,
+            detail:
+              "This marks the payment received, confirms their place and sends the " +
+              "joining details.",
+            confirmLabel: "Confirm payment",
+          }
+        : {
+            title: `Confirm ${who}'s place on this course?`,
+            message: "This confirms the booking and sends them the joining details.",
+            // Said out loud rather than left to the Payment column: this branch
+            // records nothing about money, and a place confirmed is exactly when
+            // everybody stops chasing the transfer behind it.
+            detail:
+              p.registrationPaymentStatus === "unpaid"
+                ? `It records no payment — ${amount} is still outstanding.`
+                : undefined,
+            confirmLabel: "Confirm place",
+          },
+    );
+    if (!agreed) return;
 
     await run(
       id,
@@ -694,6 +707,8 @@ export default function CourseParticipants() {
             </TableWrap>
           )}
         </Panel>
+
+        {confirmDialog}
       </div>
     </TrainingsShell>
   );

@@ -21,6 +21,9 @@ export default function ApplicationsList() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [applications, setApplications] = useState<ApplicationDoc[] | null>(null);
+  /** A résumé that would not load, reported on the page rather than in the
+   * browser's own alert() chrome. Cleared when another one is tried. */
+  const [resumeErr, setResumeErr] = useState<string | null>(null);
   const activeJob = searchParams.get("job") ?? undefined;
 
   const load = useCallback(async () => {
@@ -44,9 +47,10 @@ export default function ApplicationsList() {
 
   async function downloadResume(a: ApplicationDoc) {
     if (!a.resumePath) return;
+    setResumeErr(null);
     const res = await adminFetch(`${__API_URL__}/careers/applications/${a._id}/resume`);
     if (!res.ok) {
-      window.alert("Could not load this résumé.");
+      setResumeErr("Could not load this résumé.");
       return;
     }
     const blob = await res.blob();
@@ -69,6 +73,15 @@ export default function ApplicationsList() {
           title="Job applications"
           description={`${shown.length} shown of ${applications?.length ?? 0} total`}
         />
+
+        {resumeErr && (
+          <p
+            role="alert"
+            className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/50 dark:text-red-200"
+          >
+            {resumeErr}
+          </p>
+        )}
 
         {jobs.length > 0 && (
           <nav aria-label="Filter by role" className="flex flex-wrap gap-2">
