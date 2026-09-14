@@ -140,7 +140,7 @@ export default function TrainingDetail() {
                 <Fact icon="map-pin" label="Format">
                   {training.format}
                 </Fact>
-                <Fact icon="sparkles" label="Investment">
+                <Fact icon="sparkles" label="Price">
                   {formatPrice(training.priceCents, training.currency)}
                 </Fact>
               </dl>

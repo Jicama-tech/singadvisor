@@ -168,7 +168,12 @@ export async function saveTraining(formData: FormData): Promise<FormState> {
     modules: linesToArray(str(formData, "modules")),
     published: bool(formData, "published"),
     featured: bool(formData, "featured"),
-    sortOrder: num(formData, "sortOrder"),
+    // sortOrder is deliberately absent rather than sent. The form no longer
+    // offers the field, and num() reads a missing one as 0 — Number("") is 0
+    // and finite, so the fallback never fires — which would drop every course
+    // saved to the top of the public list and flatten the order for the rest.
+    // Omitted, the Backend's save() writes only the keys present and leaves
+    // the stored value alone; a new course takes the schema default.
     // Ordered: the public page credits the facilitators in the order they
     // arrive, which is the order the form's checkbox list rendered them in.
     // Always sent, so unticking everyone clears the course's credits —
