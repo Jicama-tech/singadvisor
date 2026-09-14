@@ -10,6 +10,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { deleteTraining } from "@/adminActions";
 import { formatDuration, formatPrice } from "@/lib/utils";
+import { publicUrl } from "@/lib/publicUrl";
 
 type AdminTraining = {
   _id: string;
@@ -92,7 +93,7 @@ export default function TrainingsList() {
                       >
                         {t.title}
                       </Link>
-                      <span className="block text-xs text-[var(--text-muted)]">/{t.slug}</span>
+                      <span className="block text-xs text-[var(--text-muted)]">{publicUrl("trainings", t.slug)}</span>
                     </Td>
                     <Td>
                       <Badge tone="accent">{t.category}</Badge>

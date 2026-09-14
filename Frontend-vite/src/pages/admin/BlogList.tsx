@@ -10,6 +10,7 @@ import { Icon } from "@/components/ui/Icon";
 import { deletePost } from "@/adminActions";
 import { formatDate } from "@/lib/utils";
 import type { PostDoc } from "@/lib/contentClient";
+import { publicUrl } from "@/lib/publicUrl";
 
 export default function BlogList() {
   const { user } = useAuth();
@@ -68,7 +69,7 @@ export default function BlogList() {
                       >
                         {p.title}
                       </Link>
-                      <span className="block text-xs text-[var(--text-muted)]">/{p.slug}</span>
+                      <span className="block text-xs text-[var(--text-muted)]">{publicUrl("blog", p.slug)}</span>
                     </Td>
                     <Td>
                       <Badge tone="accent">{p.category}</Badge>

@@ -12,6 +12,7 @@ import { ImageCropModal } from "@/components/admin/ImageCropModal";
 import { AppImage as Image } from "@/components/ui/AppImage";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { SlugField } from "@/components/admin/SlugField";
 import { Icon } from "@/components/ui/Icon";
 import { BLOG_CATEGORIES } from "@/lib/constants";
 import { withBackendUrl } from "@/lib/media-url";
@@ -291,19 +292,14 @@ export function PostForm({
                   />
                 </Field>
 
-                <Field
-                  label="URL slug"
-                  htmlFor="b-slug"
+                <SlugField
+                  section="blog"
+                  id="b-slug"
                   hint="Leave blank to generate from the title."
                   error={errors.slug}
-                >
-                  <Input
-                    id="b-slug"
-                    name="slug"
-                    defaultValue={values.slug ?? post?.slug}
-                    placeholder="why-training-dies-by-monday"
-                  />
-                </Field>
+                  defaultValue={values.slug ?? post?.slug}
+                  placeholder="why-training-dies-by-monday"
+                />
               </div>
 
               <Field

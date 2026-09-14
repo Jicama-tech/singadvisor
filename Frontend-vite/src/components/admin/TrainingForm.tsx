@@ -6,6 +6,7 @@ import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { CoverImageField } from "@/components/admin/CoverImageField";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { SlugField } from "@/components/admin/SlugField";
 import { TRAINING_CATEGORIES, TRAINING_FORMATS } from "@/lib/constants";
 import { jsonToLines } from "@/lib/utils";
 
@@ -85,14 +86,14 @@ export function TrainingForm({
                 <Input id="t-title" name="title" required defaultValue={values.title ?? training?.title} />
               </Field>
 
-              <Field
-                label="URL slug"
-                htmlFor="t-slug"
+              <SlugField
+                section="trainings"
+                id="t-slug"
                 hint="Leave blank to generate from the title."
                 error={errors.slug}
-              >
-                <Input id="t-slug" name="slug" defaultValue={values.slug ?? training?.slug} placeholder="manage-time" />
-              </Field>
+                defaultValue={values.slug ?? training?.slug}
+                placeholder="manage-time"
+              />
             </div>
 
             <Field

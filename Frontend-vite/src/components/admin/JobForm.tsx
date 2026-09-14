@@ -3,6 +3,7 @@ import { saveJob } from "@/app/admin/actions";
 import type { FormState } from "@/lib/form-state";
 import { AdminForm, FormSection, Toggle } from "@/components/admin/AdminForm";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { SlugField } from "@/components/admin/SlugField";
 import { EMPLOYMENT_TYPES, WORK_MODES } from "@/lib/constants";
 import { jsonToLines } from "@/lib/utils";
 
@@ -55,14 +56,13 @@ export function JobForm({
                 <Input id="j-title" name="title" required defaultValue={values.title ?? job?.title} />
               </Field>
 
-              <Field
-                label="URL slug"
-                htmlFor="j-slug"
+              <SlugField
+                section="careers"
+                id="j-slug"
                 hint="Leave blank to generate from the title."
                 error={errors.slug}
-              >
-                <Input id="j-slug" name="slug" defaultValue={values.slug ?? job?.slug} />
-              </Field>
+                defaultValue={values.slug ?? job?.slug}
+              />
             </div>
 
             <Field label="Summary" htmlFor="j-summary" error={errors.summary}>

@@ -4,8 +4,17 @@ import { cn } from "@/lib/utils";
 // text-base (16px) below `sm` is deliberate: iOS Safari zooms the whole page
 // when a focused input's font-size is under 16px, which throws the user out of
 // the layout mid-form. Above `sm` we drop back to 15px for density.
-const control =
-  "w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] px-4 py-2.5 text-base sm:text-[0.9375rem] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/25 disabled:opacity-60";
+// Everything the bordered controls share EXCEPT the focus treatment, which
+// cannot be shared: a bare <input> takes :focus itself, while a composite
+// control (SlugField's prefix beside a borderless input) has to take
+// :focus-within on the wrapper instead.
+export const controlBase =
+  "w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] px-4 py-2.5 text-base sm:text-[0.9375rem] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-colors disabled:opacity-60";
+
+const control = cn(
+  controlBase,
+  "focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/25",
+);
 
 export function Field({
   label,

@@ -9,6 +9,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { deleteService } from "@/adminActions";
 import type { ServiceDoc } from "@/lib/contentClient";
+import { publicUrl } from "@/lib/publicUrl";
 
 export default function ConsultancyList() {
   const { user } = useAuth();
@@ -66,7 +67,7 @@ export default function ConsultancyList() {
                       >
                         {s.title}
                       </Link>
-                      <span className="block text-xs text-[var(--text-muted)]">/{s.slug}</span>
+                      <span className="block text-xs text-[var(--text-muted)]">{publicUrl("consultancy", s.slug)}</span>
                     </Td>
                     <Td className="text-[var(--text-secondary)]">{s.engagement}</Td>
                     <Td>

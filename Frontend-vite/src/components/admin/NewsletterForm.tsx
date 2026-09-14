@@ -7,6 +7,7 @@ import { ImageCropModal } from "@/components/admin/ImageCropModal";
 import { AppImage as Image } from "@/components/ui/AppImage";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
+import { SlugField } from "@/components/admin/SlugField";
 import { Icon } from "@/components/ui/Icon";
 import { withBackendUrl } from "@/lib/media-url";
 
@@ -169,19 +170,14 @@ export function NewsletterForm({
                   />
                 </Field>
 
-                <Field
-                  label="URL slug"
-                  htmlFor="n-slug"
+                <SlugField
+                  section="newsletter"
+                  id="n-slug"
                   hint="Leave blank to generate from the heading."
                   error={errors.slug}
-                >
-                  <Input
-                    id="n-slug"
-                    name="slug"
-                    defaultValue={values.slug ?? newsletter?.slug}
-                    placeholder="all-about-september"
-                  />
-                </Field>
+                  defaultValue={values.slug ?? newsletter?.slug}
+                  placeholder="all-about-september"
+                />
               </div>
             </FormSection>
 

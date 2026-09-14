@@ -14,6 +14,7 @@ import { fetchCouponsAdmin, fetchEventsAdmin } from "@/lib/events-admin-client";
 import type { CouponRow } from "@/lib/events-admin-client";
 import type { EventRow } from "@/lib/events-client";
 import { formatDate } from "@/lib/utils";
+import { publicUrl } from "@/lib/publicUrl";
 
 export default function EventsList() {
   const { user } = useAuth();
@@ -93,7 +94,7 @@ export default function EventsList() {
                             >
                               {e.title}
                             </Link>
-                            <span className="block text-xs text-[var(--text-muted)]">/{e.slug}</span>
+                            <span className="block text-xs text-[var(--text-muted)]">{publicUrl("events", e.slug)}</span>
                           </Td>
                           <Td className="whitespace-nowrap text-[var(--text-secondary)]">
                             {formatDate(e.startDate)}
