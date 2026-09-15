@@ -31,6 +31,7 @@ const CONTENT_NAV: { href: string; label: string; icon: IconName; tab: string }[
 const MANAGE_NAV: { href: string; label: string; icon: IconName; tab: string }[] = [
   { href: "/admin/settings", label: "Settings", icon: "settings", tab: "settings" },
   { href: "/admin/crm", label: "CRM", icon: "users", tab: "crm" },
+  { href: "/admin/memberships", label: "Memberships", icon: "star", tab: "memberships" },
 ];
 
 const INBOX_NAV: {

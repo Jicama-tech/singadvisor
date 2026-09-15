@@ -10,6 +10,8 @@ import {
   contactSchema,
   enquirySchema,
   fieldErrors,
+  membershipFallbackSchema,
+  membershipSchema,
   registrationFallbackSchema,
   registrationSchema,
   subscribeSchema,
@@ -148,6 +150,11 @@ export async function registerForTraining(formData: FormData): Promise<Registrat
     email: raw(formData, "email"),
     phone: raw(formData, "phone"),
     company: raw(formData, "company"),
+    // One seat per enrolment: the form no longer asks, so nothing is in
+    // the FormData and this fallback is now the only value that is ever
+    // sent. It stays a real field rather than being dropped from the
+    // payload — the Backend prices the booking as priceCents x seats, so
+    // it wants the 1 stated, not inferred.
     seats: raw(formData, "seats") || "1",
     message: raw(formData, "message"),
   };
@@ -248,6 +255,123 @@ export function claimRegistrationPayment(
   return paymentJson(`/registrations/${registrationId}/payment-claimed`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(reference ? { payerReference: reference } : {}),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Memberships
+// ---------------------------------------------------------------------------
+
+/** The handle a purchase hands back when there is something to pay. Shaped
+ * like RegistrationPaymentHandle because it is the same PayNow flow with a
+ * different subject. */
+export type MembershipPaymentHandle = {
+  membershipId: string;
+  amountCents: number;
+  currency: string;
+};
+
+/** What the Backend's reduced payment view carries — money and state, and
+ * nothing identifying, because the route behind it is public. */
+export type MembershipPaymentView = {
+  membershipId: string;
+  status: string;
+  paymentStatus: 'not-required' | 'unpaid' | 'claimed' | 'paid';
+  amountCents: number;
+  currency: string;
+  reference: string | null;
+  planName: string;
+  startDate: string | null;
+  endDate: string | null;
+  paymentClaimedAt: string | null;
+  paymentVerifiedAt: string | null;
+  payment?: { qr: string; payeeId: string; payeeName: string };
+};
+
+/**
+ * A free plan activates on purchase and owes nothing, so it gets no handle
+ * and therefore no payment step — exactly the fork readPaymentHandle makes
+ * for a free programme. Read defensively: the reply is untyped JSON, and a
+ * body that is not the document at all must yield null rather than a payment
+ * step quoting an amount nobody agreed.
+ */
+function readMembershipHandle(data: unknown): MembershipPaymentHandle | null {
+  if (!data || typeof data !== 'object') return null;
+  const doc = data as Record<string, unknown>;
+  if (doc.paymentStatus !== 'unpaid') return null;
+
+  // `membershipId`, not `_id`: the purchase route answers with the Backend's
+  // reduced payment view, which names the id the way every other payment route
+  // names it and carries nothing identifying.
+  const membershipId = typeof doc.membershipId === 'string' ? doc.membershipId : '';
+  const amountCents = typeof doc.amountCents === 'number' ? doc.amountCents : 0;
+  if (!membershipId || amountCents <= 0) return null;
+
+  return {
+    membershipId,
+    amountCents,
+    currency: typeof doc.currency === 'string' ? doc.currency : 'SGD',
+  };
+}
+
+export async function purchaseMembership(
+  formData: FormData,
+): Promise<FormState & { payment?: MembershipPaymentHandle }> {
+  const planId = raw(formData, 'planId');
+  if (!planId)
+    return { ok: false, message: 'Missing plan.', values: collectValues(formData) };
+
+  // Same fork as registerForTraining: a credential means the form ran its
+  // Google step; its absence means this build has no client id and the form
+  // fell back to a typed address. The Backend decides either way — this
+  // mirror only buys a field-level message instead of a bare 400.
+  const credential = raw(formData, 'credential');
+  const fields = {
+    name: raw(formData, 'name'),
+    email: raw(formData, 'email'),
+    phone: raw(formData, 'phone'),
+    company: raw(formData, 'company'),
+  };
+  const parsed = credential
+    ? membershipSchema.safeParse(fields)
+    : membershipFallbackSchema.safeParse(fields);
+  if (!parsed.success)
+    return { ok: false, errors: fieldErrors(parsed.error), values: collectValues(formData) };
+
+  const body = credential ? { ...parsed.data, credential } : parsed.data;
+  const result = await postJson(`/memberships/plans/${planId}/purchase`, body, formData);
+  if (!result.ok)
+    return {
+      ok: false,
+      message: errorMessage(result.data, 'We could not start that membership.'),
+      values: collectValues(formData),
+    };
+
+  const payment = readMembershipHandle(result.data);
+  return {
+    ok: true,
+    // What a FREE plan sees, and only a free plan: it is already active.
+    message: 'Welcome aboard — your membership is active. Check your inbox for the details.',
+    ...(payment ? { payment } : {}),
+  };
+}
+
+/** The QR for a membership already bought. Public, like the form that bought
+ * it — the buyer has no session. */
+export function fetchMembershipPayment(membershipId: string): Promise<MembershipPaymentView> {
+  return paymentJson(`/memberships/${membershipId}/paynow-qr`);
+}
+
+/** "I have paid" — a claim and nothing more, exactly as the enrolment flow's. */
+export function claimMembershipPayment(
+  membershipId: string,
+  payerReference: string,
+): Promise<MembershipPaymentView> {
+  const reference = payerReference.trim();
+  return paymentJson(`/memberships/${membershipId}/payment-claimed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(reference ? { payerReference: reference } : {}),
   });
 }

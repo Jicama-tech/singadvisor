@@ -55,6 +55,7 @@ export type IconName =
   | "layers"
   | "image"
   | "grid"
+  | "lock"
   | "star"
   | "link"
   | "play";
@@ -125,6 +126,8 @@ const paths: Record<IconName, string> = {
     "M3 3h18v18H3zM3 15l5-5 4 4 3-3 6 6M14 8.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z",
   grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
   // Blog feedback star rating.
+  lock:
+    "M7 11V7a5 5 0 0 1 10 0v4M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z",
   star: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
   // Blog "Copy link".
   link: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",

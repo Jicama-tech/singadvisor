@@ -30,7 +30,7 @@ const GROUPS: { label: string; tabs: (keyof typeof ACCESS_TAB_LABELS)[] }[] = [
     tabs: ["landing", "trainings", "events", "consultancy", "careers", "blog", "newsletter"],
   },
   { label: "Inbox", tabs: ["registrations", "enquiries", "applications", "messages"] },
-  { label: "Other", tabs: ["overview", "settings", "crm"] },
+  { label: "Other", tabs: ["overview", "settings", "crm", "memberships"] },
 ];
 
 export function OperatorsPanel() {
