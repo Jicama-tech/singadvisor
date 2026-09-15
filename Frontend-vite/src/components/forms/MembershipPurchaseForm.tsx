@@ -1,6 +1,12 @@
-import { useState } from "react";
-import { purchaseMembership, type MembershipPaymentHandle } from "@/actions";
+import { useEffect, useState } from "react";
+import {
+  fetchMyMembership,
+  purchaseMembership,
+  type MembershipHeldView,
+  type MembershipPaymentHandle,
+} from "@/actions";
 import { FormError, FormSuccess, SubmitButton, useClientAction } from "@/components/forms/FormShell";
+import { MembershipAlreadyHeld } from "@/components/forms/MembershipAlreadyHeld";
 import { MembershipPaymentStep } from "@/components/forms/MembershipPaymentStep";
 import { Field, Input } from "@/components/ui/Field";
 import {
@@ -59,6 +65,47 @@ export function MembershipPurchaseForm({
   const [credential, setCredential] = useState<string | null>(null);
   const [signInError, setSignInError] = useState<string | null>(null);
 
+  /**
+   * What this Google account already holds, asked as soon as it is known.
+   *
+   * `undefined` means the question has not been answered yet, `null` means it
+   * was and the answer is nothing. The two have to be distinguishable: treating
+   * "not asked yet" as "holds nothing" would flash the form up and then replace
+   * it, which is worse than a moment of waiting.
+   */
+  const [held, setHeld] = useState<MembershipHeldView | null | undefined>(undefined);
+
+  /** Set when somebody whose membership has ENDED chooses to buy again. It is
+   * never offered for an active one — the Backend refuses that outright, so an
+   * override here would only walk them into the error this screen exists to
+   * replace. */
+  const [renewing, setRenewing] = useState(false);
+
+  useEffect(() => {
+    if (!credential) {
+      setHeld(undefined);
+      setRenewing(false);
+      return;
+    }
+    let cancelled = false;
+    setHeld(undefined);
+    void (async () => {
+      const existing = await fetchMyMembership(credential);
+      if (!cancelled) setHeld(existing);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [credential]);
+
+  /** Back to the sign-in step, and nothing carried over. */
+  const useAnotherAccount = () => {
+    setCredential(null);
+    setSignInError(null);
+    setHeld(undefined);
+    setRenewing(false);
+  };
+
   // A paid plan's success state IS the payment step. A free one keeps the
   // message, because `payment` stays null for it.
   if (state.ok && payment) return <MembershipPaymentStep payment={payment} />;
@@ -105,6 +152,46 @@ export function MembershipPurchaseForm({
     );
   }
 
+  // Signed in, and the answer to "do you already have one" is still in flight.
+  // The form is deliberately not shown yet — see `held`.
+  if (gated && credential && held === undefined) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] surface-sunken px-5 py-10 text-center">
+        <span
+          aria-hidden="true"
+          className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)]"
+        />
+        <p className="text-sm text-[var(--text-secondary)]">Checking your membership…</p>
+      </div>
+    );
+  }
+
+  // This account already has one. An ACTIVE membership is a wall, because the
+  // Backend will refuse the purchase anyway; a finished one is only a warning,
+  // with the offer to take out a new one.
+  if (gated && held && !renewing) {
+    const finished = held.status === "expired" || held.status === "cancelled";
+    return (
+      <div className="flex flex-col gap-4">
+        <MembershipAlreadyHeld
+          membership={held}
+          email={profile?.email}
+          onUseAnotherAccount={useAnotherAccount}
+          onContinueAnyway={finished ? () => setRenewing(true) : undefined}
+        />
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="self-center text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            Back to the plans
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="planId" value={planId} />
@@ -124,10 +211,7 @@ export function MembershipPurchaseForm({
           </p>
           <button
             type="button"
-            onClick={() => {
-              setCredential(null);
-              setSignInError(null);
-            }}
+            onClick={useAnotherAccount}
             className="mt-2 text-xs font-medium text-[var(--accent)] hover:underline"
           >
             Use a different Google account

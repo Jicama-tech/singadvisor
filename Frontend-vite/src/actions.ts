@@ -289,6 +289,16 @@ export type MembershipPaymentView = {
   payment?: { qr: string; payeeId: string; payeeName: string };
 };
 
+/** The same view plus what the plan promised.
+ *
+ * A separate type rather than an optional `perks` on the one above, because the
+ * two are answered by different routes: paynow-qr and payment-claimed reply
+ * with the payment view alone, while purchase and /memberships/me add the
+ * perks. Making it optional everywhere would let a caller read `perks` off a
+ * reply that never carries it and get `undefined` at runtime.
+ */
+export type MembershipHeldView = MembershipPaymentView & { perks: string[] };
+
 /**
  * A free plan activates on purchase and owes nothing, so it gets no handle
  * and therefore no payment step — exactly the fork readPaymentHandle makes
@@ -313,6 +323,41 @@ function readMembershipHandle(data: unknown): MembershipPaymentHandle | null {
     amountCents,
     currency: typeof doc.currency === 'string' ? doc.currency : 'SGD',
   };
+}
+
+/** What an account already holds, or null when it holds nothing.
+ *
+ * Asked once, as soon as somebody signs in and BEFORE the form is shown, so a
+ * person who already has a membership is told so rather than filling in a name
+ * and a phone number to be refused at the end of it. The Backend refuses the
+ * purchase too — this is the courtesy, not the control.
+ *
+ * Returns null on any failure. A check that cannot reach the API must not
+ * stand between somebody and the form: the purchase itself is still guarded,
+ * so the cost of being wrong here is one avoidable error message, and the cost
+ * of treating a network blip as "you are blocked" is a sale that cannot happen.
+ */
+export async function fetchMyMembership(
+  credential: string,
+): Promise<MembershipHeldView | null> {
+  try {
+    const res = await fetch(`${__API_URL__}/memberships/me`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    });
+    if (!res.ok) return null;
+    const data: unknown = await res.json();
+    if (!data || typeof data !== 'object') return null;
+    // The route answers `null` for an address with no membership at all, which
+    // parses to null and is the common case rather than an error.
+    const held = data as MembershipHeldView;
+    // `perks` is read straight into a .map, and this is untyped JSON however
+    // reliably the Backend sends it.
+    return { ...held, perks: Array.isArray(held.perks) ? held.perks : [] };
+  } catch {
+    return null;
+  }
 }
 
 export async function purchaseMembership(

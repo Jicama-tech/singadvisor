@@ -223,6 +223,38 @@ MembershipSchema.index({ status: 1, endDate: 1 });
  * membership is stale but still marked active. The date test is what closes
  * that window.
  */
+/**
+ * Of everything an address has ever held, the one worth showing it.
+ *
+ * Exported and pure so the rule can be tested on its own. Reaching it through
+ * `myMembership` means going through Google verification, which is exactly the
+ * kind of thing that leads to a test asserting a copy of the rule rather than
+ * the rule.
+ *
+ * `rows` must already be newest-first, so each match below is the most recent
+ * of its kind.
+ *
+ *   active  — what they hold now, and the only status that stops a purchase.
+ *   pending — bought and not yet paid for. Ahead of any finished membership
+ *             because it is the one they can still act on, and somebody who
+ *             forgot they had started is exactly who buys twice.
+ *   neither — the most recent, so a page can offer to renew rather than treat
+ *             a returning member as new.
+ *
+ * `status: 'active'` with no date check, deliberately: it has to agree with
+ * what purchase() blocks on, which is the partial unique index, which knows
+ * nothing about dates. Disagreeing would mean telling somebody they are free
+ * to buy and then refusing them.
+ */
+export function pickMembershipToShow<T extends { status: string }>(rows: T[]): T | null {
+  if (rows.length === 0) return null;
+  return (
+    rows.find((row) => row.status === 'active') ??
+    rows.find((row) => row.status === 'pending') ??
+    rows[0]
+  );
+}
+
 export function activeMembershipFilter(now: Date = new Date()) {
   return {
     status: 'active',

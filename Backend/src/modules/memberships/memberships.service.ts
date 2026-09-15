@@ -30,10 +30,25 @@ import {
 } from './entities/membership-plan.entity';
 import {
   activeMembershipFilter,
+  pickMembershipToShow,
   Membership,
   MembershipDocument,
   type MembershipStatus,
 } from './entities/membership.entity';
+
+/** A date as a person reads it — "3 March 2027". Used in the one place a date
+ * reaches somebody as prose rather than as a field the frontend formats: the
+ * conflict message when an account already holds a membership. `en-GB` rather
+ * than the server's locale, because the server's locale is not the reader's
+ * and this is the only string of its kind. */
+function formatMembershipDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Singapore',
+  }).format(date);
+}
 
 @Injectable()
 export class MembershipsService {
@@ -188,9 +203,23 @@ export class MembershipsService {
     // Checked here for a clear message rather than left to the partial unique
     // index, which would surface as a duplicate-key 500. The index is still
     // what actually guarantees it — see activate().
+    //
+    // Matched on `status` alone, deliberately, and NOT through
+    // activeMembershipFilter(): the index this stands in for is partial on
+    // `status: 'active'` and knows nothing about dates. Letting a row that is
+    // still marked active past its end date through here would sell a
+    // membership that then failed to activate on a duplicate key — a 500 at
+    // the worst moment, after the money.
     const active = await this.model.findOne({ email, status: 'active' }).exec();
     if (active) {
-      throw new ConflictException('This account already holds an active membership.');
+      // Named, because "you already have one" leaves somebody who bought the
+      // wrong account or forgot entirely with nothing to act on. The frontend
+      // asks before the form is ever shown; this is the case where it did not.
+      throw new ConflictException(
+        `This Google account already holds the ${active.planName} membership` +
+          (active.endDate ? `, which runs until ${formatMembershipDate(active.endDate)}` : '') +
+          '.',
+      );
     }
 
     // The only place a membership's price is decided, read off the plan the
@@ -226,10 +255,10 @@ export class MembershipsService {
     // without an admin ever touching it.
     if (!payable) {
       const activated = await this.activate(membership, 'system');
-      return this.purchaseView(activated);
+      return this.membershipView(activated);
     }
 
-    return this.purchaseView(membership);
+    return this.membershipView(membership);
   }
 
   // ── Payment ────────────────────────────────────────────────────────────
@@ -276,7 +305,7 @@ export class MembershipsService {
    * `perks` rides along because the success state lists what was just bought,
    * and it is the plan's promise rather than anything about the person.
    */
-  private purchaseView(doc: MembershipDocument) {
+  private membershipView(doc: MembershipDocument) {
     return { ...this.paymentView(doc), perks: doc.perks };
   }
 
@@ -650,15 +679,17 @@ export class MembershipsService {
     const identity = await verifyGoogleCredential(clientId, credential, {
       requireVerifiedEmail: true,
     });
-    const email = identity.email;
+    const email = identity.email.toLowerCase().trim();
 
-    const membership = await this.model
-      .findOne({ email: email.toLowerCase().trim() })
-      .sort({ createdAt: -1 })
-      .exec();
-    if (!membership) return null;
+    // One query, then the choice made in memory rather than in three round
+    // trips: almost every caller is somebody with no membership at all, and
+    // that case should cost one lookup on an indexed field, not three.
+    // pickMembershipToShow holds the rule, and holds it where it can be tested
+    // without a Google credential in front of it.
+    const rows = await this.model.find({ email }).sort({ createdAt: -1 }).exec();
+    const membership = pickMembershipToShow(rows);
 
-    return { ...this.paymentView(membership), perks: membership.perks };
+    return membership ? this.membershipView(membership) : null;
   }
 
   // ── Perks ──────────────────────────────────────────────────────────────
