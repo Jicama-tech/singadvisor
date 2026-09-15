@@ -16,6 +16,7 @@ import { ClaimPaymentDto } from './dto/claim-payment.dto';
 import { CrmService } from '../crm/crm.service';
 import { MailService } from '../mail/mail.service';
 import { PaynowService } from '../paynow/paynow.service';
+import { brandedEmail, detail, p, strong } from '../../common/email-layout';
 
 @Injectable()
 export class RegistrationsService {
@@ -118,6 +119,10 @@ export class RegistrationsService {
     // admin cannot enter a negative price, and a stored one reads as free
     // rather than as a QR asking for less than nothing.
     const seats = dto.seats ?? 1;
+    // The list price, and nothing else. A membership deliberately does NOT move
+    // it: the discount that used to live here was removed, and nothing in this
+    // codebase may now reduce what a course costs. What a member gets is
+    // members-only content and the mailing list, not a cheaper place.
     const amountCents = Math.round(Math.max(training.priceCents, 0) * seats);
     const payable = amountCents > 0;
 
@@ -429,18 +434,22 @@ export class RegistrationsService {
    */
   private joiningDetails(training: Training | null): string {
     if (!training) {
-      return '<p>We will send you the joining details before the course starts.</p>';
+      return p('We will send you the joining details before the course starts.');
     }
     if (training.format === 'In-person') {
       const address = training.venueAddress?.trim();
       return address
-        ? `<p><strong>Where:</strong><br />${escapeHtml(address).replace(/\n/g, '<br />')}</p>`
-        : '<p>We will send you the venue address before the course starts.</p>';
+        ? p(`${strong('Where:')}<br />${escapeHtml(address).replace(/\n/g, '<br />')}`)
+        : p('We will send you the venue address before the course starts.');
     }
     const link = training.googleClassroomLink?.trim();
     return link
-      ? `<p><strong>Join here:</strong> <a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>`
-      : '<p>We will send you the Google Classroom link before the course starts.</p>';
+      // Styled inline: a bare <a> inherits nothing in Outlook and renders in
+      // the client's default blue — the one place brand colour slips.
+      ? p(
+          `${strong('Join here:')} <a href="${escapeHtml(link)}" style="color:#0d8266;text-decoration:underline;">${escapeHtml(link)}</a>`,
+        )
+      : p('We will send you the Google Classroom link before the course starts.');
   }
 
   /**
@@ -471,22 +480,33 @@ export class RegistrationsService {
     // have paid would be a lie the booking itself contradicts.
     const amount =
       registration.amountCents > 0
-        ? `<p><strong>${registration.paymentStatus === 'paid' ? 'Paid' : 'Amount due'}:</strong> ` +
-          `${formatAmount(registration.amountCents, registration.currency)}</p>`
+        ? detail(
+            registration.paymentStatus === 'paid' ? 'Paid:' : 'Amount due:',
+            // Escaped because `currency` is admin-supplied and formatAmount
+            // returns it verbatim for anything but SGD. detail() escapes its
+            // LABEL only — its value is deliberately markup, so every caller
+            // passing dynamic text has to escape it. The other three call sites
+            // already did; this one did not.
+            escapeHtml(formatAmount(registration.amountCents, registration.currency)),
+          )
         : '';
 
     const attemptedAt = new Date();
     const sent = await this.mail.sendBestEffort({
       to: registration.email,
       subject: `Your place on ${registration.trainingTitle} is confirmed`,
-      html: `
-        <p>Hi ${escapeHtml(registration.name)},</p>
-        <p>Your place on <strong>${escapeHtml(registration.trainingTitle)}</strong> is confirmed.</p>
-        <p><strong>Seats:</strong> ${registration.seats}</p>
-        ${amount}
-        ${this.joiningDetails(training)}
-        <p>If anything here looks wrong, reply to this email and we will put it right.</p>
-      `,
+      html: brandedEmail({
+        preheading: 'Enrolment confirmed',
+        preview: `Your place on ${registration.trainingTitle} is confirmed.`,
+        body: [
+          p(`Hi ${escapeHtml(registration.name)},`),
+          p(`Your place on ${strong(registration.trainingTitle)} is confirmed.`),
+          detail('Seats:', String(registration.seats)),
+          amount,
+          this.joiningDetails(training),
+          p('If anything here looks wrong, reply to this email and we will put it right.'),
+        ].join(''),
+      }),
     });
 
     const updated = await this.model

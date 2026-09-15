@@ -18,45 +18,11 @@ import {
 } from "@/components/ui/GoogleSignIn";
 import { PhoneField } from "@/components/ui/PhoneField";
 import type { FormState } from "@/lib/form-state";
+import { readGoogleProfile } from "@/lib/googleProfile";
 
 type Props =
-  | { kind: "training"; id: string; title: string; maxSeats?: number }
-  | { kind: "event"; id: string; title: string; maxSeats?: number };
-
-/**
- * Pull the display fields out of a Google ID token, in the browser.
- *
- * This is cosmetic and nothing else: it prefills the name and shows whose
- * account the booking is going under. It reads the token's own claims without
- * checking a signature, so nothing here may be treated as proof of anything —
- * the Backend re-verifies the same token against Google's public keys and takes
- * the stored address from *that*, never from this form. A doctored or simply
- * unreadable token therefore costs an empty prefill and nothing more.
- *
- * The middle segment is base64url (`-`/`_`, no padding), which `atob` alone
- * rejects, and the name may be any UTF-8 — hence the two conversions rather
- * than the bare `atob(...)` a payload of pure ASCII would get away with.
- */
-function readGoogleProfile(credential: string): { email: string; name: string } {
-  try {
-    const segment = credential.split(".")[1] ?? "";
-    const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
-    const json = decodeURIComponent(
-      atob(padded)
-        .split("")
-        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`)
-        .join(""),
-    );
-    const payload = JSON.parse(json) as { email?: unknown; name?: unknown };
-    return {
-      email: typeof payload.email === "string" ? payload.email : "",
-      name: typeof payload.name === "string" ? payload.name : "",
-    };
-  } catch {
-    return { email: "", name: "" };
-  }
-}
+  | { kind: "training"; id: string; title: string }
+  | { kind: "event"; id: string; title: string };
 
 export function RegistrationForm(props: Props) {
   /** Set only where the Backend says this booking owes money — see `submit`. */
@@ -217,44 +183,20 @@ export function RegistrationForm(props: Props) {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Organisation"
-          htmlFor="reg-company"
-          hint="Optional"
-          error={state.errors?.company}
-        >
-          <Input
-            id="reg-company"
-            defaultValue={state.values?.company}
-            name="company"
-            autoComplete="organization"
-            placeholder="Acme Pte Ltd"
-          />
-        </Field>
-
-        <Field
-          label="Number of seats"
-          htmlFor="reg-seats"
-          hint={
-            props.maxSeats
-              ? `${props.maxSeats} seat${props.maxSeats === 1 ? "" : "s"} remaining`
-              : "Booking for a group? Enter the total here."
-          }
-          error={state.errors?.seats}
-        >
-          <Input
-            id="reg-seats"
-            name="seats"
-            type="number"
-            min={1}
-            max={props.maxSeats ?? 50}
-            defaultValue={state.values?.seats ?? 1}
-            className="max-w-32"
-            aria-invalid={!!state.errors?.seats}
-          />
-        </Field>
-      </div>
+      <Field
+        label="Organisation"
+        htmlFor="reg-company"
+        hint="Optional"
+        error={state.errors?.company}
+      >
+        <Input
+          id="reg-company"
+          defaultValue={state.values?.company}
+          name="company"
+          autoComplete="organization"
+          placeholder="Acme Pte Ltd"
+        />
+      </Field>
 
       <Field
         label="Anything we should know?"

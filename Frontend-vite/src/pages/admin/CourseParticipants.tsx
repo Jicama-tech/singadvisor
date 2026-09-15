@@ -658,15 +658,17 @@ export default function CourseParticipants() {
                             </span>
                           ) : (
                             <>
-                              {/* Offered wherever a confirmed place has not had
-                                  its joining details out — the Backend refuses
-                                  anything else, and there is nothing to resend
-                                  to a booking still pending or since cancelled.
-                                  Outlined rather than filled: the money button
-                                  is the one that should take a second's
-                                  thought. */}
-                              {p.registrationStatus === "confirmed" &&
-                                !p.confirmationEmailSentAt && (
+                              {/* Offered against any confirmed booking, INCLUDING
+                                  one whose email already went out — joining
+                                  details get lost or filtered, and a venue or
+                                  Classroom link can change after the first send.
+                                  The route asks only that the booking be
+                                  confirmed. The Sent/Not sent state is shown
+                                  elsewhere on the row, so nothing is hidden by
+                                  leaving this available. Outlined rather than
+                                  filled: the money button is the one that should
+                                  take a second's thought. */}
+                              {p.registrationStatus === "confirmed" && (
                                   <button
                                     type="button"
                                     onClick={() => void resendJoiningDetails(p)}

@@ -299,13 +299,22 @@ export default function RegistrationsList() {
                     </Td>
                     <Td>
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        {/* Offered wherever a confirmed place has not had its
-                            joining details out — the Backend refuses anything
-                            else, and there is nothing to resend to a booking
-                            still pending or since cancelled. Outlined rather
-                            than filled: the money button beside it is the one
-                            that should take a second's thought. */}
-                        {r.status === "confirmed" && !r.confirmationEmailSentAt && (
+                        {/* Offered against any confirmed booking, INCLUDING one
+                            whose email already went out. Joining details get
+                            lost, filtered, or sent to an address the person has
+                            since stopped reading — and a venue or a Classroom
+                            link can change after the first send, which is
+                            precisely when somebody needs it sent again.
+                            RegistrationsService.resendConfirmation asks only
+                            that the booking be confirmed, so the button matches
+                            what the route will actually accept.
+
+                            The Email column beside this already says whether it
+                            went and when, so nothing is hidden by keeping the
+                            button available. Outlined rather than filled: the
+                            money button beside it is the one that should take a
+                            second's thought. */}
+                        {r.status === "confirmed" && (
                           <button
                             type="button"
                             onClick={() => void resendConfirmation(r)}

@@ -19,6 +19,13 @@ import { ConfirmPaynowDto } from './dto/confirm-paynow.dto';
 import { RazorpayService } from './razorpay.service';
 import { PaynowService } from '../paynow/paynow.service';
 import { MailService } from '../mail/mail.service';
+import {
+  brandedEmail,
+  detail,
+  escapeEmailHtml,
+  p,
+  strong,
+} from '../../common/email-layout';
 
 type ConfirmInput = {
   eventId: string;
@@ -560,12 +567,19 @@ export class TicketsService {
     const sent = await this.mail.sendBestEffort({
       to: ticket.customerEmail,
       subject: `Your ticket for ${ticket.eventTitle}`,
-      html: `
-        <p>Hi ${ticket.customerName},</p>
-        <p>Your ticket for <strong>${ticket.eventTitle}</strong> is confirmed.</p>
-        <p><strong>Ticket ID:</strong> ${ticket.ticketId}</p>
-        <p>Show the attached QR code at the door.</p>
-      `,
+      // Escaped, unlike the version this replaced: customerName and eventTitle
+      // are user- and admin-supplied, and an unescaped apostrophe or angle
+      // bracket in either used to land raw in somebody's inbox.
+      html: brandedEmail({
+        preheading: 'Ticket confirmed',
+        preview: `Your ticket for ${ticket.eventTitle} — show the QR code at the door.`,
+        body: [
+          p(`Hi ${escapeEmailHtml(ticket.customerName)},`),
+          p(`Your ticket for ${strong(ticket.eventTitle)} is confirmed.`),
+          detail('Ticket ID:', escapeEmailHtml(ticket.ticketId)),
+          p('Show the attached QR code at the door.'),
+        ].join(''),
+      }),
       attachments: [{ filename: 'ticket-qr.png', path: qrAbsolutePath }],
     });
     if (!sent) {
