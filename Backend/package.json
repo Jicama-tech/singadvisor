@@ -15,7 +15,9 @@
     "seed:landing": "tsx scripts/seed-landing.ts",
     "import:events": "tsx scripts/import-events.ts",
     "import:content": "tsx scripts/import-content.ts",
-    "migrate:trainers": "tsx scripts/migrate-trainer-ids.ts"
+    "migrate:trainers": "tsx scripts/migrate-trainer-ids.ts",
+    "migrate:membership-discount": "tsx scripts/drop-membership-discount.ts",
+    "migrate:featured": "tsx scripts/backfill-featured.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
