@@ -17,6 +17,10 @@ function toFormShape(n: NewsletterDoc) {
     items: n.items ?? [],
     published: n.published,
     featured: n.featured ?? false,
+    // Carried through deliberately: a toFormShape that drops a flag makes the
+    // form default it back on, so every save of a gated issue would quietly
+    // un-gate it.
+    membersOnly: n.membersOnly ?? false,
   };
 }
 

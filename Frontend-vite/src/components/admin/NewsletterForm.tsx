@@ -25,6 +25,8 @@ type Newsletter = {
   items: NewsletterItem[];
   published: boolean;
   featured: boolean;
+  /** Absent on issues predating the flag — missing means open. */
+  membersOnly?: boolean;
 };
 
 /** One story row in the repeater. `key` is a stable React key that survives
@@ -372,6 +374,16 @@ export function NewsletterForm({
                   Object.keys(values).length > 0
                     ? values.published === "true"
                     : (newsletter?.published ?? true)
+                }
+              />
+              <Toggle
+                name="membersOnly"
+                label="Members only"
+                hint="Only signed-in members can read the stories. Everyone else sees the headings and a link to the membership plans. Publishing it announces the issue to every member by email, once."
+                defaultChecked={
+                  Object.keys(values).length > 0
+                    ? values.membersOnly === "true"
+                    : (newsletter?.membersOnly ?? false)
                 }
               />
               <Toggle

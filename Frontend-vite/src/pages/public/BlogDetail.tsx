@@ -9,7 +9,14 @@ import { PostCard, type PostCardData } from "@/components/cards/PostCard";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { fetchPostBySlug, fetchPosts, type PostDoc } from "@/lib/contentClient";
+import {
+  fetchPostAsMember,
+  fetchPostBySlug,
+  fetchPosts,
+  type PostDoc,
+} from "@/lib/contentClient";
+import { MembershipPromo } from "@/components/site/MembershipPromo";
+import { MemberContentGate } from "@/components/site/MemberContentGate";
 import { withBackendUrl } from "@/lib/media-url";
 import { SITE } from "@/lib/constants";
 import { formatDate, readingMinutes } from "@/lib/utils";
@@ -26,7 +33,8 @@ function toCardData(p: PostDoc): PostCardData {
     excerpt: p.excerpt,
     coverImage: p.coverImage,
     category: p.category,
-    content: p.content,
+    readingMinutes: p.readingMinutes ?? 1,
+    membersOnly: p.membersOnly,
     publishedAt: p.publishedAt ? new Date(p.publishedAt) : null,
     author: p.author ? { name: p.author.name, photo: p.author.photo } : null,
     writtenByName: p.writtenByName || undefined,
@@ -118,9 +126,27 @@ export default function BlogDetail() {
   const { post, suggestions } = data;
   // The Backend returns tags as a real array — no JSON parsing needed.
   const tags = post.tags;
-  const minutes = readingMinutes(post.content);
+  // The Backend computes this now; the fallback covers a post fetched before
+  // it did, and costs nothing when `content` is withheld (it reads as 1).
+  const minutes = post.readingMinutes ?? readingMinutes(post.content ?? "");
 
   const url = `${window.location.origin}/blog/${post.slug}`;
+
+  /**
+   * Re-ask for this post as a member. Returns whether the body actually came
+   * back, which is how the gate knows to stop offering a sign-in it has
+   * already tried and start offering the plans instead.
+   *
+   * Only `post` is replaced, never `suggestions` — the related posts beside
+   * it were fetched from the public list and are unaffected by who is asking.
+   */
+  async function unlockWithCredential(credential: string): Promise<boolean> {
+    if (!slug) return false;
+    const asMember = await fetchPostAsMember(slug, credential);
+    if (!asMember || asMember.content === undefined) return false;
+    setData((current) => (current ? { ...current, post: asMember } : current));
+    return true;
+  }
 
   async function handleCopyLink() {
     try {
@@ -259,7 +285,30 @@ export default function BlogDetail() {
         {/* ---- Body --------------------------------------------------- */}
         <div className="container-page pb-16 pt-10">
           <div className="mx-auto max-w-[44rem]">
-            <ArticleBody content={post.content} />
+            {/*
+              The body arrives only when the reader is entitled to it — the
+              Backend withholds `content` for a members-only post, so a missing
+              body here is a fact about this response, not a render choice. The
+              gate below cannot be clicked or inspected into revealing anything,
+              because there is nothing in the page to reveal.
+
+              The advert is only interjected into an article somebody can
+              actually read; offering membership inside a piece already behind
+              the membership gate would be absurd.
+            */}
+            {post.content !== undefined ? (
+              <ArticleBody
+                content={post.content}
+                interject={post.membersOnly ? undefined : <MembershipPromo />}
+              />
+            ) : (
+              <MemberContentGate
+                kind="article"
+                title={post.title}
+                teaser={post.excerpt}
+                onCredential={unlockWithCredential}
+              />
+            )}
 
             {tags.length > 0 && (
               <div className="mt-12 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-8">

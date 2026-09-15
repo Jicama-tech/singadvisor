@@ -41,7 +41,7 @@ export function BlogSection({
                 </span>
                 <span className="flex items-center gap-3 text-sm text-[var(--text-muted)]">
                   {post.publishedAt && <span>{formatDate(post.publishedAt)}</span>}
-                  <span>{readingMinutes(post.content)} min read</span>
+                  <span>{post.readingMinutes} min read</span>
                   <Icon
                     name="arrow-right"
                     size={15}

@@ -31,6 +31,8 @@ type Post = {
   featured: boolean;
   /** Absent on posts predating the flag — the toggle treats that as listed. */
   listedOnBlog?: boolean;
+  /** Absent on posts predating the flag — missing means open. */
+  membersOnly?: boolean;
   publishedAt: Date | null;
   writtenByName: string;
   writtenByPosition: string;
@@ -465,6 +467,16 @@ export function PostForm({
                 hint="Pins it to the top of the blog list, ahead of newer posts, and makes it eligible for the home page highlight."
                 defaultChecked={
                   submitted ? values.featured === "true" : (post?.featured ?? false)
+                }
+              />
+              <Toggle
+                name="membersOnly"
+                label="Members only"
+                hint="Only signed-in members can read it. Everyone else sees the title, the teaser and a link to the membership plans. Publishing it announces it to every member by email, once."
+                defaultChecked={
+                  submitted
+                    ? values.membersOnly === "true"
+                    : (post?.membersOnly ?? false)
                 }
               />
               <Toggle

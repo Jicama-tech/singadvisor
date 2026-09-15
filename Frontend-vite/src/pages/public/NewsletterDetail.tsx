@@ -1,13 +1,19 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import MarketingShell from "@/components/site/MarketingShell";
 import { AppImage as Image } from "@/components/ui/AppImage";
 import { Icon } from "@/components/ui/Icon";
-import { fetchNewsletterBySlug, type NewsletterDoc } from "@/lib/contentClient";
+import {
+  fetchNewsletterAsMember,
+  fetchNewsletterBySlug,
+  type NewsletterDoc,
+} from "@/lib/contentClient";
 import { withBackendUrl } from "@/lib/media-url";
 import { SITE } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
+import { MembershipPromo } from "@/components/site/MembershipPromo";
+import { MemberContentGate } from "@/components/site/MemberContentGate";
 
 export default function NewsletterDetail() {
   const { slug } = useParams();
@@ -28,6 +34,19 @@ export default function NewsletterDetail() {
       cancelled = true;
     };
   }, [slug]);
+
+  /**
+   * Re-ask for this issue as a member. Returns whether the stories actually
+   * came back, so the gate knows whether to keep offering a sign-in or to
+   * start offering the plans.
+   */
+  async function unlockWithCredential(credential: string): Promise<boolean> {
+    if (!slug) return false;
+    const asMember = await fetchNewsletterAsMember(slug, credential);
+    if (!asMember || (asMember.items ?? []).every((story) => !story.message)) return false;
+    setItem(asMember);
+    return true;
+  }
 
   if (!item) {
     if (item === undefined) {
@@ -61,6 +80,24 @@ export default function NewsletterDetail() {
   }
 
   const stories = item.items;
+
+  /**
+   * Withheld, rather than simply empty. A members-only issue whose stories all
+   * arrive without text is one the Backend refused; an OPEN issue is never in
+   * that state, because an issue must have at least one story with a message
+   * to be saved at all.
+   */
+  const gated =
+    item.membersOnly === true && stories.length > 0 && stories.every((s) => !s.message);
+
+  /**
+   * Which story the membership advert follows. An issue is already a list of
+   * discrete pieces, so it slots between two of them and needs no splitting.
+   *
+   * -1 on an issue of one or two stories: there is no middle to speak of, and
+   * an advert after the first of two reads as half the issue being an advert.
+   */
+  const promoAfter = stories.length >= 3 ? Math.ceil(stories.length / 2) - 1 : -1;
   const lead = stories[0];
 
   const articleLd = {
@@ -127,10 +164,26 @@ export default function NewsletterDetail() {
         <div className="container-page py-10 md:py-14">
           {/* One block per story, separated by a rule so a long issue reads as
               a list of pieces rather than one run-on article. */}
+          {/*
+            A gated issue arrives with every story's `message` blank — the
+            Backend withholds them, so there is nothing in the page for the
+            gate to be clicked around. The headings and images still come, which
+            is what the locked panel has to show.
+          */}
+          {gated ? (
+            <div className="mx-auto max-w-3xl">
+              <MemberContentGate
+                kind="issue"
+                title={item.title}
+                teaser={stories[0]?.heading}
+                onCredential={unlockWithCredential}
+              />
+            </div>
+          ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-14">
             {stories.map((story, i) => (
+              <Fragment key={`${story.image}-${i}`}>
               <section
-                key={`${story.image}-${i}`}
                 className={
                   i > 0 ? "border-t border-[var(--border-subtle)] pt-14" : undefined
                 }
@@ -172,8 +225,14 @@ export default function NewsletterDetail() {
                 </div>
                 )}
               </section>
+
+              {/* Between two pieces, never after the last one — an advert at the
+                  foot of an issue is only seen by people who already read it all. */}
+              {i === promoAfter && <MembershipPromo />}
+              </Fragment>
             ))}
           </div>
+          )}
         </div>
       </article>
     </MarketingShell>

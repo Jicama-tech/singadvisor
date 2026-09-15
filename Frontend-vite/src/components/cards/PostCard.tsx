@@ -12,7 +12,10 @@ export type PostCardData = {
   excerpt: string;
   coverImage: string;
   category: string;
-  content: string;
+  /** From the Backend — the list no longer ships bodies to compute it from. */
+  readingMinutes: number;
+  /** Shows the lock, and is how a reader learns membership is worth having. */
+  membersOnly?: boolean;
   publishedAt: Date | null;
   author: { name: string; photo: string } | null;
   /** Freeform byline, independent of `author` above — preferred when set. */
@@ -44,6 +47,17 @@ export function PostCard({
         />
         <div className="absolute left-3 top-3">
           <Badge tone="accent">{post.category}</Badge>
+          {/* A locked post has to LOOK locked on the listing. Without this the
+              card is identical to an open one and the reader only discovers
+              the gate after clicking — which reads as a bait-and-switch
+              rather than an invitation. It is also the one place a
+              non-member learns membership buys something. */}
+          {post.membersOnly && (
+            <Badge tone="neutral">
+              <Icon name="lock" size={12} />
+              Members
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -92,7 +106,7 @@ export function PostCard({
           )}
           <span className="flex items-center gap-1.5">
             <Icon name="clock" size={13} />
-            {readingMinutes(post.content)} min read
+            {post.readingMinutes} min read
           </span>
         </div>
       </CardBody>

@@ -11,12 +11,32 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { NewsletterService } from './newsletter.service';
 import { SaveNewsletterDto } from './dto/save-newsletter.dto';
+import { MemberViewDto } from '../../common/dto/member-view.dto';
+import { MembershipsService } from '../memberships/memberships.service';
 
 /** Route order matters: `admin` comes before `:slug`, otherwise it would be
  * swallowed by the GET :slug catch-all — same discipline as BlogController. */
 @Controller('newsletter')
 export class NewsletterController {
-  constructor(private readonly newsletterService: NewsletterService) {}
+  constructor(
+    private readonly newsletterService: NewsletterService,
+    private readonly memberships: MembershipsService,
+  ) {}
+
+  /**
+   * The member's view of an issue. A POST because the credential travels in
+   * a body and a GET has none — not because anything is written.
+   *
+   * A non-member gets exactly what the public GET gives: the headings and
+   * images with the words withheld, so the locked page has something to
+   * show rather than an error.
+   */
+  @Post(':slug/members')
+  findBySlugForMember(@Param('slug') slug: string, @Body() dto: MemberViewDto) {
+    return this.memberships
+      .viewerFor(dto.credential)
+      .then((viewer) => this.newsletterService.findBySlugPublic(slug, viewer));
+  }
 
   @Get()
   findPublished() {

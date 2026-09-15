@@ -138,6 +138,7 @@ export default function LandingSectionEdit() {
               slug: p.slug,
               title: p.title,
               excerpt: p.excerpt,
+              readingMinutes: p.readingMinutes ?? 1,
               coverImage: p.coverImage,
               category: p.category,
               content: p.content,

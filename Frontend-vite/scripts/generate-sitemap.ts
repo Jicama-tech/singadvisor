@@ -30,7 +30,7 @@ async function fetchList<T>(url: string): Promise<T[]> {
 }
 
 async function main() {
-  const staticPaths = ["", "/about", "/contact", "/events", "/trainings", "/consultancy", "/careers", "/blog"];
+  const staticPaths = ["", "/about", "/contact", "/events", "/trainings", "/consultancy", "/careers", "/blog", "/membership"];
 
   const [trainings, services, jobs, posts] = await Promise.all([
     fetchList<{ slug: string }>(`${API_URL}/trainings`),

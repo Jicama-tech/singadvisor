@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import DOMPurify from "dompurify";
 import { withBackendUrl } from "@/lib/media-url";
+import { splitArticleHtml } from "@/lib/splitArticle";
 
 /**
  * Renders a post's body — now the rich-text editor's HTML output (the Blog
@@ -14,7 +15,17 @@ import { withBackendUrl } from "@/lib/media-url";
  * heading/paragraph/list/quote/code treatment the old per-tag component
  * overrides gave, since raw HTML can't take per-element React props.
  */
-export function ArticleBody({ content }: { content: string }) {
+
+export function ArticleBody({
+  content,
+  interject,
+}: {
+  content: string;
+  /** Rendered once, part-way down the article, between two top-level blocks.
+   * Omitted, or on a post too short to take one, the body renders exactly as
+   * it always did. */
+  interject?: ReactNode;
+}) {
   const clean = useMemo(
     () =>
       DOMPurify.sanitize(content, {
@@ -58,10 +69,26 @@ export function ArticleBody({ content }: { content: string }) {
     [clean],
   );
 
+  // Only pay for the parse when something is actually going to be inserted.
+  const halves = useMemo(
+    () => (interject ? splitArticleHtml(withImageUrls) : null),
+    [withImageUrls, interject],
+  );
+
+  const bodyClass = "article-body text-[1.0625rem] leading-[1.75] text-[var(--text-secondary)]";
+
+  if (!halves) {
+    return <div className={bodyClass} dangerouslySetInnerHTML={{ __html: withImageUrls }} />;
+  }
+
+  // Two bodies rather than one, each carrying the same class — index.css
+  // styles `.article-body h2`, `.article-body p` and so on as descendants, so
+  // both halves are styled identically and the split leaves no visual seam.
   return (
-    <div
-      className="article-body text-[1.0625rem] leading-[1.75] text-[var(--text-secondary)]"
-      dangerouslySetInnerHTML={{ __html: withImageUrls }}
-    />
+    <>
+      <div className={bodyClass} dangerouslySetInnerHTML={{ __html: halves.before }} />
+      {interject}
+      <div className={bodyClass} dangerouslySetInnerHTML={{ __html: halves.after }} />
+    </>
   );
 }
