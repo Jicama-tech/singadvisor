@@ -25,6 +25,11 @@ import {
   SponsorRequestDocument,
 } from '../sponsors/entities/sponsor-request.entity';
 import { BlogFeedback, BlogFeedbackDocument } from '../blog/entities/blog-feedback.entity';
+import {
+  activeMembershipFilter,
+  Membership,
+  MembershipDocument,
+} from '../memberships/entities/membership.entity';
 
 /** The source row as upsertContact builds it, before it is pushed onto a
  * contact — `refId` already narrowed to a real ObjectId or null. */
@@ -124,7 +129,17 @@ export type ContactCourseSummary = {
 
 type LeanContact = Contact & { _id: Types.ObjectId };
 export type ContactWithCourses = LeanContact & { courses: ContactCourse[] };
-export type ContactListRow = LeanContact & { courses: ContactCourseSummary[] };
+/** What a membership adds to a person's row. Derived, never stored on the
+ * contact: a copy here would go stale the moment a membership lapsed, and the
+ * expiry sweep would have to know about the CRM to keep it honest. */
+export type ContactMemberState = {
+  isMember: boolean;
+  membershipEndsAt: Date | null;
+  membershipPlan: string | null;
+};
+
+export type ContactListRow = LeanContact &
+  ContactMemberState & { courses: ContactCourseSummary[] };
 
 /** The grouping key both aggregations below share: this person, this
  * programme. `email` is already folded to lowercase on either side. */
@@ -157,6 +172,22 @@ export class CrmService {
   constructor(
     @InjectModel(Contact.name)
     private readonly model: Model<ContactDocument>,
+    /**
+     * The membership collection, read directly — the same cross-module read
+     * this class already does for Registration, Enrolment and Ticket.
+     *
+     * Injecting MembershipsService instead would be circular and does not
+     * boot: memberships write themselves into the CRM, and
+     * MembershipsModule -> SubscribersModule -> CrmModule closes the loop.
+     * forwardRef does not save it either, because the cycle runs through a
+     * third module.
+     *
+     * The rule itself is still defined once — activeMembershipFilter on the
+     * entity — so the CRM and the content gate cannot disagree about who is a
+     * member.
+     */
+    @InjectModel(Membership.name)
+    private readonly membershipModel: Model<MembershipDocument>,
     // Read-only cross-module injections — same pattern PlatformSyncService
     // already uses to read BlogPost/Newsletter counts from outside their own
     // modules. Registration, Enrolment and Training also carry coursesFor()'s
@@ -400,9 +431,31 @@ export class CrmService {
     return contacts.map((c) => ({ ...c, courses: byEmail.get(c.email) ?? [] }));
   }
 
-  private async attachCourses(contact: LeanContact): Promise<ContactWithCourses> {
+  /**
+   * Membership state for one person, in the shape every full-contact response
+   * carries.
+   *
+   * Folded into attachCourses rather than added route by route, because
+   * CrmDetail replaces its entire contact state from whatever a save returns —
+   * so a create, a patch or a note reply that omitted these would make the
+   * membership line vanish from the page until the next reload.
+   */
+  private async memberStateOf(email: string) {
+    const live = await this.membershipModel
+      .findOne({ email: (email || '').toLowerCase(), ...activeMembershipFilter() })
+      .select('endDate planName')
+      .lean()
+      .exec();
+    return {
+      isMember: !!live,
+      membershipEndsAt: live?.endDate ?? null,
+      membershipPlan: live?.planName ?? null,
+    };
+  }
+
+  private async attachCourses(contact: LeanContact) {
     const [withCourses] = await this.withCourses([contact]);
-    return withCourses;
+    return { ...withCourses, ...(await this.memberStateOf(contact.email)) };
   }
 
   /** The programme filter, resolved to the people it names — a contact holds
@@ -459,15 +512,40 @@ export class CrmService {
     // Projected down after the join, not before it: the join is the same work
     // either way, and the list only ever renders titles. See
     // ContactCourseSummary.
-    return (await this.withCourses(contacts)).map(({ courses, ...c }) => ({
-      ...c,
-      courses: courses.map((x) => ({
-        trainingId: x.trainingId,
-        title: x.title,
-        enquired: x.enquiryCount > 0,
-        enrolled: x.enrolmentCount > 0,
-      })),
-    }));
+    const withCourses = await this.withCourses(contacts);
+    // ONE query for every row on the page, not one per row: this list runs to
+    // hundreds of contacts and a per-row lookup would turn a single screen into
+    // as many round trips. memberStatesFor keys on the lowercased address, which
+    // is how every membership is stored.
+    const addresses = [
+      ...new Set(withCourses.map((c) => (c.email || '').toLowerCase()).filter(Boolean)),
+    ];
+    const live = addresses.length
+      ? await this.membershipModel
+          .find({ email: { $in: addresses }, ...activeMembershipFilter() })
+          .select('email endDate planName')
+          .lean()
+          .exec()
+      : [];
+    const members = new Map(live.map((m) => [m.email, m]));
+
+    return withCourses.map(({ courses, ...c }) => {
+      const state = members.get((c.email || '').toLowerCase());
+      return {
+        ...c,
+        // Absent from the map means not a member — the caller renders a dash
+        // rather than inventing a date.
+        isMember: !!state,
+        membershipEndsAt: state?.endDate ?? null,
+        membershipPlan: state?.planName ?? null,
+        courses: courses.map((x) => ({
+          trainingId: x.trainingId,
+          title: x.title,
+          enquired: x.enquiryCount > 0,
+          enrolled: x.enrolmentCount > 0,
+        })),
+      };
+    });
   }
 
   async findById(id: string) {
@@ -550,6 +628,11 @@ export class CrmService {
       // re-import (normalizeHeader resolves it to 'courses', which
       // importFromSpreadsheet never reads), so the round trip still holds.
       'Courses',
+      // Derived like Courses, and likewise ignored on re-import — a
+      // membership is bought, never set by editing a spreadsheet.
+      'Member',
+      'Membership plan',
+      'Membership ends',
       'First seen',
       'Last activity',
     ];
@@ -562,6 +645,11 @@ export class CrmService {
       c.company,
       c.tags.join('; '),
       c.courses.map((x) => `${x.title}${x.enrolled ? ' (enrolled)' : ''}`).join('; '),
+      c.isMember ? 'Yes' : 'No',
+      c.membershipPlan ?? '',
+      // Date only: a spreadsheet column of full timestamps is unreadable, and
+      // an expiry is a day, not a moment.
+      c.membershipEndsAt ? c.membershipEndsAt.toISOString().slice(0, 10) : '',
       c.firstSeenAt.toISOString(),
       c.lastActivityAt.toISOString(),
     ]);

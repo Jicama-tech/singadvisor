@@ -327,6 +327,10 @@ export default function CrmList() {
                 <Th>Contact</Th>
                 <Th>Role</Th>
                 <Th>Company</Th>
+                {/* Membership sits beside the person rather than among their
+                    activity: it is a fact about who they are to us now, not
+                    something they did. */}
+                <Th>Member</Th>
                 {/* Courses (what they did with us) beside Sources (how they
                     got here); Actions stays last. */}
                 <Th>Courses</Th>
@@ -362,6 +366,23 @@ export default function CrmList() {
                       {c.role ? <Badge tone="accent">{c.role}</Badge> : <span className="text-[var(--text-muted)]">—</span>}
                     </Td>
                     <Td className="text-[var(--text-secondary)]">{c.company || "—"}</Td>
+                    <Td className="whitespace-nowrap">
+                      {c.isMember ? (
+                        <>
+                          <Badge tone="success">{c.membershipPlan || "Member"}</Badge>
+                          {/* The expiry is the half an admin actually acts on —
+                              who to chase — so it is shown, not hidden behind
+                              the badge. */}
+                          <span className="block text-xs text-[var(--text-muted)]">
+                            {c.membershipEndsAt
+                              ? `until ${formatDate(c.membershipEndsAt)}`
+                              : "no end date"}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[var(--text-muted)]">—</span>
+                      )}
+                    </Td>
                     <Td>
                       {c.courses.length === 0 ? (
                         <span className="text-[var(--text-muted)]">—</span>

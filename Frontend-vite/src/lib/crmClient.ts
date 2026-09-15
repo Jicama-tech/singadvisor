@@ -99,10 +99,23 @@ type ContactBase = {
  * the patch and both note writes all carry the full course history, because
  * CrmDetail replaces its whole contact state from each of them and a response
  * without `courses` would blank the panel. */
-export type ContactDoc = ContactBase & { courses: ContactCourse[] };
+export type ContactDoc = ContactBase &
+  ContactMemberState & { courses: ContactCourse[] };
+
+/** Derived by the Backend from the memberships collection, never stored on
+ * the contact — a copy would go stale the moment a membership lapsed, and the
+ * nightly expiry sweep would have to know about the CRM to keep it honest. */
+export type ContactMemberState = {
+  isMember: boolean;
+  /** Null when they are not a member, so the table renders a dash rather
+   * than a date that means nothing. */
+  membershipEndsAt: string | null;
+  membershipPlan: string | null;
+};
 
 /** GET /crm/contacts only — same contact, lighter courses. */
-export type ContactListItem = ContactBase & { courses: ContactCourseSummary[] };
+export type ContactListItem = ContactBase &
+  ContactMemberState & { courses: ContactCourseSummary[] };
 
 export type ContactFilters = {
   q?: string;

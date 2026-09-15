@@ -207,7 +207,15 @@ export default function CrmDetail() {
     <div className="flex flex-col gap-6">
       <PageHeading
         title={contact.name || contact.email}
-        description={contact.email}
+        description={
+          contact.isMember
+            ? `${contact.email} · ${contact.membershipPlan || "Member"}${
+                contact.membershipEndsAt
+                  ? ` until ${formatDate(contact.membershipEndsAt)}`
+                  : ""
+              }`
+            : contact.email
+        }
         action={<DeleteButton id={contact._id} action={handleDeleteContact} label={contact.name || contact.email} />}
       />
 
