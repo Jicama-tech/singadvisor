@@ -108,7 +108,12 @@ export function MembershipPurchaseForm({
 
   // A paid plan's success state IS the payment step. A free one keeps the
   // message, because `payment` stays null for it.
-  if (state.ok && payment) return <MembershipPaymentStep payment={payment} />;
+  //
+  // Gated on `payment` alone, not on `state.ok` as well: the handle is now
+  // also set by "Finish paying" on a membership bought earlier, where no
+  // submit has happened and state.ok is false. Nothing else sets it — a
+  // failed purchase leaves it null — so a handle means there is money owed.
+  if (payment) return <MembershipPaymentStep payment={payment} />;
   if (state.ok && state.message) return <FormSuccess message={state.message} />;
 
   const profile = credential ? readGoogleProfile(credential) : null;
@@ -171,6 +176,12 @@ export function MembershipPurchaseForm({
   // with the offer to take out a new one.
   if (gated && held && !renewing) {
     const finished = held.status === "expired" || held.status === "cancelled";
+    // A pending membership that still owes money can be paid for right here:
+    // the payment step needs an id, an amount and a currency, and the held
+    // view carries all three. Without this the panel told somebody to finish
+    // a purchase and then offered them no way to do it.
+    const owes =
+      held.status === "pending" && held.paymentStatus !== "paid" && held.amountCents > 0;
     return (
       <div className="flex flex-col gap-4">
         <MembershipAlreadyHeld
@@ -178,6 +189,16 @@ export function MembershipPurchaseForm({
           email={profile?.email}
           onUseAnotherAccount={useAnotherAccount}
           onContinueAnyway={finished ? () => setRenewing(true) : undefined}
+          onFinishPayment={
+            owes
+              ? () =>
+                  setPayment({
+                    membershipId: held.membershipId,
+                    amountCents: held.amountCents,
+                    currency: held.currency,
+                  })
+              : undefined
+          }
         />
         {onCancel && (
           <button

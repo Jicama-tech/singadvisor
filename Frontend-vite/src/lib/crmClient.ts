@@ -84,6 +84,8 @@ type ContactBase = {
   name: string;
   phone: string;
   whatsapp: string;
+  /** Marketing on WhatsApp is refused for this contact. */
+  whatsappOptOut: boolean;
   role: string;
   company: string;
   tags: string[];
@@ -153,6 +155,7 @@ export function createContact(body: {
   name?: string;
   phone?: string;
   whatsapp?: string;
+  whatsappOptOut?: boolean;
   role?: string;
   company?: string;
 }): Promise<ContactDoc> {
@@ -170,6 +173,8 @@ export function updateContact(
     name: string;
     phone: string;
     whatsapp: string;
+  /** Marketing on WhatsApp is refused for this contact. */
+  whatsappOptOut: boolean;
     role: string;
     company: string;
     tags: string[];

@@ -515,8 +515,15 @@ export class CrmService {
     const withCourses = await this.withCourses(contacts);
     // ONE query for every row on the page, not one per row: this list runs to
     // hundreds of contacts and a per-row lookup would turn a single screen into
-    // as many round trips. memberStatesFor keys on the lowercased address, which
-    // is how every membership is stored.
+    // as many round trips. Keyed on the lowercased address, which is how every
+    // membership is stored.
+    //
+    // Queried through the Membership MODEL rather than MembershipsService:
+    // importing that module from here reintroduces the CrmModule ->
+    // MembershipsModule -> SubscribersModule -> CrmModule cycle that once
+    // stopped the app booting with no output at all. The rule for what counts
+    // as active is shared as activeMembershipFilter(), so the two sides cannot
+    // drift even though the query is written twice.
     const addresses = [
       ...new Set(withCourses.map((c) => (c.email || '').toLowerCase()).filter(Boolean)),
     ];
@@ -653,7 +660,30 @@ export class CrmService {
       c.firstSeenAt.toISOString(),
       c.lastActivityAt.toISOString(),
     ]);
-    const escape = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    /**
+     * CSV-quote a value, and defuse it as a spreadsheet FORMULA.
+     *
+     * Quoting alone is not enough. Excel, Google Sheets and LibreOffice all
+     * treat a cell beginning `=`, `+`, `-` or `@` as a formula, and they decide
+     * that AFTER csv parsing — so `"=HYPERLINK(...)"` is still a formula. A
+     * leading tab or carriage return counts too: both are eaten as whitespace,
+     * exposing the character behind them.
+     *
+     * Nearly every column here is typed by a member of the public into a public
+     * form — name, company, role, the source label. So a visitor gets to choose
+     * what runs when an admin opens the export.
+     *
+     * A leading apostrophe is the usual advice and it is wrong here: several
+     * readers keep it as part of the value, so it corrupts the data to protect
+     * it. A leading TAB is inert, invisible in every spreadsheet, and stops the
+     * formula parser dead.
+     */
+    const escape = (v: string) => {
+      const value = String(v ?? '');
+      const formula = /^[=+@\x2D\t\r]/.test(value);
+      const safe = formula ? `\t${value}` : value;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     return [header, ...rows].map((r) => r.map(escape).join(',')).join('\r\n');
   }
 

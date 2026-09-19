@@ -115,7 +115,16 @@ export class CourseContentController {
     return this.courseContentService.duplicateItem(itemId);
   }
 
-  /** Public — the curriculum the training's own page renders. */
+  /**
+   * Public — the curriculum, unguarded and ready.
+   *
+   * NOTHING CALLS IT YET. The public training page still renders the
+   * `modules` outline stored on the Training itself; this serves the richer
+   * item-level curriculum and is waiting for that page to be rewritten
+   * against it. Left in place rather than deleted because it is the shape
+   * that page will need, but do not read the route's existence as evidence
+   * that the curriculum is on the public site — it is not.
+   */
   @Get('public/:slug')
   findPublicBySlug(@Param('slug') slug: string) {
     return this.courseContentService.findPublicBySlug(slug);

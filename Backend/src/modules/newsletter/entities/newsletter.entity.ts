@@ -84,7 +84,11 @@ export class Newsletter {
    *
    * The issue still appears in the public listing, deliberately: a locked
    * headline is how anybody finds out membership is worth having. What the
-   * listing must never carry is `items` — see the public list query.
+   * listing must never carry is the stories: `presentForList` blanks each
+   * item's `message` for a gated issue and only then caps it at 300
+   * characters. The order matters and is tested — capping first looks
+   * equivalent and is not, because the first 300 characters of a gated issue
+   * are the opening of the lead story, which is the thing being sold.
    */
   @Prop({ type: Boolean, required: true, default: false, index: true })
   membersOnly!: boolean;

@@ -890,14 +890,24 @@ export async function saveMembershipPlan(formData: FormData): Promise<FormState>
  * it, and an admin reading last year's sales should still be able to open it.
  * The list page sends the value it wants, so there is no read-then-flip. */
 export async function setMembershipPlanArchived(id: string, archived: boolean): Promise<void> {
-  await sendJson("PATCH", `/memberships/admin/plans/${id}/archive`, { archived });
+  const result = await sendJson("PATCH", `/memberships/admin/plans/${id}/archive`, { archived });
+  // sendJson resolves for a 4xx as readily as a 200 — it throws only when the
+  // request never reached the server. Without this the caller's try/catch can
+  // never fire on a refusal, and the page reports success for a write the API
+  // rejected. Same shape as verifyRegistrationPayment, which is the convention.
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not update the plan."));
 }
 
 /** The money arrived. This is also what starts the membership — the Backend
  * stamps the term, applies the perks and sends the welcome email off the back
  * of it, which is why there is no separate "activate" button to get wrong. */
 export async function verifyMembershipPayment(id: string): Promise<void> {
-  await sendJson("PATCH", `/memberships/${id}/verify-payment`);
+  const result = await sendJson("PATCH", `/memberships/${id}/verify-payment`);
+  // This one matters most of the three: it is the money write, and the list
+  // was announcing "<name>'s membership is active" off a call the API had
+  // refused — a conflict, an already-verified row, a validation failure, all
+  // reported as success.
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not confirm the payment."));
 }
 
 /** Send the welcome email again. Returns whether it actually went, because
@@ -915,7 +925,8 @@ export async function updateMembershipStatus(
   id: string,
   status: "pending" | "expired" | "cancelled",
 ): Promise<void> {
-  await sendJson("PATCH", `/memberships/${id}/status`, { status });
+  const result = await sendJson("PATCH", `/memberships/${id}/status`, { status });
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not change the status."));
 }
 
 export * from "@/eventsActions";

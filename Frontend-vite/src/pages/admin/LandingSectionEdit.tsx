@@ -141,7 +141,11 @@ export default function LandingSectionEdit() {
               readingMinutes: p.readingMinutes ?? 1,
               coverImage: p.coverImage,
               category: p.category,
-              content: p.content,
+              // No `content`: the public list stopped shipping article bodies
+              // when members-only gating landed, so this was always undefined.
+              // `membersOnly` is what the card actually needs now — it is what
+              // puts the lock on it.
+              membersOnly: p.membersOnly ?? false,
               publishedAt: p.publishedAt ? new Date(p.publishedAt) : null,
               author: p.author
                 ? { name: p.author.name, photo: p.author.photo }

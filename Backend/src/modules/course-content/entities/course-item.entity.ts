@@ -202,9 +202,16 @@ export class CourseItem {
   @Prop({ type: Boolean, required: true, default: false })
   optional!: boolean;
 
-  /** Visible in full on the public training page before anyone enrols — the
-   * free-preview item, and the only reason an unenrolled visitor ever sees an
-   * item's body or video URL. */
+  /**
+   * Marks the item as the free preview: the one an unenrolled visitor is meant
+   * to see in full.
+   *
+   * INERT TODAY. The only read that honours it is
+   * GET /course-content/public/:slug, and no page calls that route yet — the
+   * public training page still renders the Training's own `modules` outline.
+   * So ticking this changes nothing a visitor can see until that page is
+   * rewritten. The admin form says as much; keep the two in step.
+   */
   @Prop({ type: Boolean, required: true, default: false })
   previewFree!: boolean;
 

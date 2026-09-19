@@ -23,7 +23,6 @@ const CourseContentList = lazy(() => import("@/pages/admin/CourseContentList"));
 const CourseBuilder = lazy(() => import("@/pages/admin/CourseBuilder"));
 const CourseParticipantsList = lazy(() => import("@/pages/admin/CourseParticipantsList"));
 const CourseParticipants = lazy(() => import("@/pages/admin/CourseParticipants"));
-const TrainingsPlaceholder = lazy(() => import("@/pages/admin/TrainingsPlaceholder"));
 const FacilitatorRedirect = lazy(() => import("@/pages/admin/FacilitatorRedirect"));
 const ConsultancyList = lazy(() => import("@/pages/admin/ConsultancyList"));
 const MembershipPage = lazy(() => import("@/pages/public/MembershipPage"));

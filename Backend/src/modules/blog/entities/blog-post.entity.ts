@@ -67,7 +67,11 @@ export class BlogPost {
    *
    * The item still appears in public listings, deliberately: a locked headline
    * is how anybody finds out membership is worth having. What the listing must
-   * never carry is the body — see the `.select()` on the public list query.
+   * never carry is the body — `BlogService.view(..., { list: true })` drops it
+   * after the query rather than a `.select()` excluding it before one. That is
+   * deliberate and not an oversight: the body is fetched so `readingMinutes`
+   * can be counted from it, and then discarded. Do not "optimise" it into a
+   * projection without moving the reading-time count somewhere else.
    */
   @Prop({ type: Boolean, required: true, default: false, index: true })
   membersOnly!: boolean;

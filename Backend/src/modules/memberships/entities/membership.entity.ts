@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { MEMBERSHIP_PERK_KEYS, type MembershipPerk } from '../membership-perks';
 
 export type MembershipDocument = HydratedDocument<Membership>;
@@ -89,7 +89,12 @@ export class Membership {
   @Prop({ type: String, required: false, default: null })
   company!: string | null;
 
-  @Prop({ type: Types.ObjectId, ref: 'MembershipPlan', required: true })
+  // SchemaTypes.ObjectId, not Types.ObjectId. The latter is the VALUE class;
+  // handed to @Prop as a schema type Mongoose does not recognise it and falls
+  // back to Mixed — no casting, no validation, and `ref` inert. Every other
+  // entity in this codebase pairs SchemaTypes.ObjectId with a Types.ObjectId
+  // TS type (course-run, enrolment, session-attendance); this was the outlier.
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'MembershipPlan', required: true })
   planId!: Types.ObjectId;
 
   /** Snapshot, so the row still names what was bought after the plan is

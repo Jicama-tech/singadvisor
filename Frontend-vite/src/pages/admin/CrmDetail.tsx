@@ -104,6 +104,7 @@ export default function CrmDetail() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [whatsappOptOut, setWhatsappOptOut] = useState(false);
   const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
   const [tagsText, setTagsText] = useState("");
@@ -118,6 +119,7 @@ export default function CrmDetail() {
       setName(doc.name);
       setPhone(doc.phone);
       setWhatsapp(doc.whatsapp);
+      setWhatsappOptOut(doc.whatsappOptOut ?? false);
       setRole(doc.role);
       setCompany(doc.company);
       setTagsText(doc.tags.join(", "));
@@ -162,6 +164,7 @@ export default function CrmDetail() {
         name,
         phone,
         whatsapp,
+        whatsappOptOut,
         role,
         company,
         tags,
@@ -263,6 +266,26 @@ export default function CrmDetail() {
                 <Input id="c-company" value={company} onChange={(e) => setCompany(e.target.value)} />
               </Field>
             </div>
+            {/* The only way this gets set. Broadcasts read it on every send, and
+                a marketing message to a personal number has to be refusable. */}
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={whatsappOptOut}
+                onChange={(e) => setWhatsappOptOut(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
+              />
+              <span>
+                <span className="font-medium text-[var(--text-primary)]">
+                  No WhatsApp marketing
+                </span>
+                <span className="block text-xs text-[var(--text-muted)]">
+                  Campaigns skip this contact and say so. Booking confirmations and other
+                  transactional messages are unaffected.
+                </span>
+              </span>
+            </label>
+
             <Field label="Tags" htmlFor="c-tags" hint="Comma-separated.">
               <Input
                 id="c-tags"

@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TabsGuard } from '../../common/guards/tabs.guard';
+import { Tabs } from '../../common/decorators/tabs.decorator';
 import { SettingsService } from '../settings/settings.service';
 import { WhatsappService } from './whatsapp.service';
 import { WhatsappBroadcastService } from './whatsapp-broadcast.service';
@@ -21,7 +23,11 @@ import { SendBroadcastDto } from './dto/send-broadcast.dto';
  * pointing one way.
  */
 @Controller('whatsapp')
-@UseGuards(JwtAuthGuard)
+// The QR is a pairing credential and the campaign routes message real
+// people, so this is scoped to operators granted the WhatsApp tab rather
+// than to anyone who can sign in to the admin.
+@UseGuards(JwtAuthGuard, TabsGuard)
+@Tabs('whatsapp')
 export class WhatsappController {
   constructor(
     private readonly whatsapp: WhatsappService,

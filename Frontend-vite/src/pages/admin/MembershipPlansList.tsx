@@ -31,6 +31,10 @@ export default function MembershipPlansList() {
   const [plans, setPlans] = useState<MembershipPlanDoc[] | null>(null);
   const [perkOptions, setPerkOptions] = useState<MembershipPerkOption[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** Archiving now reports a refusal instead of swallowing it — the action
+   * throws on a non-2xx, and without somewhere to put that the click would
+   * just do nothing. */
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await adminFetch(`${__API_URL__}/memberships/admin/plans`);
@@ -71,9 +75,12 @@ export default function MembershipPlansList() {
       if (!agreed) return;
     }
     setBusyId(plan._id);
+    setError(null);
     try {
       await setMembershipPlanArchived(plan._id, archiving);
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update that plan.");
     } finally {
       setBusyId(null);
     }
@@ -97,6 +104,12 @@ export default function MembershipPlansList() {
           </ButtonLink>
         }
       />
+
+      {error && (
+        <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      )}
 
       <Panel>
         {plans && plans.length === 0 ? (

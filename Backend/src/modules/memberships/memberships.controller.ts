@@ -9,6 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TabsGuard } from '../../common/guards/tabs.guard';
+import { Tabs } from '../../common/decorators/tabs.decorator';
 import { MembershipsService } from './memberships.service';
 import { MEMBERSHIP_PERKS } from './membership-perks';
 import { SaveMembershipPlanDto } from './dto/save-membership-plan.dto';
@@ -81,32 +83,37 @@ export class MembershipsController {
   // ── Admin ──────────────────────────────────────────────────────────────
 
   @Get('admin/plans')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TabsGuard)
+  @Tabs('memberships')
   adminPlans() {
     return this.service.listPlansForAdmin();
   }
 
   @Post('admin/plans')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TabsGuard)
+  @Tabs('memberships')
   createPlan(@Body() dto: SaveMembershipPlanDto) {
     return this.service.createPlan(dto);
   }
 
   @Patch('admin/plans/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TabsGuard)
+  @Tabs('memberships')
   updatePlan(@Param('id') id: string, @Body() dto: SaveMembershipPlanDto) {
     return this.service.updatePlan(id, dto);
   }
 
   @Patch('admin/plans/:id/archive')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TabsGuard)
+  @Tabs('memberships')
   archivePlan(@Param('id') id: string, @Body() body: { archived?: boolean }) {
     return this.service.setPlanArchived(id, body?.archived !== false);
   }
 
   /** Admin — the memberships inbox. `?status=` narrows it; omitted means all. */
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TabsGuard)
+  @Tabs('memberships')
   list(@Query('status') status?: string) {
     return this.service.listForAdmin(status);
   }
@@ -114,7 +121,8 @@ export class MembershipsController {
   /** Admin — the money arrived. The one place a claim becomes a payment, and
    * with it the one place a paid membership starts. */
   @Patch(':id/verify-payment')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TabsGuard)
+  @Tabs('memberships')
   verifyPayment(@Param('id') id: string) {
     return this.service.verifyPayment(id);
   }
@@ -122,13 +130,15 @@ export class MembershipsController {
   /** Admin — send the welcome email again. A POST because it does something,
    * not because it writes: nothing about the membership changes. */
   @Post(':id/resend-welcome')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TabsGuard)
+  @Tabs('memberships')
   resendWelcome(@Param('id') id: string) {
     return this.service.resendWelcome(id);
   }
 
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TabsGuard)
+  @Tabs('memberships')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateMembershipStatusDto) {
     return this.service.updateStatus(id, dto.status);
   }

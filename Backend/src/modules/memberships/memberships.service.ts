@@ -36,11 +36,20 @@ import {
   type MembershipStatus,
 } from './entities/membership.entity';
 
-/** A date as a person reads it — "3 March 2027". Used in the one place a date
- * reaches somebody as prose rather than as a field the frontend formats: the
- * conflict message when an account already holds a membership. `en-GB` rather
- * than the server's locale, because the server's locale is not the reader's
- * and this is the only string of its kind. */
+/**
+ * A date as a person reads it — "3 March 2027".
+ *
+ * For the places a date reaches somebody as PROSE rather than as a field the
+ * frontend formats: the conflict message when an account already holds a
+ * membership, and the welcome email's "runs until".
+ *
+ * Pinned to Asia/Singapore, which is the point of it. A bare
+ * toLocaleDateString formats in the server's timezone, so a term ending at
+ * midnight SGT reads as the previous day on a UTC host — and then the email
+ * and the admin list disagree by a day about the same membership. `en-GB`
+ * rather than the server's locale for the same reason: neither is the
+ * reader's, so pick one and be consistent.
+ */
 function formatMembershipDate(date: Date): string {
   return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
@@ -212,14 +221,38 @@ export class MembershipsService {
     // the worst moment, after the money.
     const active = await this.model.findOne({ email, status: 'active' }).exec();
     if (active) {
-      // Named, because "you already have one" leaves somebody who bought the
-      // wrong account or forgot entirely with nothing to act on. The frontend
-      // asks before the form is ever shown; this is the case where it did not.
-      throw new ConflictException(
-        `This Google account already holds the ${active.planName} membership` +
-          (active.endDate ? `, which runs until ${formatMembershipDate(active.endDate)}` : '') +
-          '.',
-      );
+      // ...which leaves the window between a membership's end date and the
+      // 2am sweep that retires it. In that window the holder is already not a
+      // member — the content gate uses activeMembershipFilter and stopped
+      // honouring the row at endDate — and refusing the sale here would tell
+      // a paying customer they cannot renew, quoting a date in the past.
+      //
+      // So the lapsed row is retired on the spot instead. This is exactly the
+      // write the sweep would have done, it clears the partial index, and it
+      // is conditional on the row still being active, so racing the sweep is
+      // harmless. Only then does the purchase carry on.
+      const lapsed = active.endDate !== null && active.endDate <= new Date();
+      if (lapsed) {
+        await this.retireIfLapsed(active);
+      } else {
+        // Named, because "you already have one" leaves somebody who bought on
+        // the wrong account, or forgot entirely, with nothing to act on. The
+        // frontend asks before the form is shown; this is when it did not.
+        //
+        // Named ONLY when the address came out of a verified Google token.
+        // Where no client id is configured `identify()` accepts a TYPED
+        // address without proving anything (it marks the row googleSub: null),
+        // and naming the plan and its expiry would answer, for any address an
+        // attacker cared to type, precisely the question myMembership()
+        // refuses to answer on that same deployment.
+        throw new ConflictException(
+          identity.googleSub
+            ? `This Google account already holds the ${active.planName} membership` +
+              (active.endDate ? `, which runs until ${formatMembershipDate(active.endDate)}` : '') +
+              '.'
+            : 'That email address already holds an active membership.',
+        );
+      }
     }
 
     // The only place a membership's price is decided, read off the plan the
@@ -413,6 +446,29 @@ export class MembershipsService {
       throw new BadRequestException('This membership is free — there is nothing to verify.');
     }
 
+    // Refused BEFORE the money is banked, not after.
+    //
+    // purchase() blocks only a second ACTIVE membership, so one address can
+    // legitimately hold several `pending` rows — somebody who submitted twice,
+    // or bought the wrong plan and then the right one. Verifying the second of
+    // those after the first is active is an ordinary sequential admin action,
+    // not the concurrent race that activate()'s duplicate-key catch was written
+    // for. Left to that catch, the ConflictException is thrown AFTER the write
+    // below has already recorded paymentStatus: 'paid' — leaving a row that is
+    // paid and pending at once, which no admin action can then resolve because
+    // this route is the only door to activation and it now refuses every time.
+    if (doc.status === 'pending') {
+      const live = await this.model
+        .findOne({ email: doc.email, status: 'active', _id: { $ne: doc._id } })
+        .exec();
+      if (live) {
+        throw new ConflictException(
+          `${doc.email} already holds an active membership, so this one cannot be activated. ` +
+            'Cancel the active one first, or cancel this duplicate.',
+        );
+      }
+    }
+
     const paid = await this.model
       .findByIdAndUpdate(
         doc._id,
@@ -582,56 +638,6 @@ export class MembershipsService {
     }
   }
 
-  /**
-   * What the CRM shows against a person: whether they are a member and, if so,
-   * when it runs out. Null when they are not, so the caller renders a dash
-   * rather than inventing a date.
-   */
-  async memberStateFor(
-    email: string,
-  ): Promise<{ isMember: boolean; membershipEndsAt: Date | null; planName: string | null }> {
-    const membership = await this.activeMembershipFor(email);
-    if (!membership) return { isMember: false, membershipEndsAt: null, planName: null };
-    return {
-      isMember: true,
-      membershipEndsAt: membership.endDate,
-      planName: membership.planName,
-    };
-  }
-
-  /**
-   * The same answer for a whole page of people at once.
-   *
-   * One query for the lot rather than one per row: the CRM list is paginated
-   * but still tens of rows, and a per-row lookup turns one screen into fifty
-   * round trips. Keyed by lowercased address, which is how every membership is
-   * stored, so the caller must lowercase before looking up.
-   */
-  async memberStatesFor(
-    emails: string[],
-  ): Promise<Map<string, { isMember: boolean; membershipEndsAt: Date | null; planName: string | null }>> {
-    const addresses = [...new Set(emails.map((e) => (e || '').toLowerCase().trim()).filter(Boolean))];
-    const states = new Map<
-      string,
-      { isMember: boolean; membershipEndsAt: Date | null; planName: string | null }
-    >();
-    if (addresses.length === 0) return states;
-
-    const live = await this.model
-      .find({ email: { $in: addresses }, ...activeMembershipFilter() })
-      .select('email endDate planName')
-      .lean()
-      .exec();
-
-    for (const membership of live) {
-      states.set(membership.email, {
-        isMember: true,
-        membershipEndsAt: membership.endDate ?? null,
-        planName: membership.planName ?? null,
-      });
-    }
-    return states;
-  }
 
   /**
    * Every address entitled to a members-only mailing, oldest membership first.
@@ -782,21 +788,41 @@ export class MembershipsService {
 
     let expired = 0;
     for (const membership of due) {
-      const updated = await this.model
-        .findOneAndUpdate(
-          { _id: membership._id, status: 'active' },
-          {
-            $set: { status: 'expired' },
-            $push: { history: { action: 'expired', at: new Date(), by: 'system', note: null } },
-          },
-          { new: true },
-        )
-        .exec();
-      if (!updated) continue;
-      await this.revokePerks(updated);
-      expired++;
+      if (await this.retireIfLapsed(membership)) expired++;
     }
     return expired;
+  }
+
+  /**
+   * Move one lapsed row from `active` to `expired`, and revoke what it granted.
+   *
+   * Extracted so the nightly sweep and purchase() do the IDENTICAL write. They
+   * have to, because two different definitions of "live" are in play and the
+   * sweep is what reconciles them: isActiveMember and friends stop honouring a
+   * membership at `endDate`, while the partial unique index — and therefore
+   * purchase()'s conflict check — key on `status` alone and know nothing about
+   * dates. Between a membership's end date and the next 2am sweep, up to a
+   * day, its holder was BOTH refused members-only content AND refused a
+   * renewal, with a 409 quoting an end date already in the past.
+   *
+   * Conditional on still being `active`, so two callers racing cannot both
+   * revoke, and idempotent: a row already expired matches nothing and returns
+   * false.
+   */
+  private async retireIfLapsed(membership: MembershipDocument): Promise<boolean> {
+    const updated = await this.model
+      .findOneAndUpdate(
+        { _id: membership._id, status: 'active' },
+        {
+          $set: { status: 'expired' },
+          $push: { history: { action: 'expired', at: new Date(), by: 'system', note: null } },
+        },
+        { new: true },
+      )
+      .exec();
+    if (!updated) return false;
+    await this.revokePerks(updated);
+    return true;
   }
 
   // ── Side effects ───────────────────────────────────────────────────────
@@ -841,13 +867,11 @@ export class MembershipsService {
   }
 
   private sendWelcome(membership: MembershipDocument): Promise<boolean> {
-    const until = membership.endDate
-      ? membership.endDate.toLocaleDateString('en-SG', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })
-      : null;
+    // formatMembershipDate, not toLocaleDateString: the latter formats in the
+    // SERVER's timezone, so a term ending at midnight SGT reads as the day
+    // before on a UTC host — disagreeing with the admin list and the member's
+    // own page, which both format in Singapore.
+    const until = membership.endDate ? formatMembershipDate(membership.endDate) : null;
 
     const perks = membership.perks
       .map((key) => MEMBERSHIP_PERKS.find((perk) => perk.key === key))

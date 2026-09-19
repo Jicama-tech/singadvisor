@@ -13,8 +13,18 @@
  * the rollback path: if this change is reverted, the old value is still
  * sitting there, correct and untouched.
  *
- * Safe to re-run: it only picks up trainings that have a `trainerId` and no
- * `trainerIds` yet, so a second run finds none and writes nothing.
+ * Safe to re-run: it picks up only trainings that have a `trainerId` and no
+ * `trainerIds` FIELD AT ALL, so a second run finds none and writes nothing.
+ *
+ * "No field at all" rather than "an empty list", and the difference is the
+ * whole of the idempotence. An empty list is a state an admin can create on
+ * purpose: the facilitator checkboxes have no minimum, the form always submits
+ * the list, and unticking everyone writes `trainerIds: []` while leaving the
+ * legacy `trainerId` untouched — nothing clears that. Matching `$size: 0`
+ * therefore matched deliberately-cleared courses as if they had never been
+ * migrated, and every deploy silently put the removed facilitator back,
+ * re-crediting them on the public page and re-arming the delete guard that
+ * TrainersService.usage() counts. Reproduced against a scratch database.
  *
  *   npm run migrate:trainers
  */
@@ -35,10 +45,13 @@ type LegacyTraining = {
 };
 
 /** A training still waiting to be carried over: it names a facilitator the old
- * way and has nothing in the new list. */
+ * way and has never been given the new list.
+ *
+ * Deliberately NOT `$size: 0` as well — see the note above. An empty list means
+ * an admin took the facilitators off, and this script must leave that alone. */
 const PENDING = {
   trainerId: { $ne: null },
-  $or: [{ trainerIds: { $exists: false } }, { trainerIds: { $size: 0 } }],
+  trainerIds: { $exists: false },
 };
 
 async function main() {

@@ -30,17 +30,34 @@ export default function MembershipPage() {
   const [plans, setPlans] = useState<MembershipPlanDoc[] | null>(null);
   const [perkOptions, setPerkOptions] = useState<MembershipPerkOption[]>([]);
   const [chosen, setChosen] = useState<MembershipPlanDoc | null>(null);
+  /** Distinct from `plans === null`. An unreachable API and an empty catalogue
+   * are different things to tell a visitor, and they were the same thing. */
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [loadedPlans, loadedPerks] = await Promise.all([
-        fetchPublicPlans(),
-        fetchPerkOptions(),
-      ]);
-      if (cancelled) return;
-      setPlans(loadedPlans);
-      setPerkOptions(loadedPerks);
+      try {
+        const [loadedPlans, loadedPerks] = await Promise.all([
+          fetchPublicPlans(),
+          fetchPerkOptions(),
+        ]);
+        if (cancelled) return;
+        setPlans(loadedPlans);
+        setPerkOptions(loadedPerks);
+      } catch {
+        // fetchPublicPlans does not catch — a backend that is down, restarting
+        // or unreachable rejects, the rejection escapes this async IIFE, and
+        // setPlans is never called. `plans` stays null and the page sits on
+        // "Loading plans…" for as long as it is open.
+        //
+        // Landing on the EMPTY branch instead would be worse than the hang:
+        // it says "Membership is opening soon", which tells a visitor the
+        // product does not exist rather than that we could not reach it.
+        if (cancelled) return;
+        setPlans([]);
+        setLoadFailed(true);
+      }
     })();
     return () => {
       cancelled = true;
@@ -102,6 +119,23 @@ export default function MembershipPage() {
             <div className="mt-10">
               {plans === null ? (
                 <p className="text-sm text-[var(--text-secondary)]">Loading plans…</p>
+              ) : loadFailed ? (
+                <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] surface-sunken px-6 py-12 text-center">
+                  <p className="font-medium text-[var(--text-primary)]">
+                    We could not load the plans
+                  </p>
+                  <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--text-secondary)]">
+                    Something went wrong at our end rather than yours. Please try again in a
+                    moment.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-[var(--accent)] px-6 text-[0.9375rem] font-medium text-[var(--accent-foreground)] shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[var(--accent-hover)]"
+                  >
+                    Try again
+                  </button>
+                </div>
               ) : plans.length === 0 ? (
                 /* No plans published yet. Says so plainly rather than showing an
                    empty grid that reads as a broken page. */

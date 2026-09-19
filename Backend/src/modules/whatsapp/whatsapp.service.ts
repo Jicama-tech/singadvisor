@@ -6,7 +6,8 @@ import makeWASocket, {
   type WASocket,
 } from 'baileys';
 import * as qrcode from 'qrcode';
-import { existsSync, rmSync } from 'fs';
+import pino from 'pino';
+import { existsSync, readFileSync, rmSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { join } from 'path';
 import { SettingsService } from '../settings/settings.service';
@@ -56,6 +57,20 @@ import { SettingsService } from '../settings/settings.service';
 /** Where the pairing lives. Overridable because the deploy may want it off the
  * repo path entirely — see WHATSAPP_AUTH_DIR in .env.example. */
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR || join(process.cwd(), 'whatsapp-auth');
+
+/**
+ * Baileys' own logging, silenced by default.
+ *
+ * Given no `logger`, Baileys builds a pino instance at `info` and narrates the
+ * protocol — and that narration includes counterparty JIDs, which are phone
+ * numbers, plus device lists and message keys. They would land in the pm2 log
+ * of every deployment, which is read by more people than the CRM is, and kept
+ * longer.
+ *
+ * WHATSAPP_LOG_LEVEL turns it back up when a connection needs diagnosing.
+ * 'warn' is the useful middle setting; 'debug' will print phone numbers.
+ */
+const baileysLogger = pino({ level: process.env.WHATSAPP_LOG_LEVEL || 'silent' });
 
 /**
  * What the admin page is told.
@@ -155,7 +170,20 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   /** Whether a pairing exists on disk. `creds.json` is the file Baileys writes
    * first and needs; the key files alone are not a session. */
   private isPaired(): boolean {
-    return existsSync(join(AUTH_DIR, 'creds.json'));
+    const creds = join(AUTH_DIR, 'creds.json');
+    if (!existsSync(creds)) return false;
+    try {
+      // Existence is not enough. A file truncated by a crash or a full disk
+      // parses as nothing, and Baileys then starts an unauthenticated socket
+      // that sits waiting for a scan nobody is watching — reported as
+      // `disconnected` with no explanation. Unreadable means unpaired, which
+      // sends the admin to the QR, which is the thing that actually fixes it.
+      const parsed: unknown = JSON.parse(readFileSync(creds, 'utf8'));
+      return !!parsed && typeof parsed === 'object';
+    } catch {
+      this.logger.warn('The WhatsApp pairing file is unreadable — treating it as unpaired.');
+      return false;
+    }
   }
 
   getState(): WhatsappState {
@@ -193,16 +221,48 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       const myGeneration = ++this.generation;
       this.status = 'connecting';
       this.lastError = null;
+      // A deliberate connect is a fresh start, not a continuation of an
+      // earlier backoff. Without this the budget is only ever cleared by a
+      // successful `open`, so once five closes have accrued the Reconnect
+      // button gets exactly one socket per press — and reports "gave up after
+      // 5 attempts" when it made one — for the life of the process.
+      this.retries = 0;
 
       await mkdir(AUTH_DIR, { recursive: true });
+      if (this.superseded(myGeneration)) return this.getState();
+
       const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+      if (this.superseded(myGeneration)) return this.getState();
+
       // Asked for rather than pinned: WhatsApp refuses clients it considers
       // too old, and a pinned version becomes a silent outage months later.
-      const { version } = await fetchLatestBaileysVersion();
+      //
+      // Bounded, because it is an HTTP call to a third party with no timeout
+      // of its own, and `starting` is not cleared until this function returns:
+      // a hang here wedges connect() — and therefore the toggle, the Reconnect
+      // button and the boot-time resume — for the life of the process. A
+      // slightly stale version is a far smaller problem than a dead feature,
+      // so a timeout falls back to Baileys' own bundled version.
+      const { version } = await withTimeout(
+        fetchLatestBaileysVersion(),
+        15_000,
+        'fetchLatestBaileysVersion',
+      ).catch((err) => {
+        this.logger.warn(
+          `Could not fetch the current WhatsApp version (${describe(err)}); using the bundled one.`,
+        );
+        return { version: null };
+      });
+      if (this.superseded(myGeneration)) return this.getState();
 
       const sock = makeWASocket({
-        version,
+        // Spread rather than `version,` — handing makeWASocket an explicit
+        // `undefined` would override its own bundled default with nothing,
+        // which is the opposite of the fallback intended above.
+        ...(version ? { version } : {}),
         auth: state,
+        // Silent unless asked otherwise — the default prints phone numbers.
+        logger: baileysLogger,
         // The QR goes to the admin page, not the terminal. Baileys deprecated
         // this option anyway and prints a warning when it is set.
         printQRInTerminal: false,
@@ -215,8 +275,31 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         markOnlineOnConnect: false,
       });
 
+      // The last and most important check. Between the awaits above and here,
+      // suspend() or disconnect() may have run — they bump the generation and
+      // tear down `this.sock`, but this socket did not exist yet, so there was
+      // nothing for them to tear down. Publishing it now would leave a live,
+      // authenticated WhatsApp socket that nothing owns and nothing can stop:
+      // its events are ignored by the generation check, so it is invisible,
+      // and it keeps the device linked after the admin was told it was off.
+      if (this.superseded(myGeneration)) {
+        try {
+          sock.end(undefined);
+        } catch {
+          // Already dead is the outcome we wanted.
+        }
+        return this.getState();
+      }
+
       this.sock = sock;
-      sock.ev.on('creds.update', saveCreds);
+      // Wrapped rather than passed bare: saveCreds writes to a directory that
+      // disconnect() may have just deleted, and an unhandled rejection from an
+      // event listener takes the process down.
+      sock.ev.on('creds.update', () => {
+        void saveCreds().catch((err) => {
+          this.logger.warn(`Could not save the WhatsApp pairing: ${describe(err)}`);
+        });
+      });
       sock.ev.on('connection.update', (update) => {
         // Events from a socket that has been superseded are not this session's.
         if (myGeneration !== this.generation) return;
@@ -242,7 +325,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
 
     if (qr) {
       try {
-        this.qrDataUrl = await qrcode.toDataURL(qr, { margin: 1, width: 288 });
+        const dataUrl = await qrcode.toDataURL(qr, { margin: 1, width: 288 });
+        // Rendering is async, and a suspend() or disconnect() landing during it
+        // would otherwise have its cleared QR overwritten by this one — the
+        // panel would show a live pairing code for a session that was stopped.
+        if (this.superseded(myGeneration)) return;
+        this.qrDataUrl = dataUrl;
         // Baileys re-emits before this elapses; the page uses it to show that
         // a refresh is coming rather than that the code is dead.
         this.qrExpiresAt = new Date(Date.now() + 60_000);
@@ -366,6 +454,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** True when this connect attempt has been replaced — by another connect, a
+   * suspend, or a disconnect — and should stop rather than publish anything. */
+  private superseded(myGeneration: number): boolean {
+    return myGeneration !== this.generation;
+  }
+
   private clearRetry() {
     if (this.retryTimer) {
       clearTimeout(this.retryTimer);
@@ -418,10 +512,16 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    */
   async isOnWhatsapp(phone: string): Promise<boolean> {
     if (!this.isConnected() || !this.sock) return false;
+    // Built BEFORE the try, deliberately. "No country code" is a determinate
+    // fact about the number, not the flaky lookup the catch below exists to
+    // absorb — and inside the try it was swallowed into `return true`, which
+    // told the broadcast loop that an unaddressable string was a live
+    // WhatsApp account. Let it out: the caller records it as a real reason.
+    const jid = this.toJid(phone);
     try {
       // Typed as possibly undefined — destructuring it directly throws on the
       // very failure this method is meant to absorb.
-      const results = await this.sock.onWhatsApp(this.toJid(phone));
+      const results = await this.sock.onWhatsApp(jid);
       // `exists` is typed `unknown` in this Baileys version, so a `?? false`
       // would widen to {} rather than narrowing to a boolean.
       return results?.[0]?.exists === true;
@@ -429,6 +529,24 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       return true;
     }
   }
+}
+
+/** Reject if a promise has not settled in time. Used for the one outbound HTTP
+ * call in the connect path, which has no timeout of its own. */
+function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err as Error);
+      },
+    );
+  });
 }
 
 /** Baileys wraps failures in Boom errors; the code is what says whether this

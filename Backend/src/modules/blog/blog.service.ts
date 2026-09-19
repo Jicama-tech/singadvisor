@@ -169,24 +169,45 @@ export class BlogService {
    * be unpublished and published again. A stored stamp answers all three;
    * an old-versus-new comparison answers only the middle one.
    *
-   * Stamped only once something actually went out.
+   * The stamp is CLAIMED before the send and released if nothing went out.
    *
-   * The stamp was originally written BEFORE sending, to make sure a retry could
-   * never double-mail anybody. That is the wrong way round on a deployment
-   * where SMTP is not configured — and this one is not: sendBestEffort swallows
-   * the failure, returns false, and the post is left marked as announced with
-   * every member never told and no way for it ever to retry.
+   * It used to be written only after the loop finished, so that a deployment
+   * with no SMTP configured could not end up marked as announced with every
+   * member never told — sendBestEffort swallows the failure and returns false,
+   * so there would be nothing to notice and no way to retry. That reason is
+   * right, but writing the stamp afterwards is not the only way to honour it,
+   * and it costs the "at most once" above: the send is one SMTP round trip per
+   * member and runs detached from the request, so an admin who saves again to
+   * fix a title while it is still going reads the same null stamp, passes the
+   * same guard, and starts a SECOND full pass over the membership. Everybody
+   * gets the announcement twice, under two different titles.
    *
-   * So: nothing owed (no members yet) or at least one send succeeded counts as
-   * done. A total failure stays un-stamped and the next save tries again. The
-   * accepted cost is the partial case — if half the sends fail, the half that
-   * worked are not mailed twice, because the stamp goes down anyway.
+   * So the stamp goes down first, under a conditional update only one caller
+   * can win, and comes back off when the whole send failed. A retry is still
+   * possible exactly where the old code allowed one — nothing owed, or not a
+   * single message got out — while a concurrent save now finds the claim taken
+   * and does nothing. The accepted cost is unchanged, the partial case: if half
+   * the sends fail the stamp stays down, so the half that worked are not mailed
+   * twice. One new cost: a process killed mid-loop leaves the claim behind and
+   * the remaining members unmailed until the stamp is cleared by hand.
    *
    * Fire-and-forget, like every other mail side effect here: saving a post
    * must not fail because SMTP is down.
    */
   private async announceIfNewlyGated(doc: BlogPostDocument): Promise<void> {
     if (!doc.published || !doc.membersOnly || doc.memberEmailSentAt) return;
+
+    // `memberEmailSentAt: null` matches an absent field too, which is what a
+    // post written before the stamp existed has. No document back means
+    // another save claimed it first and is sending right now.
+    const claimed = await this.model
+      .findOneAndUpdate(
+        { _id: doc._id, memberEmailSentAt: null },
+        { memberEmailSentAt: new Date() },
+      )
+      .exec();
+    if (!claimed) return;
+
     try {
       const { sent, total } = await announceToMembers(this.memberships, this.mail, {
         headline: 'New for members',
@@ -195,18 +216,30 @@ export class BlogService {
         path: `/blog/${doc.slug}`,
       });
 
-      if (total === 0 || sent > 0) {
-        await this.model.updateOne({ _id: doc._id }, { memberEmailSentAt: new Date() }).exec();
-      } else {
+      if (total > 0 && sent === 0) {
+        await this.releaseAnnouncementClaim(doc._id);
         this.logger.warn(
           `Announced "${doc.title}" to 0 of ${total} members — not marking it sent, ` +
             'so saving it again will try once more. Check SMTP_HOST.',
         );
       }
     } catch (err: unknown) {
+      await this.releaseAnnouncementClaim(doc._id);
       this.logger.warn(
         `Could not announce "${doc.title}" to members: ${(err as Error)?.message}`,
       );
+    }
+  }
+
+  /** Put the post back to "never announced" so the next save tries again.
+   * Best-effort in its own right: if this write fails there is nothing useful
+   * left to do, and letting it throw would turn a logged mail failure into an
+   * unhandled rejection on a `void`-ed call. */
+  private async releaseAnnouncementClaim(id: BlogPostDocument['_id']): Promise<void> {
+    try {
+      await this.model.updateOne({ _id: id }, { memberEmailSentAt: null }).exec();
+    } catch {
+      this.logger.warn('Could not clear memberEmailSentAt after a failed announcement.');
     }
   }
 

@@ -100,22 +100,26 @@ export function MemberContentGate({
     const stored = loadMemberCredential();
     if (!stored) return;
 
-    let cancelled = false;
+    // No per-invocation cancel flag, deliberately. `resumed` already makes
+    // this run once per mount, and a cancel flag ON TOP of it is the one thing
+    // StrictMode can poison: in development React runs the effect, runs the
+    // cleanup, then runs it again — the second run returns early on the ref,
+    // so the FIRST run's async work is the only one there is, and the cleanup
+    // has already set its flag. Every branch below then skipped, including
+    // setResuming(false), and the gate sat on "Checking your membership…" for
+    // ever. Nothing here needs cancelling: the two setState calls are no-ops
+    // after unmount, and clearing a rejected credential is correct regardless.
     void (async () => {
       try {
         const unlocked = await onCredential(stored);
-        if (cancelled) return;
         if (!unlocked) {
           clearMemberCredential();
           setRefused(true);
         }
       } finally {
-        if (!cancelled) setResuming(false);
+        setResuming(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
     // onCredential is redefined every render by the page above; the ref is
     // what makes this run once, so it is deliberately not a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -11,8 +11,9 @@
  * local `error` string and render it through <FormError>.
  *
  * The public curriculum read (GET /course-content/public/:slug) is deliberately
- * absent: it needs no token and belongs with the other public reads in
- * contentClient.ts.
+ * absent: it needs no token and would belong with the other public reads in
+ * contentClient.ts. Nothing calls it from anywhere yet — the public training
+ * page still renders the Training's own `modules` outline.
  */
 import { apiJson } from "@/lib/adminFetch";
 import type { CourseItemKind } from "@/lib/course-content";

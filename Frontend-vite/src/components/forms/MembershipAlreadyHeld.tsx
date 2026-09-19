@@ -31,6 +31,7 @@ export function MembershipAlreadyHeld({
   email,
   onUseAnotherAccount,
   onContinueAnyway,
+  onFinishPayment,
 }: {
   membership: MembershipHeldView;
   /** From the Google profile, not from the Backend: the reduced view carries
@@ -40,6 +41,11 @@ export function MembershipAlreadyHeld({
   /** Offered only where buying again is allowed — a membership that has ended.
    * Absent for an active one, which the Backend refuses outright. */
   onContinueAnyway?: () => void;
+  /** Offered only for a membership still waiting on payment: the way to finish
+   * the one they already started, which is what the lead text promises. The
+   * panel said "finishing that one is better than starting a second" and then
+   * gave no way to finish it. */
+  onFinishPayment?: () => void;
 }) {
   const [perkOptions, setPerkOptions] = useState<MembershipPerkOption[]>([]);
   useEffect(() => {
@@ -141,6 +147,17 @@ export function MembershipAlreadyHeld({
       </dl>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        {onFinishPayment && (
+          <button
+            type="button"
+            onClick={onFinishPayment}
+            className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[var(--accent)] px-6 text-[0.9375rem] font-medium text-[var(--accent-foreground)] shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[var(--accent-hover)] hover:shadow-[var(--shadow-lift)] active:scale-[0.98]"
+          >
+            Finish paying
+            <Icon name="arrow-right" size={16} />
+          </button>
+        )}
+
         {active && (
           <Link
             to="/blog"

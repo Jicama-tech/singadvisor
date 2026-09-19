@@ -229,9 +229,22 @@ export class NewsletterService {
    * Guarded on the stored `memberEmailSentAt` rather than a previous-value
    * comparison, for the reason spelled out on BlogService.announceIfNewlyGated:
    * an issue can be saved repeatedly, and unpublished and published again.
+   *
+   * The stamp is claimed before the send and released if nothing went out, for
+   * the other reason spelled out there: reading it, then sending, then writing
+   * it lets a second save that lands mid-loop start a second announcement.
    */
   private async announceIfNewlyGated(doc: NewsletterDocument): Promise<void> {
     if (!doc.published || !doc.membersOnly || doc.memberEmailSentAt) return;
+
+    const claimed = await this.model
+      .findOneAndUpdate(
+        { _id: doc._id, memberEmailSentAt: null },
+        { memberEmailSentAt: new Date() },
+      )
+      .exec();
+    if (!claimed) return;
+
     try {
       const { sent, total } = await announceToMembers(this.memberships, this.mail, {
         headline: 'New for members',
@@ -240,18 +253,28 @@ export class NewsletterService {
         path: `/newsletter/${doc.slug}`,
       });
 
-      if (total === 0 || sent > 0) {
-        await this.model.updateOne({ _id: doc._id }, { memberEmailSentAt: new Date() }).exec();
-      } else {
+      if (total > 0 && sent === 0) {
+        await this.releaseAnnouncementClaim(doc._id);
         this.logger.warn(
           `Announced "${doc.title}" to 0 of ${total} members — not marking it sent, ` +
             'so saving it again will try once more. Check SMTP_HOST.',
         );
       }
     } catch (err: unknown) {
+      await this.releaseAnnouncementClaim(doc._id);
       this.logger.warn(
         `Could not announce "${doc.title}" to members: ${(err as Error)?.message}`,
       );
+    }
+  }
+
+  /** Back to "never announced", so the next save tries again. Best-effort
+   * itself — see BlogService.releaseAnnouncementClaim. */
+  private async releaseAnnouncementClaim(id: NewsletterDocument['_id']): Promise<void> {
+    try {
+      await this.model.updateOne({ _id: id }, { memberEmailSentAt: null }).exec();
+    } catch {
+      this.logger.warn('Could not clear memberEmailSentAt after a failed announcement.');
     }
   }
 

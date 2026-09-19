@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Contact, ContactDocument } from '../crm/entities/contact.entity';
@@ -38,14 +44,72 @@ const MAX_GAP_MS = 9_000;
  * is one nobody can take back. */
 const MAX_RECIPIENTS = 500;
 
+/** Fewer digits than this and WhatsApp cannot address the number at all —
+ * the same threshold WhatsappService.toJid rejects on, kept in step with it. */
+const MIN_DIGITS = 8;
+
+/**
+ * Held by send() from the moment it decides to start, before it has an id to
+ * hold the slot under.
+ *
+ * buildAudience() and create() both await, and an await is where a second
+ * request gets to run. Setting `running` only after them left a window in
+ * which two POSTs both read `null`, both passed the check, and both started —
+ * exactly the doubled send rate the pacing exists to prevent.
+ */
+const CLAIMING = '__claiming__';
+
 @Injectable()
-export class WhatsappBroadcastService {
+export class WhatsappBroadcastService implements OnModuleInit {
   private readonly logger = new Logger(WhatsappBroadcastService.name);
 
   /** The campaign currently going out. One at a time: two campaigns
    * interleaving would double the send rate that the pacing above exists to
    * hold down. */
   private running: string | null = null;
+
+  /**
+   * Close off campaigns the last process was part-way through.
+   *
+   * A campaign lives in this process's memory — `running` above, and the loop
+   * in run(). A restart mid-send loses both, and the row is left reading
+   * 'sending' for ever: the admin list shows it in flight and polls every four
+   * seconds for as long as it says so.
+   *
+   * Nothing is resumed. Recipients still marked 'pending' were never
+   * attempted, and picking the loop back up minutes or days later would
+   * deliver half a campaign out of context; the honest move is to close the
+   * row and let the admin decide. Per-recipient rows still say exactly who
+   * already got it, which is what a resend needs.
+   *
+   * Safe to do unconditionally because the deploy runs ONE backend process
+   * (Deployment/autodeploy.sh: `pm2 restart singadvisor-backend`, fork mode).
+   * Under a second instance this would mark a live campaign failed — gate it
+   * on an owner/lease field before scaling out.
+   */
+  async onModuleInit() {
+    try {
+      const res = await this.model.updateMany(
+        { status: { $in: ['queued', 'sending'] } },
+        {
+          $set: {
+            status: 'failed',
+            finishedAt: new Date(),
+            lastError:
+              'The server restarted part-way through. Recipients still marked pending were never messaged.',
+          },
+        },
+      );
+      if (res.modifiedCount > 0) {
+        this.logger.warn(
+          `Closed ${res.modifiedCount} WhatsApp campaign(s) left mid-send by a restart.`,
+        );
+      }
+    } catch (err) {
+      // Bookkeeping. It must never stop the app booting.
+      this.logger.warn(`Could not reconcile interrupted campaigns: ${describe(err)}`);
+    }
+  }
 
   constructor(
     @InjectModel(WhatsappBroadcast.name)
@@ -107,12 +171,21 @@ export class WhatsappBroadcastService {
       email: string,
       skip?: string,
     ) => {
+      const clean = (phone || '').trim();
+      // A number WhatsApp cannot address is a skip decided here, not a send
+      // left to fail later. It has to be caught at build time because nothing
+      // downstream reports it: isOnWhatsapp() answers `true` when its lookup
+      // throws, and toJid's "no country code" rejection is thrown from inside
+      // that very try. Left to run(), an unusable number is counted in
+      // `willSend`, burns its four-to-nine seconds of pacing, and is recorded
+      // as a failed send rather than a number that was never a number.
+      const unusable = !skip && clean !== '' && clean.replace(/\D/g, '').length < MIN_DIGITS;
       rows.push({
-        phone: (phone || '').trim(),
+        phone: clean,
         name: name || '',
         email: email || '',
-        status: skip ? 'skipped' : 'pending',
-        reason: skip ?? null,
+        status: skip || unusable ? 'skipped' : 'pending',
+        reason: skip ?? (unusable ? 'Not a usable number — include the country code' : null),
         sentAt: null,
       });
     };
@@ -194,36 +267,54 @@ export class WhatsappBroadcastService {
       );
     }
 
-    const recipients = await this.buildAudience(dto);
-    const sendable = recipients.filter((r) => r.status === 'pending');
-    if (sendable.length === 0) {
-      throw new BadRequestException('Nobody in that audience has a number we can message.');
+    // Claimed HERE, before the first await. Everything below yields to the
+    // event loop at least twice, and a second POST landing in one of those
+    // gaps would otherwise read `running` as null and start alongside this
+    // one. See CLAIMING.
+    this.running = CLAIMING;
+    let handedOff = false;
+    try {
+      const recipients = await this.buildAudience(dto);
+      const sendable = recipients.filter((r) => r.status === 'pending');
+      if (sendable.length === 0) {
+        throw new BadRequestException('Nobody in that audience has a number we can message.');
+      }
+      if (sendable.length > MAX_RECIPIENTS) {
+        throw new BadRequestException(
+          `That audience is ${sendable.length} people; the limit for one campaign is ${MAX_RECIPIENTS}.`,
+        );
+      }
+
+      const campaign = await this.model.create({
+        name: dto.name,
+        message: dto.message,
+        audience: dto.audience,
+        tag: dto.tag ?? null,
+        recipients,
+        status: 'queued',
+        sentFrom: this.whatsapp.getState().number,
+        skippedCount: recipients.length - sendable.length,
+        createdBy,
+      });
+
+      this.running = String(campaign._id);
+      handedOff = true;
+      // Deliberately not awaited: see the docblock.
+      void this.run(String(campaign._id)).catch((err) => {
+        this.logger.error(`Campaign ${String(campaign._id)} died: ${describe(err)}`);
+      });
+
+      return {
+        id: String(campaign._id),
+        queued: sendable.length,
+        skipped: recipients.length - sendable.length,
+      };
+    } finally {
+      // Nothing took ownership — a rejected audience, or a failed insert — so
+      // the claim is given back here. Once run() has it, run()'s own finally
+      // is what releases it.
+      if (!handedOff && this.running === CLAIMING) this.running = null;
     }
-    if (sendable.length > MAX_RECIPIENTS) {
-      throw new BadRequestException(
-        `That audience is ${sendable.length} people; the limit for one campaign is ${MAX_RECIPIENTS}.`,
-      );
-    }
-
-    const campaign = await this.model.create({
-      name: dto.name,
-      message: dto.message,
-      audience: dto.audience,
-      tag: dto.tag ?? null,
-      recipients,
-      status: 'queued',
-      sentFrom: this.whatsapp.getState().number,
-      skippedCount: recipients.length - sendable.length,
-      createdBy,
-    });
-
-    this.running = String(campaign._id);
-    // Deliberately not awaited: see the docblock.
-    void this.run(String(campaign._id)).catch((err) => {
-      this.logger.error(`Campaign ${String(campaign._id)} died: ${describe(err)}`);
-    });
-
-    return { id: String(campaign._id), queued: sendable.length, skipped: recipients.length - sendable.length };
   }
 
   /** The actual send loop. */
@@ -232,7 +323,10 @@ export class WhatsappBroadcastService {
       await this.model.updateOne({ _id: id }, { $set: { status: 'sending', startedAt: new Date() } });
 
       const campaign = await this.model.findById(id).exec();
-      if (!campaign) return;
+      if (!campaign) {
+        this.logger.error(`Campaign ${id} vanished before it could start.`);
+        return;
+      }
 
       for (let i = 0; i < campaign.recipients.length; i += 1) {
         const r = campaign.recipients[i];
@@ -256,18 +350,43 @@ export class WhatsappBroadcastService {
           return;
         }
 
+        // What happened, decided first; writing it down comes after. The two
+        // are separated on purpose — see the write below.
+        let outcome: 'sent' | 'failed' | 'skipped';
+        let reason: string | null = null;
         try {
-          const onWhatsapp = await this.whatsapp.isOnWhatsapp(r.phone);
-          if (!onWhatsapp) {
-            await this.markRecipient(id, i, 'skipped', 'That number is not on WhatsApp');
-            continue;
+          if (!(await this.whatsapp.isOnWhatsapp(r.phone))) {
+            outcome = 'skipped';
+            reason = 'That number is not on WhatsApp';
+          } else {
+            await this.whatsapp.sendText(r.phone, campaign.message);
+            outcome = 'sent';
           }
-          await this.whatsapp.sendText(r.phone, campaign.message);
-          await this.markRecipient(id, i, 'sent', null);
         } catch (err) {
-          await this.markRecipient(id, i, 'failed', describe(err));
+          outcome = 'failed';
+          reason = describe(err);
           this.logger.warn(`Campaign ${id}: ${maskPhone(r.phone)} failed — ${describe(err)}`);
         }
+
+        // Outside the try, because this write is bookkeeping and not the send.
+        // Inside it, a write that failed AFTER Mongo applied it — a dropped
+        // ack, a reconnect — was caught and re-recorded as 'failed': both
+        // sentCount and failedCount incremented for one message, and a
+        // message that did go out filed as one that did not. And a write that
+        // failed while already recording a failure escaped the loop entirely,
+        // abandoning every recipient after it.
+        try {
+          await this.markRecipient(id, i, outcome, reason);
+        } catch (err) {
+          this.logger.error(
+            `Campaign ${id}: ${maskPhone(r.phone)} was ${outcome}, but recording it failed — ${describe(err)}`,
+          );
+        }
+
+        // Unchanged from the original `continue`: a number that turned out
+        // not to be on WhatsApp got a lookup, not a message, and the gap
+        // below paces messages.
+        if (outcome === 'skipped') continue;
 
         // Between every message, including after the last — cheaper than
         // working out whether anyone is left.
@@ -276,6 +395,21 @@ export class WhatsappBroadcastService {
 
       await this.model.updateOne({ _id: id }, { $set: { status: 'sent', finishedAt: new Date() } });
       this.logger.log(`Campaign ${id} finished.`);
+    } catch (err) {
+      // Everything above outside the per-send try — the status write, the
+      // reload, the disconnect write — used to have no handler at all. A
+      // failure there left the campaign reading 'queued' or 'sending' for
+      // ever, with no finishedAt, no lastError, and an admin list polling
+      // every four seconds because a row still claimed to be in flight.
+      this.logger.error(`Campaign ${id} aborted: ${describe(err)}`);
+      await this.model
+        .updateOne(
+          { _id: id },
+          { $set: { status: 'failed', finishedAt: new Date(), lastError: describe(err) } },
+        )
+        .catch((writeErr) => {
+          this.logger.error(`Campaign ${id}: could not even record the abort — ${describe(writeErr)}`);
+        });
     } finally {
       // Released whatever happened, or no campaign could ever start again.
       if (this.running === id) this.running = null;
@@ -311,19 +445,42 @@ export class WhatsappBroadcastService {
   }
 }
 
-/** Two rows are the same person when the digits match — "+65 9123 4567" and
+/**
+ * Two rows are the same person when the digits match — "+65 9123 4567" and
  * "6591234567" are one number. The first occurrence wins, so a row with a real
- * name is kept over a bare number where the ordering puts it first. */
+ * name is kept over a bare number where the ordering puts it first.
+ *
+ * WITH ONE OVERRIDE: a skip always survives the merge. Contacts are keyed by
+ * email and one person routinely has two — a work address and a personal one —
+ * so the same number can arrive on two rows with different opt-out flags.
+ * First-occurrence-wins alone would drop the opted-out row and message the
+ * number anyway, with no skipped row left in the record to say why. An opt-out
+ * recorded against any row for a number is an opt-out for that number.
+ */
 function dedupeByDigits(rows: BroadcastRecipient[]): BroadcastRecipient[] {
-  const seen = new Set<string>();
+  const kept = new Map<string, BroadcastRecipient>();
   const out: BroadcastRecipient[] = [];
   for (const r of rows) {
     const digits = r.phone.replace(/\D/g, '');
     // Rows with no number cannot collide and are all kept, so the report still
     // accounts for every person in the audience.
-    if (digits && seen.has(digits)) continue;
-    if (digits) seen.add(digits);
-    out.push(r);
+    if (!digits) {
+      out.push(r);
+      continue;
+    }
+    const first = kept.get(digits);
+    if (!first) {
+      kept.set(digits, r);
+      out.push(r);
+      continue;
+    }
+    // Same number, already kept. Drop this row, but not its reason for not
+    // being messaged — mutating the kept row in place is what carries the
+    // skip into `out`, which holds that same object.
+    if (first.status === 'pending' && r.status === 'skipped') {
+      first.status = 'skipped';
+      first.reason = r.reason;
+    }
   }
   return out;
 }

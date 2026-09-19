@@ -58,14 +58,29 @@ export function WhatsappPanel() {
   const [testMessage, setTestMessage] = useState("A test from SingAdvisor.");
   const [testResult, setTestResult] = useState<string | null>(null);
 
+  /** Set when the FIRST status read fails. A later poll failing is ignored —
+   * the next one is seconds away and the state on screen is still the best
+   * thing to show — but the first one failing means there is nothing to show
+   * at all, and returning early there left the panel on "Loading…" for ever. */
+  const [unavailable, setUnavailable] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const res = await adminFetch(`${__API_URL__}/whatsapp/status`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        // 403 is the ordinary case, not an edge one: an operator may hold the
+        // Settings tab without the WhatsApp tab, and TabsGuard refuses them.
+        setUnavailable(
+          res.status === 403
+            ? 'Your account does not have access to WhatsApp messaging.'
+            : 'WhatsApp messaging could not be reached.',
+        );
+        return;
+      }
+      setUnavailable(null);
       setState((await res.json()) as WhatsappState);
     } catch {
-      // A failed poll is not worth an error banner — the next one is a second
-      // away, and the existing state on screen is still the best thing to show.
+      setUnavailable((current) => current ?? 'WhatsApp messaging could not be reached.');
     }
   }, []);
 
@@ -73,15 +88,30 @@ export function WhatsappPanel() {
     void load();
   }, [load]);
 
-  // Poll only while something is actually changing.
+  /**
+   * Two speeds, because there are two different questions.
+   *
+   * While a QR is up the answer changes every few seconds and somebody is
+   * watching it, so poll fast. Once connected nothing on screen changes for
+   * hours — but the session can still drop, or be unlinked from the phone
+   * itself, and polling only during pairing meant the panel went on claiming
+   * "Connected" until the page was reloaded. Somebody would write a campaign
+   * against a session that was not there.
+   *
+   * Thirty seconds is slow enough to be free and fast enough that nobody
+   * composes a whole campaign against a dead session. `off` is the one state
+   * that cannot change behind our back — nothing reconnects a disabled
+   * feature — so it stops entirely.
+   */
+  const pollStatus = state?.status;
   useEffect(() => {
-    const live = state?.status === "awaiting-scan" || state?.status === "connecting";
-    if (!live) return;
+    if (!pollStatus || pollStatus === "off") return;
+    const fast = pollStatus === "awaiting-scan" || pollStatus === "connecting";
     const id = setInterval(() => {
       void load();
-    }, 2000);
+    }, fast ? 2000 : 30000);
     return () => clearInterval(id);
-  }, [state?.status, load]);
+  }, [pollStatus, load]);
 
   async function act(path: string, options?: { confirmFirst?: Parameters<typeof confirm>[0] }) {
     if (options?.confirmFirst) {
@@ -129,6 +159,13 @@ export function WhatsappPanel() {
   }
 
   if (!state) {
+    if (unavailable) {
+      return (
+        <p className="mt-4 text-sm text-[var(--text-secondary)]" role="status">
+          {unavailable}
+        </p>
+      );
+    }
     return <p className="mt-4 text-sm text-[var(--text-muted)]">Loading…</p>;
   }
 
