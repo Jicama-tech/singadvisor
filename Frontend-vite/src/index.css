@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
-/* Inter + Fraunces — previously injected by next/font in layout.tsx; a Vite
-   SPA has no next/font, so the same families load via plain @import and the
-   tokens below stay identical. */
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap");
+/* Inter + Fraunces are loaded by a <link> in index.html, NOT from here.
+   They were an @import on this line, which the build silently discarded: the
+   `@import "tailwindcss"` above expands inline, leaving this one after every
+   rule it generated, and an @import that is not first is invalid. Putting it
+   back here would remove the fonts again without failing anything. */
 
 /* Dark mode is driven by a class on <html>, set before paint by the inline
    script in index.html so there is no flash of the wrong theme. */
@@ -15,7 +16,8 @@
    sparing highlight. Every surface/text pairing below meets WCAG AA.
 --------------------------------------------------------------------------- */
 @theme {
-  /* Inter/Fraunces are loaded by the @import at the top of this file. */
+  /* Inter/Fraunces are loaded by a <link> in index.html — see the note at the
+     top of this file for why they cannot be @imported from here. */
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
   --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
