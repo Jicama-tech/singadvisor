@@ -265,30 +265,35 @@ export function WhatsappPanel() {
       {/* Connected: prove it works, then get out of the way. */}
       {enabled && status === "connected" && (
         <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-[var(--border-subtle)] surface-sunken p-5">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-56 flex-1">
-              <PhoneField
-                name="wa-test-to"
-                label="Send a test to"
-                hint="Include the country code."
-                value={testTo}
-                onChange={setTestTo}
-              />
+          {/* Stacked, not one row. Three controls sharing a row squeezed the
+              phone field to about half the panel, and a phone field is really
+              two controls — so the number input ended up narrower than the
+              country select beside it. The number is the part being typed;
+              it gets the full width. */}
+          <div className="flex flex-col gap-3">
+            <PhoneField
+              name="wa-test-to"
+              label="Send a test to"
+              hint="Include the country code."
+              value={testTo}
+              onChange={setTestTo}
+            />
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Message" htmlFor="wa-test-msg" className="min-w-64 flex-1">
+                <Input
+                  id="wa-test-msg"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                />
+              </Field>
+              <Button
+                variant="secondary"
+                disabled={busy || !testTo || !testMessage}
+                onClick={() => void sendTest()}
+              >
+                Send test
+              </Button>
             </div>
-            <Field label="Message" htmlFor="wa-test-msg" className="min-w-64 flex-[2]">
-              <Input
-                id="wa-test-msg"
-                value={testMessage}
-                onChange={(e) => setTestMessage(e.target.value)}
-              />
-            </Field>
-            <Button
-              variant="secondary"
-              disabled={busy || !testTo || !testMessage}
-              onClick={() => void sendTest()}
-            >
-              Send test
-            </Button>
           </div>
           {testResult && <p className="text-sm text-[var(--text-secondary)]">{testResult}</p>}
 
