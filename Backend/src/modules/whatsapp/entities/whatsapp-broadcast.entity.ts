@@ -17,7 +17,19 @@ export type RecipientStatus = (typeof RECIPIENT_STATUSES)[number];
 
 @Schema({ _id: false })
 export class BroadcastRecipient {
-  @Prop({ type: String, required: true })
+  /**
+   * Blank is legitimate, so this is NOT required.
+   *
+   * A recipient row is the record of what happened to one person in the
+   * audience, including "we had no number for them" — buildAudience stores
+   * exactly that, as a `skipped` row with an empty phone and a reason. Mongoose
+   * counts an empty string as missing on a required String, so `required: true`
+   * rejected the whole campaign the moment ONE contact in the audience had no
+   * number: a 500 on send, after the audience preview had happily shown them as
+   * a skip. Refusing to save the campaign is the wrong response to a contact
+   * with no phone; recording it is the point.
+   */
+  @Prop({ type: String, required: false, default: '' })
   phone!: string;
 
   @Prop({ type: String, default: '' })
