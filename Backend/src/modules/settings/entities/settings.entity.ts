@@ -55,6 +55,23 @@ export class Settings {
   @Prop({ type: String, default: '' })
   whatsappNumber!: string;
 
+  /**
+   * WhatsApp MESSAGING — the Baileys linked-device session, which is a
+   * different thing entirely from the two fields above.
+   *
+   * Those are the floating "Chat on WhatsApp" button: a click-to-chat link,
+   * public, with no session behind it. This one decides whether the server
+   * pairs as a linked device of a real WhatsApp account and sends messages as
+   * that number. They are deliberately not the same flag — a site can want the
+   * button without the automation, and turning the button off must not
+   * silently unlink a paired phone.
+   *
+   * NOT exposed on the public settings payload: what the site sends from is
+   * operational configuration, not something a visitor needs.
+   */
+  @Prop({ type: Boolean, default: false })
+  whatsappMessagingEnabled!: boolean;
+
   /** Public contact email shown on the site (Footer/Contact page) — off by
    * default, independent of the SMTP "send from" config on eventsh. */
   @Prop({ type: Boolean, default: false })

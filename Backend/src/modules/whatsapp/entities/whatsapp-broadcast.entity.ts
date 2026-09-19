@@ -1,0 +1,110 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument } from 'mongoose';
+
+export type WhatsappBroadcastDocument = HydratedDocument<WhatsappBroadcast>;
+
+/** Who a campaign went to. Resolved to a fixed list the moment it is sent, so
+ * the record says who was actually messaged rather than who a query would
+ * return today. */
+export const BROADCAST_AUDIENCES = ['members', 'contacts', 'tag', 'manual'] as const;
+export type BroadcastAudience = (typeof BROADCAST_AUDIENCES)[number];
+
+export const BROADCAST_STATUSES = ['queued', 'sending', 'sent', 'failed', 'cancelled'] as const;
+export type BroadcastStatus = (typeof BROADCAST_STATUSES)[number];
+
+export const RECIPIENT_STATUSES = ['pending', 'sent', 'failed', 'skipped'] as const;
+export type RecipientStatus = (typeof RECIPIENT_STATUSES)[number];
+
+@Schema({ _id: false })
+export class BroadcastRecipient {
+  @Prop({ type: String, required: true })
+  phone!: string;
+
+  @Prop({ type: String, default: '' })
+  name!: string;
+
+  /** The address this went to, if it went. Kept because `phone` is what was
+   * stored and this is what WhatsApp was actually given. */
+  @Prop({ type: String, default: '' })
+  email!: string;
+
+  @Prop({ type: String, enum: RECIPIENT_STATUSES, default: 'pending' })
+  status!: RecipientStatus;
+
+  /** Why a recipient was skipped or failed — an opt-out, a number that is not
+   * on WhatsApp, an error from the send. Shown per row in the admin, because
+   * "42 of 50 sent" without the other 8 is not a report. */
+  @Prop({ type: String, default: null })
+  reason!: string | null;
+
+  @Prop({ type: Date, default: null })
+  sentAt!: Date | null;
+}
+export const BroadcastRecipientSchema = SchemaFactory.createForClass(BroadcastRecipient);
+
+/**
+ * One WhatsApp campaign.
+ *
+ * Stored rather than fired and forgotten, for three reasons. A broadcast takes
+ * minutes — it is paced on purpose — so the admin needs somewhere to watch it
+ * from. A send that dies halfway has to be answerable about who already got
+ * the message, or resending means messaging people twice. And a marketing
+ * message to a personal number is the kind of thing somebody later asks "who
+ * sent me this, and when" about.
+ */
+@Schema({ collection: 'whatsapp_broadcasts', timestamps: true })
+export class WhatsappBroadcast {
+  /** What the admin called it. Never sent; it is the label in the list. */
+  @Prop({ type: String, required: true, trim: true })
+  name!: string;
+
+  /** The message body, exactly as it will be sent. Snapshotted here so the
+   * record shows what people actually received even if the draft is edited. */
+  @Prop({ type: String, required: true })
+  message!: string;
+
+  @Prop({ type: String, enum: BROADCAST_AUDIENCES, required: true })
+  audience!: BroadcastAudience;
+
+  /** Set only when `audience` is 'tag'. */
+  @Prop({ type: String, default: null })
+  tag!: string | null;
+
+  @Prop({ type: [BroadcastRecipientSchema], default: [] })
+  recipients!: BroadcastRecipient[];
+
+  @Prop({ type: String, enum: BROADCAST_STATUSES, default: 'queued' })
+  status!: BroadcastStatus;
+
+  /** The number it was sent FROM, snapshotted at send time. A site can re-pair
+   * to a different phone, and then the campaign record would otherwise name
+   * the wrong sender. */
+  @Prop({ type: String, default: null })
+  sentFrom!: string | null;
+
+  @Prop({ type: Number, default: 0 })
+  sentCount!: number;
+
+  @Prop({ type: Number, default: 0 })
+  failedCount!: number;
+
+  @Prop({ type: Number, default: 0 })
+  skippedCount!: number;
+
+  @Prop({ type: String, default: null })
+  lastError!: string | null;
+
+  @Prop({ type: String, default: '' })
+  createdBy!: string;
+
+  @Prop({ type: Date, default: null })
+  startedAt!: Date | null;
+
+  @Prop({ type: Date, default: null })
+  finishedAt!: Date | null;
+}
+
+export const WhatsappBroadcastSchema = SchemaFactory.createForClass(WhatsappBroadcast);
+
+// The list is shown newest first and nothing else queries this collection.
+WhatsappBroadcastSchema.index({ createdAt: -1 });

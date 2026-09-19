@@ -24,6 +24,7 @@ import { NewsletterModule } from './modules/newsletter/newsletter.module';
 import { ShareModule } from './modules/share/share.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 import { SubscribersModule } from './modules/subscribers/subscribers.module';
 import { EventshProxyModule } from './modules/eventsh-proxy/eventsh-proxy.module';
@@ -77,6 +78,7 @@ import { CourseContentModule } from './modules/course-content/course-content.mod
     ShareModule,
     RegistrationsModule,
     MembershipsModule,
+    WhatsappModule,
     ContactMessagesModule,
     SubscribersModule,
     EventshProxyModule,

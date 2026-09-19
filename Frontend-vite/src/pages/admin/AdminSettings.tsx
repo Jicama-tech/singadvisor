@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { OperatorsPanel } from "@/components/admin/OperatorsPanel";
+import { WhatsappPanel } from "@/components/admin/WhatsappPanel";
 import { ProfilePanel } from "@/components/admin/ProfilePanel";
 
 /**
@@ -318,6 +319,7 @@ export default function AdminSettings() {
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="contact">Contact</TabsTrigger>
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="operators">Operators</TabsTrigger>
         </TabsList>
 
@@ -666,6 +668,23 @@ export default function AdminSettings() {
       </TabsContent>
 
       {/* ---- Operators ----------------------------------------------------- */}
+      {/* WhatsApp MESSAGING — the linked-device session that sends as a real
+          number. Deliberately its own tab rather than a field under Contact:
+          the "Chat on WhatsApp" button there is a link with no session behind
+          it, and putting a pairing credential next to it invites somebody to
+          assume one switch controls both. */}
+      <TabsContent value="whatsapp">
+        <Panel className="p-6">
+          <h2 className="text-lg">WhatsApp messaging</h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Link a phone once, and the site can send WhatsApp messages from that number —
+            announcements and campaigns from the WhatsApp tab in the sidebar. This is separate
+            from the &ldquo;Chat on WhatsApp&rdquo; button under Contact, which is only a link.
+          </p>
+          <WhatsappPanel />
+        </Panel>
+      </TabsContent>
+
       <TabsContent value="operators">
         <OperatorsPanel />
       </TabsContent>

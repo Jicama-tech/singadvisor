@@ -62,6 +62,14 @@ export class UpdateSettingsDto {
   @IsString()
   whatsappNumber?: string;
 
+  /** The Baileys session toggle. Accepted here so the field round-trips with
+   * the rest of Settings, but the admin UI drives it through
+   * /whatsapp/enable and /whatsapp/disable, which also open or close the
+   * socket — setting it here alone changes the flag and nothing else. */
+  @IsOptional()
+  @IsBoolean()
+  whatsappMessagingEnabled?: boolean;
+
   @IsOptional()
   @IsBoolean()
   contactEmailEnabled?: boolean;

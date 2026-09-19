@@ -28,6 +28,7 @@ const FacilitatorRedirect = lazy(() => import("@/pages/admin/FacilitatorRedirect
 const ConsultancyList = lazy(() => import("@/pages/admin/ConsultancyList"));
 const MembershipPage = lazy(() => import("@/pages/public/MembershipPage"));
 const MembershipsList = lazy(() => import("@/pages/admin/MembershipsList"));
+const WhatsappCampaigns = lazy(() => import("@/pages/admin/WhatsappCampaigns"));
 const MembershipPlansList = lazy(() => import("@/pages/admin/MembershipPlansList"));
 const MembershipPlanEdit = lazy(() => import("@/pages/admin/MembershipPlanEdit"));
 const ConsultancyEdit = lazy(() => import("@/pages/admin/ConsultancyEdit"));
@@ -165,6 +166,7 @@ export default function App() {
               this file; React Router ranks static segments above dynamic ones
               regardless, so the order is for reading, not for correctness. */}
           <Route path="memberships" element={<MembershipsList />} />
+          <Route path="whatsapp" element={<WhatsappCampaigns />} />
           <Route path="memberships/plans" element={<MembershipPlansList />} />
           <Route path="memberships/plans/new" element={<MembershipPlanEdit />} />
           <Route path="memberships/plans/:id" element={<MembershipPlanEdit />} />

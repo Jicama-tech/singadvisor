@@ -20,6 +20,7 @@ export const ACCESS_TABS = [
   "settings",
   "crm",
   "memberships",
+  "whatsapp",
 ] as const;
 
 export type AccessTab = (typeof ACCESS_TABS)[number];
@@ -41,6 +42,7 @@ export const ACCESS_TAB_LABELS: Record<AccessTab, string> = {
   settings: "Settings",
   crm: "CRM",
   memberships: "Memberships",
+  whatsapp: "WhatsApp",
 };
 
 /** Which main-sidebar key a route requires — used to enforce tab access
@@ -62,6 +64,7 @@ export function tabForPath(pathname: string): AccessTab | null {
     ["/admin/settings", "settings"],
     ["/admin/crm", "crm"],
     ["/admin/memberships", "memberships"],
+    ["/admin/whatsapp", "whatsapp"],
   ] as const) {
     if (pathname === prefix || pathname.startsWith(`${prefix}/`) || pathname.startsWith(`${prefix}?`)) {
       return tab as AccessTab;
