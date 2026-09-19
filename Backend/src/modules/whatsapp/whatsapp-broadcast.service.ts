@@ -469,6 +469,10 @@ export class WhatsappBroadcastService implements OnModuleInit {
           if (!(await this.whatsapp.isOnWhatsapp(r.phone))) {
             outcome = 'skipped';
             reason = 'That number is not on WhatsApp';
+          } else if (image) {
+            // One message, not two: the text rides as the image's caption.
+            await this.whatsapp.sendImage(r.phone, image, campaign.message);
+            outcome = 'sent';
           } else {
             await this.whatsapp.sendText(r.phone, campaign.message);
             outcome = 'sent';

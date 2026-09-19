@@ -82,10 +82,17 @@ export function htmlToWhatsapp(html: string): string {
   text = text.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_m, item: string) => `• ${item.trim()}\n`);
 
   // Headings: bold, on their own line. See the note above.
-  text = text.replace(
-    /<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi,
-    (_m, inner: string) => `*${inner.trim()}*\n`,
-  );
+  //
+  // Inner bold is STRIPPED first. A heading is already being made bold, and
+  // `<h2><strong>Hello</strong></h2>` — which is what Quill produces the
+  // moment somebody bolds a heading, an entirely ordinary thing to do —
+  // otherwise gets wrapped twice and goes out as `**Hello**`. WhatsApp reads
+  // a doubled marker as literal text, so the reader sees the asterisks and no
+  // bold at all. Observed in a real campaign.
+  text = text.replace(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi, (_m, inner: string) => {
+    const withoutBold = inner.replace(/<\/?(strong|b)(\s[^>]*)?>/gi, '');
+    return `*${withoutBold.trim()}*\n`;
+  });
 
   // Blockquote — WhatsApp added "> " quoting, which renders on current
   // clients and degrades to a visible "> " on old ones. Either is readable.
@@ -137,6 +144,18 @@ export function htmlToWhatsapp(html: string): string {
   // alignment and colour — has no WhatsApp equivalent. The text survives; the
   // markup does not.
   text = text.replace(/<[^>]+>/g, '');
+
+  // Backstop for any other route to a doubled marker — nested <strong><b>,
+  // or a <strong> wrapping an <li> that was already emphasised. A doubled
+  // marker is never what anyone meant and WhatsApp renders it literally, so
+  // it collapses to the single one that actually works.
+  text = text
+    .replace(/\*\*(?=\S)/g, '*')
+    .replace(/(?<=\S)\*\*/g, '*')
+    .replace(/__(?=\S)/g, '_')
+    .replace(/(?<=\S)__/g, '_')
+    .replace(/~~(?=\S)/g, '~')
+    .replace(/(?<=\S)~~/g, '~');
 
   text = decodeEntities(text);
 
