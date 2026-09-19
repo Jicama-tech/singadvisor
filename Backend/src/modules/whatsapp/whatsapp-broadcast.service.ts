@@ -15,7 +15,11 @@ import {
   WhatsappBroadcastDocument,
   type BroadcastRecipient,
 } from './entities/whatsapp-broadcast.entity';
+import { access, readFile } from 'fs/promises';
+import { constants as fsConstants } from 'fs';
+import { join, resolve, sep } from 'path';
 import { SendBroadcastDto } from './dto/send-broadcast.dto';
+import { htmlToWhatsapp } from './html-to-whatsapp';
 import { WhatsappService } from './whatsapp.service';
 
 /**
@@ -47,6 +51,14 @@ const MAX_RECIPIENTS = 500;
 /** Fewer digits than this and WhatsApp cannot address the number at all —
  * the same threshold WhatsappService.toJid rejects on, kept in step with it. */
 const MIN_DIGITS = 8;
+
+/** WhatsApp's own limits: 4096 for a text message, 1024 for an image caption.
+ * A campaign with an image is bound by the smaller one. */
+const MAX_TEXT = 4096;
+const MAX_CAPTION = 1024;
+
+/** Every campaign image lives here and nowhere else. */
+const IMAGE_ROOT = join(process.cwd(), 'uploads', 'whatsapp');
 
 /**
  * Held by send() from the moment it decides to start, before it has an id to
@@ -134,14 +146,100 @@ export class WhatsappBroadcastService implements OnModuleInit {
   }
 
   /**
+   * The text WhatsApp will receive, from whichever field the client sent.
+   *
+   * Conversion happens HERE rather than in the browser so that the stored
+   * `message` is provably the thing that went out, and so a client that posts
+   * straight to the API cannot store one message and send another.
+   */
+  private resolveMessage(dto: SendBroadcastDto): string {
+    const text = dto.messageHtml ? htmlToWhatsapp(dto.messageHtml) : (dto.message ?? '').trim();
+    if (!text) {
+      throw new BadRequestException('Write a message first.');
+    }
+    // The cap depends on whether an image is going with it — a caption is
+    // limited to a quarter of what a plain message allows, and WhatsApp
+    // rejects the whole send rather than truncating.
+    const cap = dto.imageUrl ? MAX_CAPTION : MAX_TEXT;
+    if (text.length > cap) {
+      throw new BadRequestException(
+        dto.imageUrl
+          ? `With an image attached the message can be ${MAX_CAPTION} characters; this one is ${text.length}. WhatsApp limits an image caption.`
+          : `The message can be ${MAX_TEXT} characters; this one is ${text.length}.`,
+      );
+    }
+    return text;
+  }
+
+  /**
+   * The bytes of a campaign's image, or null.
+   *
+   * The DTO already pins the shape of the path, but this decides which file
+   * the server reads off its own disk, so it is checked again where it is
+   * used: resolve it, and refuse anything that does not land inside
+   * uploads/whatsapp. Two independent checks, because a regex is a poor place
+   * to rest a file-read primitive on its own.
+   */
+  private imagePath(imageUrl: string): string {
+    const name = imageUrl.replace(/^\/uploads\/whatsapp\//, '');
+    // resolve() collapses any "..", so a name that tries to climb out lands
+    // somewhere that is no longer under the root — which is what is checked.
+    const root = resolve(IMAGE_ROOT);
+    const full = resolve(root, name);
+    if (!full.startsWith(root + sep)) {
+      throw new BadRequestException('That image is not one of ours.');
+    }
+    return full;
+  }
+
+  /**
+   * That the image is where it says it is — without reading it.
+   *
+   * Preview calls this so a campaign whose upload has gone missing fails
+   * while it is still a draft. Reading the bytes to find that out would pull
+   * a five-megabyte file into memory for a question `access` answers.
+   */
+  private async assertImageUsable(imageUrl: string): Promise<void> {
+    const full = this.imagePath(imageUrl);
+    try {
+      await access(full, fsConstants.R_OK);
+    } catch {
+      throw new BadRequestException(
+        'That image is no longer on the server. Upload it again before sending.',
+      );
+    }
+  }
+
+  private async loadImage(imageUrl: string): Promise<Buffer> {
+    const full = this.imagePath(imageUrl);
+    try {
+      return await readFile(full);
+    } catch {
+      throw new BadRequestException(
+        'That image is no longer on the server. Upload it again before sending.',
+      );
+    }
+  }
+
+  /**
    * Who a campaign would reach, without sending anything.
    *
    * The admin sees this before committing. A marketing send cannot be recalled,
    * so the count and the first names are shown while it is still a decision.
    */
   async preview(dto: SendBroadcastDto) {
+    // Converted here too, so a message that is too long for a caption is
+    // caught while it is still a draft rather than at the moment of sending.
+    const message = this.resolveMessage(dto);
+    // Checked here too: an upload that has since been removed should fail on
+    // the preview button, not at the moment of sending to two hundred people.
+    if (dto.imageUrl) await this.assertImageUsable(dto.imageUrl);
     const recipients = await this.buildAudience(dto);
     return {
+      // Exactly what WhatsApp will receive, markers and newlines and all, so
+      // the composer can show it rather than describe it.
+      message,
+      hasImage: !!dto.imageUrl,
       total: recipients.length,
       willSend: recipients.filter((r) => r.status === 'pending').length,
       willSkip: recipients.filter((r) => r.status === 'skipped').length,
@@ -274,6 +372,12 @@ export class WhatsappBroadcastService implements OnModuleInit {
     this.running = CLAIMING;
     let handedOff = false;
     try {
+      // Both before the audience work and before any row is written: a
+      // message too long for its cap, or an image no longer on disk, must
+      // fail while this is still a request — not half-way through a send.
+      const message = this.resolveMessage(dto);
+      if (dto.imageUrl) await this.loadImage(dto.imageUrl);
+
       const recipients = await this.buildAudience(dto);
       const sendable = recipients.filter((r) => r.status === 'pending');
       if (sendable.length === 0) {
@@ -287,7 +391,9 @@ export class WhatsappBroadcastService implements OnModuleInit {
 
       const campaign = await this.model.create({
         name: dto.name,
-        message: dto.message,
+        message,
+        messageHtml: dto.messageHtml ?? '',
+        imageUrl: dto.imageUrl ?? null,
         audience: dto.audience,
         tag: dto.tag ?? null,
         recipients,
@@ -327,6 +433,11 @@ export class WhatsappBroadcastService implements OnModuleInit {
         this.logger.error(`Campaign ${id} vanished before it could start.`);
         return;
       }
+
+      // Read ONCE for the whole campaign rather than per recipient: the file
+      // does not change mid-send, and re-reading it five hundred times is
+      // five hundred disk reads for the same bytes.
+      const image = campaign.imageUrl ? await this.loadImage(campaign.imageUrl) : null;
 
       for (let i = 0; i < campaign.recipients.length; i += 1) {
         const r = campaign.recipients[i];

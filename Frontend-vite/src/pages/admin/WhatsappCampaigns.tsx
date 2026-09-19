@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { WhatsappMessageEditor } from "@/components/admin/WhatsappMessageEditor";
 import { formatDateTime } from "@/lib/utils";
 
 type BroadcastStatus = "queued" | "sending" | "sent" | "failed" | "cancelled";
@@ -29,6 +30,10 @@ type BroadcastRow = {
 };
 
 type Preview = {
+  /** Exactly what WhatsApp will receive — the server's own conversion, not a
+   * guess made here, so the composer can show it rather than describe it. */
+  message: string;
+  hasImage: boolean;
   total: number;
   willSend: number;
   willSkip: number;
@@ -65,7 +70,10 @@ export default function WhatsappCampaigns() {
   const [sendingFrom, setSendingFrom] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
+  /** The editor's HTML. The server converts it to WhatsApp markup and stores
+   * both, so `message` on a saved campaign is what was actually sent. */
+  const [messageHtml, setMessageHtml] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [audience, setAudience] = useState<BroadcastRow["audience"]>("members");
   const [tag, setTag] = useState("");
   const [numbers, setNumbers] = useState("");
@@ -104,7 +112,8 @@ export default function WhatsappCampaigns() {
   function body() {
     return {
       name: name.trim(),
-      message,
+      messageHtml,
+      ...(imageUrl ? { imageUrl } : {}),
       audience,
       ...(audience === "tag" ? { tag: tag.trim() } : {}),
       ...(audience === "manual"
@@ -165,7 +174,8 @@ export default function WhatsappCampaigns() {
         return;
       }
       setName("");
-      setMessage("");
+      setMessageHtml("");
+      setImageUrl(null);
       setNumbers("");
       setPreview(null);
       await load();
@@ -176,7 +186,10 @@ export default function WhatsappCampaigns() {
 
   if (!user) return null;
 
-  const canCompose = name.trim().length > 0 && message.trim().length > 0;
+  // `<p><br></p>` is what an empty Quill editor emits, so a length check on
+  // the raw HTML would call an empty message written.
+  const hasMessage = messageHtml.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim().length > 0;
+  const canCompose = name.trim().length > 0 && hasMessage;
 
   return (
     <div className="flex flex-col gap-8">
@@ -270,23 +283,23 @@ export default function WhatsappCampaigns() {
             </Field>
           )}
 
-          <Field
-            label="Message"
-            htmlFor="wc-message"
-            hint="Plain text. WhatsApp's own *bold* and _italic_ markers work."
-            required
-          >
-            <Textarea
-              id="wc-message"
-              rows={6}
-              value={message}
-              onChange={(e) => {
-                setMessage(e.target.value);
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-[var(--text-primary)]">
+              Message <span className="text-red-600 dark:text-red-400">*</span>
+            </span>
+            <WhatsappMessageEditor
+              value={messageHtml}
+              onChange={(html) => {
+                setMessageHtml(html);
                 setPreview(null);
               }}
-              placeholder="Hi! Just a reminder that…"
+              imageUrl={imageUrl}
+              onImageChange={(url) => {
+                setImageUrl(url);
+                setPreview(null);
+              }}
             />
-          </Field>
+          </div>
 
           {error && (
             <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
@@ -296,6 +309,21 @@ export default function WhatsappCampaigns() {
 
           {preview && (
             <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] surface-sunken p-4 text-sm">
+              {/* What WhatsApp will actually render, converted by the server
+                  rather than guessed here — so the asterisks and bullets on
+                  screen are literally the characters that will be sent. */}
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                They will receive
+              </p>
+              <pre className="mt-1.5 mb-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface)] p-3 font-sans text-sm text-[var(--text-primary)]">
+                {preview.message}
+              </pre>
+              {preview.hasImage && (
+                <p className="mb-3 text-xs text-[var(--text-muted)]">
+                  …with the attached image above it, as its caption.
+                </p>
+              )}
+
               <p className="font-medium text-[var(--text-primary)]">
                 {preview.willSend} will receive this
                 {preview.willSkip > 0 && (

@@ -503,6 +503,31 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Send one image with the text as its caption.
+   *
+   * The caption rides WITH the image rather than as a second message: two
+   * messages double the send rate the campaign pacing exists to hold down,
+   * and they arrive out of order often enough to read as broken.
+   *
+   * `bytes` rather than a path, deliberately — deciding which file to read is
+   * the caller's job and a security question (see resolveCampaignImage), not
+   * something to smuggle in through a string parameter here.
+   */
+  async sendImage(phone: string, bytes: Buffer, caption: string): Promise<void> {
+    if (!this.isConnected() || !this.sock) {
+      throw new BadRequestException('WhatsApp is not connected. Pair a phone in Settings first.');
+    }
+    await this.sock.sendMessage(this.toJid(phone), {
+      image: bytes,
+      // WhatsApp caps a caption at 1024 characters, well below the 4096 it
+      // allows in a plain text message. Truncating here would silently cut
+      // somebody's campaign in half, so the caller checks the length before a
+      // single message goes out; this is the backstop.
+      caption: caption || undefined,
+    });
+  }
+
+  /**
    * Whether a number is actually on WhatsApp.
    *
    * Worth asking before a broadcast: sending to numbers that are not on

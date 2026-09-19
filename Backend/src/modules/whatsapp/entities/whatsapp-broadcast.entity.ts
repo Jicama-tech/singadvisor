@@ -70,10 +70,38 @@ export class WhatsappBroadcast {
   @Prop({ type: String, required: true, trim: true })
   name!: string;
 
-  /** The message body, exactly as it will be sent. Snapshotted here so the
-   * record shows what people actually received even if the draft is edited. */
+  /**
+   * The message body as WhatsApp received it — already converted to its own
+   * markup, newlines and all. Snapshotted so the record shows what people
+   * actually got, and it is this that is handed to sendMessage.
+   */
   @Prop({ type: String, required: true })
   message!: string;
+
+  /**
+   * What the composer produced, before conversion.
+   *
+   * Kept alongside rather than instead: `message` is the evidence of what was
+   * sent, and this is what to reopen if the campaign is ever duplicated or
+   * edited. Empty for a campaign written as plain text.
+   */
+  @Prop({ type: String, default: '' })
+  messageHtml!: string;
+
+  /**
+   * One image, sent with the text as its caption.
+   *
+   * A path under /uploads/whatsapp and nothing else — the service resolves it
+   * and refuses anything landing outside that directory, because this string
+   * decides which file the server reads off its own disk.
+   *
+   * One, not many: WhatsApp attaches a caption to a single image, and a second
+   * image would have to be a second message — which doubles the send rate the
+   * pacing exists to hold down, and arrives out of order often enough to look
+   * broken.
+   */
+  @Prop({ type: String, default: null })
+  imageUrl!: string | null;
 
   @Prop({ type: String, enum: BROADCAST_AUDIENCES, required: true })
   audience!: BroadcastAudience;
