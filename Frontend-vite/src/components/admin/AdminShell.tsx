@@ -30,18 +30,33 @@ const CONTENT_NAV: { href: string; label: string; icon: IconName; tab: string }[
 
 const MANAGE_NAV: { href: string; label: string; icon: IconName; tab: string }[] = [
   { href: "/admin/settings", label: "Settings", icon: "settings", tab: "settings" },
-  { href: "/admin/crm", label: "CRM", icon: "users", tab: "crm" },
   { href: "/admin/memberships", label: "Memberships", icon: "star", tab: "memberships" },
   { href: "/admin/whatsapp", label: "WhatsApp", icon: "whatsapp", tab: "whatsapp" },
 ];
 
-const INBOX_NAV: {
+/**
+ * The CRM group: the people, and everything they have sent us.
+ *
+ * CRM leads it because it is the whole of that list — every person we hold,
+ * however they arrived. The four below are the ways somebody arrives, each
+ * still its own working queue:
+ *
+ *   Registrations  took a place on a course or an event
+ *   Enquiries      asked about something we already offer
+ *   Applications   applied for a role on Careers
+ *   Messages       wrote in through the contact form
+ *
+ * `key` is optional because only the queues carry an unread count. CRM is not
+ * a queue — nothing about a contact is "unread" — so it shows no badge.
+ */
+const CRM_NAV: {
   href: string;
   label: string;
   icon: IconName;
-  key: keyof AdminCounts;
+  key?: keyof AdminCounts;
   tab: string;
 }[] = [
+  { href: "/admin/crm", label: "CRM", icon: "users", tab: "crm" },
   {
     href: "/admin/registrations",
     label: "Registrations",
@@ -143,17 +158,18 @@ export function AdminShell({
       <div>
         {!collapsed && (
           <p className="px-3 pb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Inbox
+            CRM
           </p>
         )}
         <ul className="flex flex-col gap-0.5">
-          {INBOX_NAV.filter((item) => !allowedTabs || allowedTabs.includes(item.tab)).map((item) => (
+          {CRM_NAV.filter((item) => !allowedTabs || allowedTabs.includes(item.tab)).map((item) => (
             <li key={item.href}>
               <NavLink
                 href={item.href}
                 icon={item.icon}
                 active={isActive(item.href)}
-                count={counts[item.key]}
+                // Only the queues have one; CRM itself is not a queue.
+                count={item.key ? counts[item.key] : undefined}
                 collapsed={collapsed}
               >
                 {item.label}
