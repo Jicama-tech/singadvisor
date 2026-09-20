@@ -57,7 +57,13 @@ function toProfile(d: Record<string, unknown>): OrganizerProfile {
     organizationName: String(d.organizationName ?? d.orgName ?? ""),
     email: String(d.email ?? ""),
     businessEmail: String(d.businessEmail ?? ""),
-    whatsappNumber: String(d.whatsappNumber ?? ""),
+    // `whatsAppNumber`, capital A — the same schema casing the SAVE below
+    // already uses and explains. Reading the lowercase spelling, which eventsh
+    // never returns, meant this field loaded blank every time however many
+    // times it was saved: you typed a number, it stored correctly, and it came
+    // back empty on the next load, which reads exactly like a save that failed.
+    // The lowercase spelling is kept as a fallback and costs nothing.
+    whatsappNumber: String(d.whatsAppNumber ?? d.whatsappNumber ?? ""),
     phone: String(d.phone ?? ""),
     phoneRows: phones.map((phone, i) => ({
       key: nextPhoneRowKey(),
