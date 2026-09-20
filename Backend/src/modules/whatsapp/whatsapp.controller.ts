@@ -27,7 +27,6 @@ import { SendBroadcastDto } from './dto/send-broadcast.dto';
 // people, so this is scoped to operators granted the WhatsApp tab rather
 // than to anyone who can sign in to the admin.
 @UseGuards(JwtAuthGuard, TabsGuard)
-@Tabs('whatsapp')
 export class WhatsappController {
   constructor(
     private readonly whatsapp: WhatsappService,
@@ -39,7 +38,22 @@ export class WhatsappController {
    * The session as it stands. Polled by the Settings page while a QR is up,
    * because the QR rotates every twenty seconds or so and a stale one simply
    * does not scan.
+   *
+   * This and the five routes below it — pairing and session control — are
+   * reachable with EITHER tab.
+   *
+   * These are the Settings > WhatsApp panel. Requiring the `whatsapp` tab for
+   * them was wrong and actively broke things: an operator granted `settings`
+   * saw the panel — nothing filtered the tab out of that page — asked it for
+   * its status, and was told their account has no access to WhatsApp
+   * messaging. A control somebody can see and cannot use.
+   *
+   * `settings` is already the grant that lets somebody change the SMTP
+   * password and the payment keys, so pairing a phone sits comfortably inside
+   * it. Sending to an AUDIENCE does not, which is why the campaign routes
+   * below still ask for `whatsapp` on its own.
    */
+  @Tabs('whatsapp', 'settings')
   @Get('status')
   async status() {
     const s = await this.settings.getForInternalUse();
@@ -48,6 +62,7 @@ export class WhatsappController {
 
   /** Turn it on: persist the flag, then open a session. An already-paired
    * phone reconnects silently; an unpaired one produces a QR. */
+  @Tabs('whatsapp', 'settings')
   @Post('enable')
   async enable() {
     await this.settings.update({ whatsappMessagingEnabled: true }, 'admin');
@@ -60,6 +75,7 @@ export class WhatsappController {
    * on does not need the phone again. Unlinking is a separate, louder action —
    * see disconnect().
    */
+  @Tabs('whatsapp', 'settings')
   @Post('disable')
   async disable() {
     await this.settings.update({ whatsappMessagingEnabled: false }, 'admin');
@@ -69,6 +85,7 @@ export class WhatsappController {
 
   /** Ask for a new session — the Reconnect button, and the way to get a fresh
    * QR after one has expired unscanned. */
+  @Tabs('whatsapp', 'settings')
   @Post('connect')
   async connect() {
     return this.whatsapp.connect();
@@ -76,12 +93,14 @@ export class WhatsappController {
 
   /** Unlink the phone and delete the local pairing. The next connect starts
    * from a new QR. */
+  @Tabs('whatsapp', 'settings')
   @Post('disconnect')
   async disconnect() {
     return this.whatsapp.disconnect();
   }
 
   /** Prove a freshly paired phone can actually send. */
+  @Tabs('whatsapp', 'settings')
   @Post('send')
   async send(@Body() dto: SendWhatsappDto) {
     await this.whatsapp.sendText(dto.phone, dto.message);
@@ -89,12 +108,19 @@ export class WhatsappController {
   }
 
   // ── Campaigns ────────────────────────────────────────────────────────────
+  //
+  // `whatsapp` and nothing else. These read who the audience is and then
+  // message real people on their personal phones, which is a different kind of
+  // permission from configuring the site — so it is granted deliberately,
+  // rather than arriving as a side effect of holding `settings`.
 
+  @Tabs('whatsapp')
   @Get('broadcasts')
   listBroadcasts() {
     return this.broadcasts.list();
   }
 
+  @Tabs('whatsapp')
   @Get('broadcasts/:id')
   getBroadcast(@Param('id') id: string) {
     return this.broadcasts.findOne(id);
@@ -102,11 +128,13 @@ export class WhatsappController {
 
   /** Who this would reach, without sending. A marketing send cannot be taken
    * back, so the count is available while it is still a decision. */
+  @Tabs('whatsapp')
   @Post('broadcasts/preview')
   preview(@Body() dto: SendBroadcastDto) {
     return this.broadcasts.preview(dto);
   }
 
+  @Tabs('whatsapp')
   @Post('broadcasts')
   sendBroadcast(@Body() dto: SendBroadcastDto) {
     return this.broadcasts.send(dto, 'admin');
