@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { CrmService } from '../crm/crm.service';
 import {
   EventMirrorSource,
   EventshEventMirror,
@@ -39,6 +40,10 @@ export class EventsMirrorService implements OnApplicationBootstrap {
   constructor(
     @InjectModel(EventshEventMirror.name)
     private readonly mirrorModel: Model<EventshEventMirrorDocument>,
+    // For syncAttendees. CrmModule imports only models, so this direction
+    // introduces no cycle — unlike CrmModule importing a service module, which
+    // is what once stopped this app booting.
+    private readonly crmService: CrmService,
   ) {}
 
   private config(): { url: string; organizerId: string; apiKey: string } | null {
@@ -93,6 +98,109 @@ export class EventsMirrorService implements OnApplicationBootstrap {
   @Cron(CronExpression.EVERY_HOUR)
   async scheduledReconcile() {
     await this.reconcile();
+    await this.syncAttendees();
+  }
+
+  /**
+   * Puts everybody who holds a ticket into the CRM.
+   *
+   * A ticket bought through THIS site already reaches the CRM the moment it is
+   * paid for — TicketsService upserts the buyer. What never arrived is
+   * everybody else: tickets sold on eventsh's own pages, or added there by an
+   * organiser. They are attendees of this organiser's events and they were
+   * invisible here, which made the CRM's claim to hold "every person" false in
+   * the one place it mattered most.
+   *
+   * Pulled rather than pushed, because eventsh has no webhook to this Backend
+   * and the mirror already runs hourly against the same API with the same
+   * credentials.
+   *
+   * Idempotent by construction: each contact source carries the eventsh ticket
+   * id as its refId, and CrmService records a given (type, refId) once. So an
+   * hourly pull of the same list adds nothing the second time.
+   */
+  async syncAttendees(): Promise<
+    { skipped: true; reason: string } | { skipped: false; seen: number; recorded: number }
+  > {
+    const config = this.config();
+    if (!config) {
+      return { skipped: true, reason: 'eventsh is not configured on this Backend' };
+    }
+    const { url, organizerId, apiKey } = config;
+
+    let tickets: Record<string, unknown>[];
+    try {
+      const response = await fetch(`${url}/tickets/organizer/${organizerId}`, {
+        headers: { 'x-organizer-id': organizerId, 'x-api-key': apiKey },
+      });
+      if (!response.ok) {
+        this.logger.warn(
+          `Attendee sync skipped: eventsh returned ${response.status} for the ticket list.`,
+        );
+        return { skipped: true, reason: `upstream ${response.status}` };
+      }
+      const body: unknown = await response.json();
+      // eventsh returns a bare array here, unlike the event list's { data }.
+      const rows = Array.isArray(body)
+        ? body
+        : Array.isArray((body as { data?: unknown })?.data)
+          ? ((body as { data: unknown[] }).data)
+          : null;
+      if (!rows) {
+        this.logger.warn('Attendee sync skipped: eventsh returned an unexpected shape.');
+        return { skipped: true, reason: 'unexpected response shape' };
+      }
+      tickets = rows as Record<string, unknown>[];
+    } catch (err: unknown) {
+      // Same posture as reconcile: an eventsh outage is not this Backend's to
+      // escalate, and the next run picks up.
+      this.logger.warn(
+        `Attendee sync skipped: eventsh is unreachable (${(err as Error)?.message ?? 'unknown'}).`,
+      );
+      return { skipped: true, reason: 'unreachable' };
+    }
+
+    let recorded = 0;
+    for (const t of tickets) {
+      const email = typeof t.customerEmail === 'string' ? t.customerEmail.trim() : '';
+      // Only a real address can become a contact — the CRM is keyed by it.
+      if (!email) continue;
+      // Cancelled and refunded tickets are not attendance. `confirmed` is the
+      // same cut the local backfill makes.
+      if (typeof t.status === 'string' && t.status !== 'confirmed') continue;
+
+      const ticketId = typeof t._id === 'string' ? t._id : String(t._id ?? '');
+      const title = typeof t.eventTitle === 'string' ? t.eventTitle : 'an event';
+      const purchased = typeof t.purchaseDate === 'string' ? new Date(t.purchaseDate) : undefined;
+
+      try {
+        await this.crmService.upsertContact({
+          email,
+          name: typeof t.customerName === 'string' ? t.customerName : undefined,
+          phone: typeof t.customerPhone === 'string' ? t.customerPhone : undefined,
+          at: purchased && !Number.isNaN(purchased.getTime()) ? purchased : undefined,
+          source: {
+            type: 'ticket',
+            // The EVENTSH ticket id, not a local one — it is what makes a
+            // repeat pull recognisable as the same ticket rather than a new
+            // one. eventsh is Mongo-backed too, so this is a real ObjectId
+            // string and CrmService stores it as such, which is what the
+            // (type, refId) dedupe needs.
+            refId: ticketId,
+            label: `Bought a ticket for ${title}`,
+          },
+        });
+        recorded += 1;
+      } catch (err: unknown) {
+        // One malformed row must not stop the rest of the list.
+        this.logger.warn(
+          `Attendee sync: could not record ${email} — ${(err as Error)?.message ?? 'unknown'}`,
+        );
+      }
+    }
+
+    this.logger.log(`Attendee sync: ${tickets.length} ticket(s) seen, ${recorded} recorded.`);
+    return { skipped: false, seen: tickets.length, recorded };
   }
 
   /**

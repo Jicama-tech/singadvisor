@@ -47,6 +47,26 @@ export class EventshProxyController {
     return { url, organizerId, apiKey };
   }
 
+  /**
+   * Pull every eventsh ticket-holder into the CRM, now.
+   *
+   * The same sync the hourly mirror runs. Exposed so an admin who has just
+   * sold tickets on eventsh does not have to wait up to an hour to see those
+   * people in the CRM — and so the CRM's own "Backfill from existing data"
+   * button can cover eventsh attendees alongside everything local.
+   *
+   * It lives on THIS controller rather than the CRM's because EventsMirror
+   * already imports CrmModule; putting it the other way round would close the
+   * loop into a module cycle.
+   *
+   * Declared before the catch-all passthrough below, or the proxy would
+   * forward it to eventsh instead of handling it.
+   */
+  @Post('sync-attendees')
+  syncAttendees() {
+    return this.eventsMirror.syncAttendees();
+  }
+
   /** Multipart passthrough — declared before the catch-all so it wins. */
   @Post('uploads/events')
   @UseInterceptors(

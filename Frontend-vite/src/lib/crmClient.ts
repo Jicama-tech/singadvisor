@@ -213,6 +213,26 @@ export function runCrmBackfill(): Promise<{ scanned: number }> {
   return apiJson(`/crm/contacts/backfill`, { admin: true, method: "POST" });
 }
 
+/** What the eventsh pull answers with. `skipped` when eventsh is not
+ * configured on this Backend, or is unreachable — neither is an error worth
+ * failing the whole backfill over. */
+export type AttendeeSyncResult =
+  | { skipped: true; reason: string }
+  | { skipped: false; seen: number; recorded: number };
+
+/**
+ * Pull everyone holding a ticket to one of this organiser's events into the
+ * CRM.
+ *
+ * A separate call from the backfill above because it reaches a different
+ * system: the backfill walks THIS database, and this asks eventsh. It lives on
+ * the eventsh route rather than the CRM's because the module that owns the
+ * sync already depends on the CRM, and the reverse would be a cycle.
+ */
+export function syncEventAttendees(): Promise<AttendeeSyncResult> {
+  return apiJson(`/eventsh/sync-attendees`, { admin: true, method: "POST" });
+}
+
 export function crmExportPath(filters: ContactFilters = {}): string {
   return `/crm/contacts/export${query(filters)}`;
 }

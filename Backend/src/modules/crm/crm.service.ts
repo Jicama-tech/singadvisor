@@ -286,7 +286,26 @@ export class CrmService {
     sourceEntry: ContactSourceEntry,
     at: Date,
   ) {
-    existing.sources.push(sourceEntry);
+    /**
+     * The same happening is not recorded twice.
+     *
+     * A source with a refId names one specific thing — THIS ticket, THIS
+     * registration — so seeing it again is the same event arriving a second
+     * time, not a second event. Before this the push was unconditional, which
+     * made every repeat an extra row on the person's timeline: pressing
+     * "Backfill from existing data" twice doubled everybody's history, and it
+     * is what made a REPEATING sync impossible to add, because an hourly pull
+     * of eventsh attendees would have grown each contact by one line an hour.
+     *
+     * Sources with no refId (a manual note, an import) are still appended —
+     * they name no particular thing, so two of them are genuinely two.
+     */
+    const alreadyRecorded =
+      sourceEntry.refId != null &&
+      existing.sources.some(
+        (s) => s.type === sourceEntry.type && s.refId != null && String(s.refId) === String(sourceEntry.refId),
+      );
+    if (!alreadyRecorded) existing.sources.push(sourceEntry);
     if (at > existing.lastActivityAt) existing.lastActivityAt = at;
     if (at < existing.firstSeenAt) existing.firstSeenAt = at;
     if (!existing.name && input.name) existing.name = input.name;

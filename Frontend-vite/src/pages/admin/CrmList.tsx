@@ -15,6 +15,7 @@ import {
   fetchContacts,
   importContacts,
   runCrmBackfill,
+  syncEventAttendees,
   updateContact,
   type ContactListItem,
 } from "@/lib/crmClient";
@@ -131,7 +132,25 @@ export default function CrmList() {
     setBackfillMsg(null);
     try {
       const { scanned } = await runCrmBackfill();
-      setBackfillMsg(`Scanned ${scanned} existing record${scanned === 1 ? "" : "s"}.`);
+
+      // Then eventsh, which holds the people this database has never seen:
+      // tickets sold on eventsh's own pages, or added there by an organiser.
+      // Deliberately after, and deliberately not fatal — the local backfill
+      // has already succeeded by this point, and an eventsh that is
+      // unconfigured or briefly down should not turn that into a failure.
+      let attendees = "";
+      try {
+        const result = await syncEventAttendees();
+        attendees = result.skipped
+          ? " Event attendees were not pulled (eventsh is unavailable)."
+          : ` Pulled ${result.recorded} event attendee${result.recorded === 1 ? "" : "s"} from eventsh.`;
+      } catch {
+        attendees = " Event attendees were not pulled (eventsh is unavailable).";
+      }
+
+      setBackfillMsg(
+        `Scanned ${scanned} existing record${scanned === 1 ? "" : "s"}.${attendees}`,
+      );
       await load();
     } catch (err) {
       setBackfillMsg(err instanceof Error ? err.message : "Backfill failed.");
