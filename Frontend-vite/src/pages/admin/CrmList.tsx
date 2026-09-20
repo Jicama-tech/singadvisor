@@ -15,6 +15,7 @@ import {
   fetchContacts,
   importContacts,
   runCrmBackfill,
+  syncEventAttendees,
   updateContact,
   type ContactListItem,
 } from "@/lib/crmClient";
@@ -131,7 +132,25 @@ export default function CrmList() {
     setBackfillMsg(null);
     try {
       const { scanned } = await runCrmBackfill();
-      setBackfillMsg(`Scanned ${scanned} existing record${scanned === 1 ? "" : "s"}.`);
+
+      // Then eventsh, which holds the people this database has never seen:
+      // tickets sold on eventsh's own pages, or added there by an organiser.
+      // Deliberately after, and deliberately not fatal — the local backfill
+      // has already succeeded by this point, and an eventsh that is
+      // unconfigured or briefly down should not turn that into a failure.
+      let attendees = "";
+      try {
+        const result = await syncEventAttendees();
+        attendees = result.skipped
+          ? " Event attendees were not pulled (eventsh is unavailable)."
+          : ` Pulled ${result.recorded} event attendee${result.recorded === 1 ? "" : "s"} from eventsh.`;
+      } catch {
+        attendees = " Event attendees were not pulled (eventsh is unavailable).";
+      }
+
+      setBackfillMsg(
+        `Scanned ${scanned} existing record${scanned === 1 ? "" : "s"}.${attendees}`,
+      );
       await load();
     } catch (err) {
       setBackfillMsg(err instanceof Error ? err.message : "Backfill failed.");
@@ -327,6 +346,10 @@ export default function CrmList() {
                 <Th>Contact</Th>
                 <Th>Role</Th>
                 <Th>Company</Th>
+                {/* Membership sits beside the person rather than among their
+                    activity: it is a fact about who they are to us now, not
+                    something they did. */}
+                <Th>Member</Th>
                 {/* Courses (what they did with us) beside Sources (how they
                     got here); Actions stays last. */}
                 <Th>Courses</Th>
@@ -362,6 +385,23 @@ export default function CrmList() {
                       {c.role ? <Badge tone="accent">{c.role}</Badge> : <span className="text-[var(--text-muted)]">—</span>}
                     </Td>
                     <Td className="text-[var(--text-secondary)]">{c.company || "—"}</Td>
+                    <Td className="whitespace-nowrap">
+                      {c.isMember ? (
+                        <>
+                          <Badge tone="success">{c.membershipPlan || "Member"}</Badge>
+                          {/* The expiry is the half an admin actually acts on —
+                              who to chase — so it is shown, not hidden behind
+                              the badge. */}
+                          <span className="block text-xs text-[var(--text-muted)]">
+                            {c.membershipEndsAt
+                              ? `until ${formatDate(c.membershipEndsAt)}`
+                              : "no end date"}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[var(--text-muted)]">—</span>
+                      )}
+                    </Td>
                     <Td>
                       {c.courses.length === 0 ? (
                         <span className="text-[var(--text-muted)]">—</span>

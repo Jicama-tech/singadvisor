@@ -8,6 +8,7 @@ import { EmptyState, PageHero } from "@/components/ui/Section";
 import { fetchNewsletters, type NewsletterDoc } from "@/lib/contentClient";
 import { withBackendUrl } from "@/lib/media-url";
 import { formatDate } from "@/lib/utils";
+import { Icon } from "@/components/ui/Icon";
 
 /** Featured issues first, then newest first — the same rule the blog listing
  * uses, and the same one the Backend applies to the published list. */
@@ -89,9 +90,19 @@ export default function NewsletterIndex() {
                         {n.title}
                       </Link>
                     </h3>
-                    <p className="line-clamp-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-                      {lead?.message ?? ""}
-                    </p>
+                    {/* A gated issue arrives with its story text withheld, so this
+                        would render an empty gap. Say what it is instead — the
+                        lock is the reason a non-member has to care. */}
+                    {n.membersOnly && !lead?.message ? (
+                      <p className="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
+                        <Icon name="lock" size={13} />
+                        Members only
+                      </p>
+                    ) : (
+                      <p className="line-clamp-3 text-sm leading-relaxed text-[var(--text-secondary)]">
+                        {lead?.message ?? ""}
+                      </p>
+                    )}
                     <div className="mt-auto flex items-center gap-2 pt-3 text-xs text-[var(--text-muted)]">
                       <span>{formatDate(n.createdAt)}</span>
                       {storyCount > 1 && (

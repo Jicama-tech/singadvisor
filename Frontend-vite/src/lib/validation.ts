@@ -72,6 +72,23 @@ export type RegistrationInput = z.infer<typeof registrationSchema>;
  */
 export const registrationFallbackSchema = registrationSchema.extend({ email });
 
+/**
+ * Buying a membership. No `email`, for the same reason the enrolment schema
+ * has none and more sharply: a membership is what opens members-only articles
+ * and issues, so a typed address would let anyone buy a membership onto
+ * somebody else's account, or read a paying member's content by knowing their
+ * email.
+ */
+export const membershipSchema = z.object({
+  name,
+  phone,
+  company: z.string().trim().max(160).optional(),
+});
+
+/** The one deployment that still types its own address — see
+ * registrationFallbackSchema. */
+export const membershipFallbackSchema = membershipSchema.extend({ email });
+
 export const enquirySchema = z.object({
   name,
   email,

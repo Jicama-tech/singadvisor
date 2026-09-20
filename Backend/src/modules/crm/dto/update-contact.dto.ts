@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateContactDto {
   @IsOptional()
@@ -12,6 +12,13 @@ export class UpdateContactDto {
   @IsOptional()
   @IsString()
   whatsapp?: string;
+
+  /** "Do not send me marketing on WhatsApp." Honoured by every broadcast — and
+   * undecorated it would be stripped by the global whitelisting pipe, so the
+   * flag the sender checks could never actually be set. */
+  @IsOptional()
+  @IsBoolean()
+  whatsappOptOut?: boolean;
 
   // Free-form on purpose — see Contact.role. Not @IsIn(ROLES): a new kind of
   // person should not need a Backend deploy.

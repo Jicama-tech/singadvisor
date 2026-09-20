@@ -60,6 +60,35 @@ export class BlogPost {
   @Prop({ type: Boolean, required: true, default: true })
   listedOnBlog!: boolean;
 
+  /**
+   * Members only. The body is withheld from everyone who cannot prove an
+   * active membership, and the gate is enforced on the Backend — a flag the
+   * SPA merely respects would be no gate at all, since the API is public.
+   *
+   * The item still appears in public listings, deliberately: a locked headline
+   * is how anybody finds out membership is worth having. What the listing must
+   * never carry is the body — `BlogService.view(..., { list: true })` drops it
+   * after the query rather than a `.select()` excluding it before one. That is
+   * deliberate and not an oversight: the body is fetched so `readingMinutes`
+   * can be counted from it, and then discarded. Do not "optimise" it into a
+   * projection without moving the reading-time count somewhere else.
+   */
+  @Prop({ type: Boolean, required: true, default: false, index: true })
+  membersOnly!: boolean;
+
+  /**
+   * When the members' announcement went out, and the reason it only goes out
+   * once. Publishing is not a single event in this codebase — an admin can
+   * save a published item any number of times — so without a stamp every edit
+   * would mail the whole membership again.
+   *
+   * Null means "not sent yet", which is also what every item written before
+   * this existed reads as; nothing back-fills it, because nothing should
+   * retroactively mail an old post.
+   */
+  @Prop({ type: Date, required: false, default: null })
+  memberEmailSentAt!: Date | null;
+
   /** Null until first published; drives ordering and the visible date. */
   @Prop({ type: Date, required: false, default: null })
   publishedAt!: Date | null;

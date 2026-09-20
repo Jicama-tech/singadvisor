@@ -19,6 +19,8 @@ import { memoryStorage } from 'multer';
 import { extname } from 'path';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TabsGuard } from '../../common/guards/tabs.guard';
+import { Tabs } from '../../common/decorators/tabs.decorator';
 import { CrmService } from './crm.service';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { CreateContactDto } from './dto/create-contact.dto';
@@ -32,7 +34,10 @@ type AuthedRequest = { user?: { name?: string; email?: string } };
 /** Admin-only end to end — the CRM never has a public-facing route (unlike
  * Blog/Newsletter's own controllers), so every method here is guarded. */
 @Controller('crm/contacts')
-@UseGuards(JwtAuthGuard)
+// Every route here reads or exports the contact database. TabsGuard scopes
+// it to operators granted the CRM tab; owners and editors are unaffected.
+@UseGuards(JwtAuthGuard, TabsGuard)
+@Tabs('crm')
 export class CrmController {
   constructor(private readonly crmService: CrmService) {}
 

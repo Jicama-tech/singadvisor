@@ -74,6 +74,21 @@ export class Contact {
   @Prop({ type: [String], required: false, default: [] })
   tags!: string[];
 
+  /**
+   * "Do not send me marketing on WhatsApp."
+   *
+   * Marketing to a personal messaging number is not the same as an email to a
+   * mailing list somebody joined: under Singapore's PDPA a marketing message
+   * has to carry a way out, and the way out has to be honoured. Broadcasts
+   * skip these contacts, and the skip is recorded on the campaign so it is
+   * visible rather than silent.
+   *
+   * Transactional messages — a booking confirmation, an OTP — are not
+   * marketing and are not gated on this.
+   */
+  @Prop({ type: Boolean, required: false, default: false })
+  whatsappOptOut!: boolean;
+
   @Prop({ type: [ContactNoteSchema], required: false, default: [] })
   notes!: ContactNote[];
 

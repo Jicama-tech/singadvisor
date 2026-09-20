@@ -100,7 +100,18 @@ export type PostDoc = {
   slug: string;
   title: string;
   excerpt: string;
-  content: string;
+  /**
+   * The article body — ABSENT on every list response, and absent on a
+   * members-only post until a member's view is fetched. The public list
+   * stopped carrying bodies so a gated post could not be read straight off
+   * /blog; nothing on a card ever needed it (see `readingMinutes`).
+   */
+  content?: string;
+  /** Computed by the Backend, because the cards used to derive it from the
+   * body they no longer receive. */
+  readingMinutes?: number;
+  /** Absent on posts predating the flag; missing means open. */
+  membersOnly?: boolean;
   coverImage: string;
   category: string;
   tags: string[];
@@ -158,6 +169,10 @@ export type NewsletterDoc = {
   published: boolean;
   /** Pins the issue to the top of the newsletter listing. */
   featured: boolean;
+  /** Members only. On a gated issue every story's `message` arrives empty
+   * until a member's view is fetched; the headings and images still come,
+   * so the locked page has something to show. */
+  membersOnly?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -349,6 +364,51 @@ function normalizePost(raw: PostDoc): PostDoc {
     return { ...raw, author: authorId as PostDoc["author"] };
   }
   return raw;
+}
+
+/**
+ * The same post, asked for as a member.
+ *
+ * A POST, because the Google credential travels in a body and a GET has none —
+ * nothing is written. The Backend verifies the credential and decides; this
+ * function has no say in it, and a non-member simply gets the same teaser the
+ * public GET returns, with `content` still absent. That is deliberate: the
+ * locked panel needs a title and an excerpt to show, and a 403 would leave the
+ * page with nothing but an error.
+ */
+export async function fetchPostAsMember(
+  slug: string,
+  credential: string,
+): Promise<PostDoc | null> {
+  try {
+    const res = await fetch(`${__API_URL__}/blog/${encodeURIComponent(slug)}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+    if (!res.ok) return null;
+    return normalizePost((await res.json()) as PostDoc);
+  } catch {
+    return null;
+  }
+}
+
+/** The newsletter equivalent — see fetchPostAsMember. */
+export async function fetchNewsletterAsMember(
+  slug: string,
+  credential: string,
+): Promise<NewsletterDoc | null> {
+  try {
+    const res = await fetch(`${__API_URL__}/newsletter/${encodeURIComponent(slug)}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as NewsletterDoc;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchPostBySlug(slug: string): Promise<PostDoc | null> {

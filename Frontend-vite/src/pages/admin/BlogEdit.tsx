@@ -13,13 +13,17 @@ function toFormShape(p: PostDoc) {
     slug: p.slug,
     title: p.title,
     excerpt: p.excerpt,
-    content: p.content,
+    content: p.content ?? "",
     coverImage: p.coverImage,
     category: p.category,
     tags: JSON.stringify(p.tags ?? []),
     published: p.published,
     featured: p.featured,
     listedOnBlog: p.listedOnBlog,
+    // Carried through deliberately: a toFormShape that drops a flag makes the
+    // form default it back on, so every save of a gated post would quietly
+    // un-gate it.
+    membersOnly: p.membersOnly ?? false,
     publishedAt: p.publishedAt ? new Date(p.publishedAt) : null,
     writtenByName: p.writtenByName ?? "",
     writtenByPosition: p.writtenByPosition ?? "",

@@ -119,6 +119,45 @@ export class UploadsController {
     return { url: `/uploads/content/${file.filename}` };
   }
 
+  /**
+   * The one image a WhatsApp campaign can carry.
+   *
+   * Same discipline as `content` above — uuid filename, images only. Two
+   * differences, both because this file is read back off disk and pushed to
+   * WhatsApp rather than just linked:
+   *
+   *  - Its own directory, so WhatsappBroadcastService can require that the
+   *    path it is handed resolves inside uploads/whatsapp and nowhere else.
+   *    A campaign that could name any path would be a file-read primitive.
+   *  - 5MB rather than 50. WhatsApp re-encodes what it accepts and rejects
+   *    what it does not; a 50MB photo would be uploaded, stored, and then
+   *    fail at send time, per recipient.
+   */
+  @Post('whatsapp')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: join(process.cwd(), 'uploads', 'whatsapp'),
+        filename: (_req, file, cb) => {
+          cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`);
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_IMAGE_MIME.test(file.mimetype)) {
+          cb(new BadRequestException('Only JPEG/PNG/WebP/GIF images are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadWhatsappImage(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return { url: `/uploads/whatsapp/${file.filename}` };
+  }
+
   /** The one image allowed per newsletter — same discipline as `content`
    * above (uuid filename, images only). */
   @Post('newsletters')

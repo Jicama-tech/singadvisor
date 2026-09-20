@@ -15,7 +15,9 @@
     "seed:landing": "tsx scripts/seed-landing.ts",
     "import:events": "tsx scripts/import-events.ts",
     "import:content": "tsx scripts/import-content.ts",
-    "migrate:trainers": "tsx scripts/migrate-trainer-ids.ts"
+    "migrate:trainers": "tsx scripts/migrate-trainer-ids.ts",
+    "migrate:membership-discount": "tsx scripts/drop-membership-discount.ts",
+    "migrate:featured": "tsx scripts/backfill-featured.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -27,6 +29,7 @@
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/schedule": "^6.1.3",
+    "baileys": "^6.7.24",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",

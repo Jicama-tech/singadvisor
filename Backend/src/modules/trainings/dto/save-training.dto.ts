@@ -97,8 +97,13 @@ export class SaveTrainingDto {
   @Min(0)
   priceCents?: number;
 
+  /** Three uppercase letters, nothing else. `currency` is copied onto a
+   * booking, printed into a confirmation email and written into the PayNow
+   * QR payload — a free-text field reaching all three is worth closing at
+   * the source rather than escaping at each destination. */
   @IsOptional()
   @IsString()
+  @Matches(/^[A-Z]{3}$/)
   currency?: string;
 
   @IsOptional()

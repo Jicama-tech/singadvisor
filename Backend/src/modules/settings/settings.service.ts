@@ -19,6 +19,9 @@ export interface SettingsPublicView {
   paynowPayeeConfigured: boolean;
   whatsappEnabled: boolean;
   whatsappNumber: string;
+  /** The Baileys messaging session's toggle. Admin view only — never on the
+   * public payload below. */
+  whatsappMessagingEnabled: boolean;
   contactEmailEnabled: boolean;
   contactEmail: string;
   contactPhoneEnabled: boolean;
@@ -88,6 +91,7 @@ export class SettingsService {
       paynowPayeeConfigured: !!(s.companyUEN || s.payNowMobile),
       whatsappEnabled: s.whatsappEnabled,
       whatsappNumber: s.whatsappNumber,
+      whatsappMessagingEnabled: s.whatsappMessagingEnabled,
       contactEmailEnabled: s.contactEmailEnabled,
       contactEmail: s.contactEmail,
       contactPhoneEnabled: s.contactPhoneEnabled,
@@ -143,6 +147,8 @@ export class SettingsService {
     if (dto.razorpayKeyId !== undefined) update.razorpayKeyId = dto.razorpayKeyId;
     if (dto.whatsappEnabled !== undefined) update.whatsappEnabled = dto.whatsappEnabled;
     if (dto.whatsappNumber !== undefined) update.whatsappNumber = dto.whatsappNumber;
+    if (dto.whatsappMessagingEnabled !== undefined)
+      update.whatsappMessagingEnabled = dto.whatsappMessagingEnabled;
     if (dto.contactEmailEnabled !== undefined) update.contactEmailEnabled = dto.contactEmailEnabled;
     if (dto.contactEmail !== undefined) update.contactEmail = dto.contactEmail;
     if (dto.contactPhoneEnabled !== undefined) update.contactPhoneEnabled = dto.contactPhoneEnabled;

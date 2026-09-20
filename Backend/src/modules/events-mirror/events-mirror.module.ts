@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { CrmModule } from '../crm/crm.module';
 import {
   EventshEventMirror,
   EventshEventMirrorSchema,
@@ -20,6 +21,10 @@ import { EventsMirrorService } from './events-mirror.service';
     MongooseModule.forFeature([
       { name: EventshEventMirror.name, schema: EventshEventMirrorSchema },
     ]),
+    // syncAttendees writes eventsh ticket-holders into the CRM. One direction
+    // only: CrmModule registers models, not service modules, so nothing leads
+    // back here.
+    CrmModule,
   ],
   providers: [EventsMirrorService],
   exports: [EventsMirrorService],

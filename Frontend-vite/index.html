@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#08111f" />
+
+    <!-- Inter + Fraunces.
+         These loaded from an @import at the top of src/index.css, which looked
+         correct and was not: `@import "tailwindcss"` above it expands inline, so
+         by the time the bundle is written this rule sits after thousands of
+         real rules. CSS requires @import to precede everything except @charset
+         and @layer, so the optimiser dropped it — no built file requested the
+         fonts at all, and every page rendered in the fallback stack while the
+         tokens in index.css went on naming families nobody had downloaded.
+         From the document there is nothing to reorder it past. It is also the
+         faster of the two: an @import inside a stylesheet cannot even begin to
+         fetch until that stylesheet has arrived, where a <link> starts with the
+         rest of the document. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <!-- The font FILES come from a different origin than the CSS, and crossorigin
+         is required on that one or the preconnect is wasted. -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap"
+    />
     <title>SingAdvisor — Training, events, consultancy and careers</title>
     <!-- Static baseline OG tags — the card every page falls back to. Social
          crawlers never run JavaScript, so the per-page values react-helmet-async

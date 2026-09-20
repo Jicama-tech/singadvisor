@@ -23,6 +23,8 @@ import { NewsletterModule } from './modules/newsletter/newsletter.module';
 // <meta> tags are written client-side and social crawlers never run JS.
 import { ShareModule } from './modules/share/share.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
+import { MembershipsModule } from './modules/memberships/memberships.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 import { SubscribersModule } from './modules/subscribers/subscribers.module';
 import { EventshProxyModule } from './modules/eventsh-proxy/eventsh-proxy.module';
@@ -75,6 +77,8 @@ import { CourseContentModule } from './modules/course-content/course-content.mod
     NewsletterModule,
     ShareModule,
     RegistrationsModule,
+    MembershipsModule,
+    WhatsappModule,
     ContactMessagesModule,
     SubscribersModule,
     EventshProxyModule,

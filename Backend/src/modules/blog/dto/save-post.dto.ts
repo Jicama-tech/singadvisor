@@ -55,6 +55,11 @@ export class SavePostDto {
   @IsBoolean()
   listedOnBlog?: boolean;
 
+  /** Members only — see BlogPost.membersOnly. */
+  @IsOptional()
+  @IsBoolean()
+  membersOnly?: boolean;
+
   @IsOptional()
   @Type(() => Date)
   @IsDate()

@@ -23,9 +23,13 @@ const CourseContentList = lazy(() => import("@/pages/admin/CourseContentList"));
 const CourseBuilder = lazy(() => import("@/pages/admin/CourseBuilder"));
 const CourseParticipantsList = lazy(() => import("@/pages/admin/CourseParticipantsList"));
 const CourseParticipants = lazy(() => import("@/pages/admin/CourseParticipants"));
-const TrainingsPlaceholder = lazy(() => import("@/pages/admin/TrainingsPlaceholder"));
 const FacilitatorRedirect = lazy(() => import("@/pages/admin/FacilitatorRedirect"));
 const ConsultancyList = lazy(() => import("@/pages/admin/ConsultancyList"));
+const MembershipPage = lazy(() => import("@/pages/public/MembershipPage"));
+const MembershipsList = lazy(() => import("@/pages/admin/MembershipsList"));
+const WhatsappCampaigns = lazy(() => import("@/pages/admin/WhatsappCampaigns"));
+const MembershipPlansList = lazy(() => import("@/pages/admin/MembershipPlansList"));
+const MembershipPlanEdit = lazy(() => import("@/pages/admin/MembershipPlanEdit"));
 const ConsultancyEdit = lazy(() => import("@/pages/admin/ConsultancyEdit"));
 const CareersList = lazy(() => import("@/pages/admin/CareersList"));
 const CareerEdit = lazy(() => import("@/pages/admin/CareerEdit"));
@@ -87,6 +91,7 @@ export default function App() {
         <Route path="/blog/:slug" element={<BlogDetail />} />
         <Route path="/newsletter" element={<NewsletterIndex />} />
         <Route path="/newsletter/:slug" element={<NewsletterDetail />} />
+        <Route path="/membership" element={<MembershipPage />} />
 
         {/* ---- admin dashboard -------------------------------------------- */}
         <Route path="/admin/login" element={<AdminLogin />} />
@@ -156,6 +161,14 @@ export default function App() {
           <Route path="events/:id" element={<EventEdit />} />
           <Route path="settings" element={<AdminSettings />} />
           <Route path="crm" element={<CrmList />} />
+          {/* "plans/new" is declared before "plans/:id" to match the rest of
+              this file; React Router ranks static segments above dynamic ones
+              regardless, so the order is for reading, not for correctness. */}
+          <Route path="memberships" element={<MembershipsList />} />
+          <Route path="whatsapp" element={<WhatsappCampaigns />} />
+          <Route path="memberships/plans" element={<MembershipPlansList />} />
+          <Route path="memberships/plans/new" element={<MembershipPlanEdit />} />
+          <Route path="memberships/plans/:id" element={<MembershipPlanEdit />} />
           <Route path="crm/new" element={<CrmNew />} />
           <Route path="crm/:id" element={<CrmDetail />} />
         </Route>

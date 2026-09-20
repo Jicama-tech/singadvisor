@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { FormSection } from "@/components/admin/AdminForm";
-import { PageHeading, Panel } from "@/components/admin/AdminUI";
+import { PageHeading } from "@/components/admin/AdminUI";
 import { DeleteButton } from "@/components/admin/DeleteButton";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -104,6 +104,7 @@ export default function CrmDetail() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [whatsappOptOut, setWhatsappOptOut] = useState(false);
   const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
   const [tagsText, setTagsText] = useState("");
@@ -118,6 +119,7 @@ export default function CrmDetail() {
       setName(doc.name);
       setPhone(doc.phone);
       setWhatsapp(doc.whatsapp);
+      setWhatsappOptOut(doc.whatsappOptOut ?? false);
       setRole(doc.role);
       setCompany(doc.company);
       setTagsText(doc.tags.join(", "));
@@ -162,6 +164,7 @@ export default function CrmDetail() {
         name,
         phone,
         whatsapp,
+        whatsappOptOut,
         role,
         company,
         tags,
@@ -207,7 +210,15 @@ export default function CrmDetail() {
     <div className="flex flex-col gap-6">
       <PageHeading
         title={contact.name || contact.email}
-        description={contact.email}
+        description={
+          contact.isMember
+            ? `${contact.email} · ${contact.membershipPlan || "Member"}${
+                contact.membershipEndsAt
+                  ? ` until ${formatDate(contact.membershipEndsAt)}`
+                  : ""
+              }`
+            : contact.email
+        }
         action={<DeleteButton id={contact._id} action={handleDeleteContact} label={contact.name || contact.email} />}
       />
 
@@ -217,228 +228,270 @@ export default function CrmDetail() {
         </p>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="flex flex-col gap-6 lg:col-span-2">
-          <FormSection title="Details">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Name" htmlFor="c-name">
-                <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)} />
-              </Field>
-              <Field label="Role" htmlFor="c-role" hint="Student, Customer, Trainer… or your own.">
-                {/* Free-text with suggestions — see CONTACT_ROLES. */}
-                <Input
-                  id="c-role"
-                  list="crm-role-options"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                />
-                <datalist id="crm-role-options">
-                  {CONTACT_ROLES.map((r) => (
-                    <option key={r} value={r} />
-                  ))}
-                </datalist>
-              </Field>
-              {/* PhoneField, not a bare Input — see CrmNew. */}
-              <PhoneField
-                name="phone"
-                label="Contact number"
-                value={phone}
-                onChange={setPhone}
-              />
-              <PhoneField
-                name="whatsapp"
-                label="WhatsApp number"
-                value={whatsapp}
-                onChange={setWhatsapp}
-              />
-              <Field label="Company" htmlFor="c-company">
-                <Input id="c-company" value={company} onChange={(e) => setCompany(e.target.value)} />
-              </Field>
-            </div>
-            <Field label="Tags" htmlFor="c-tags" hint="Comma-separated.">
-              <Input
-                id="c-tags"
-                value={tagsText}
-                onChange={(e) => setTagsText(e.target.value)}
-                placeholder="vip, repeat-customer"
-              />
-            </Field>
-            <div>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving…" : "Save changes"}
-              </Button>
-            </div>
-          </FormSection>
+      {/* One full-width column, not a main area plus a sidebar.
 
-          {/* The structured roster, deliberately in the main column rather than
-              beside Activity: Activity is the raw sources[] log of everything
-              this person has ever done, this is the answer to "what have they
-              taken with us", and an admin should have it before writing a note
-              about it. */}
-          <FormSection
-            title="Courses"
-            description="Every programme this person has enquired about or taken a seat on."
-          >
-            <div className="flex flex-col gap-3">
-              {contact.courses.length === 0 && (
-                <p className="text-sm text-[var(--text-muted)]">No courses yet.</p>
-              )}
-              {contact.courses.map((course) => {
-                // Both stamps through formatDate before comparing: two records
-                // hours apart are one day to the reader, and "12 Sep 2026 –
-                // 12 Sep 2026" is not a span.
-                const first = formatDate(course.firstAt);
-                const last = formatDate(course.lastAt);
-                return (
-                  <div
-                    key={course.trainingId}
-                    className="rounded-xl border border-[var(--border-subtle)] p-3"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      {/* A null slug means the programme has been deleted —
-                          TrainingsService.remove leaves its registrations and
-                          enrolments pointing at nothing, so there is no editor
-                          page left to link to. */}
-                      {course.slug ? (
-                        <Link
-                          to={`/admin/trainings/${course.trainingId}`}
-                          className="text-sm font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
+          Activity used to sit in a third of the page while Details had the
+          other two. It is the longest thing here — every enquiry, booking and
+          application this person has ever made — and a timeline squeezed into
+          a narrow column wraps every label onto three lines. Details is the
+          opposite: short labelled fields that tile happily across a wide row.
+
+          So the page reads top to bottom: who they are, then everything they
+          have done, then the record you keep about them. */}
+      <div className="flex flex-col gap-6">
+              <FormSection title="Details">
+                {/* Three across once there is room. These are short labelled
+                    fields; at two-thirds page width they left half the row
+                    empty. */}
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <Field label="Name" htmlFor="c-name">
+                    <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)} />
+                  </Field>
+                  <Field label="Role" htmlFor="c-role" hint="Student, Customer, Trainer… or your own.">
+                    {/* Free-text with suggestions — see CONTACT_ROLES. */}
+                    <Input
+                      id="c-role"
+                      list="crm-role-options"
+                      value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                    />
+                    <datalist id="crm-role-options">
+                      {CONTACT_ROLES.map((r) => (
+                        <option key={r} value={r} />
+                      ))}
+                    </datalist>
+                  </Field>
+                  {/* PhoneField, not a bare Input — see CrmNew. */}
+                  <PhoneField
+                    name="phone"
+                    label="Contact number"
+                    value={phone}
+                    onChange={setPhone}
+                  />
+                  <PhoneField
+                    name="whatsapp"
+                    label="WhatsApp number"
+                    value={whatsapp}
+                    onChange={setWhatsapp}
+                  />
+                  <Field label="Company" htmlFor="c-company">
+                    <Input id="c-company" value={company} onChange={(e) => setCompany(e.target.value)} />
+                  </Field>
+                </div>
+                {/* The only way this gets set. Broadcasts read it on every send, and
+                    a marketing message to a personal number has to be refusable. */}
+                <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={whatsappOptOut}
+                    onChange={(e) => setWhatsappOptOut(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
+                  />
+                  <span>
+                    <span className="font-medium text-[var(--text-primary)]">
+                      No WhatsApp marketing
+                    </span>
+                    <span className="block text-xs text-[var(--text-muted)]">
+                      Campaigns skip this contact and say so. Booking confirmations and other
+                      transactional messages are unaffected.
+                    </span>
+                  </span>
+                </label>
+
+                <Field label="Tags" htmlFor="c-tags" hint="Comma-separated.">
+                  <Input
+                    id="c-tags"
+                    value={tagsText}
+                    onChange={(e) => setTagsText(e.target.value)}
+                    placeholder="vip, repeat-customer"
+                  />
+                </Field>
+                <div>
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? "Saving…" : "Save changes"}
+                  </Button>
+                </div>
+              </FormSection>
+
+              <FormSection
+                title="Activity"
+                description={`Everything this person has done with us — ${timeline.length} ${
+                  timeline.length === 1 ? "entry" : "entries"
+                }, newest first. First seen ${formatDate(contact.firstSeenAt)}, last active ${formatDate(
+                  contact.lastActivityAt,
+                )}.`}
+              >
+                {timeline.length === 0 ? (
+                  <p className="text-sm text-[var(--text-muted)]">Nothing recorded yet.</p>
+                ) : (
+                  <div className="flex flex-col">
+                    {timeline.map((s, i) => {
+                      const href = SOURCE_ADMIN_HREF[s.type];
+                      return (
+                        // A ROW now, not a stacked card. With the full page to
+                        // work in, the date and the kind get their own columns
+                        // and the label runs along the line — so a year of
+                        // activity can be scanned down one edge instead of
+                        // read as a hundred three-line blocks.
+                        <div
+                          key={i}
+                          className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1 border-b border-[var(--border-subtle)] py-2.5 last:border-b-0 sm:grid-cols-[8.5rem_9rem_1fr]"
                         >
-                          {course.title}
-                        </Link>
-                      ) : (
-                        <span className="text-sm font-medium text-[var(--text-primary)]">
-                          {course.title}
-                        </span>
-                      )}
-                      <div className="flex flex-wrap gap-1">
-                        {course.enquiryCount > 0 && (
-                          <Badge tone="neutral">
-                            Enquired
-                            {course.enquiryCount > 1 && ` ×${course.enquiryCount}`}
-                          </Badge>
-                        )}
-                        {course.enrolmentCount > 0 && (
-                          <Badge tone="accent">
-                            Enrolled
-                            {course.enrolmentCount > 1 && ` ×${course.enrolmentCount}`}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* The seat's own state, and only when there is a seat —
-                        the four fields are null together. */}
-                    {course.enrolmentCount > 0 && (
-                      <div className="mt-2 flex flex-wrap items-center gap-1">
-                        {course.status && (
-                          <VocabBadge vocab={ENROLMENT_STATUS} value={course.status} />
-                        )}
-                        {course.paymentStatus && (
-                          <VocabBadge vocab={PAYMENT_STATUS} value={course.paymentStatus} />
-                        )}
-                        {course.assessmentOutcome && (
-                          <VocabBadge
-                            vocab={ASSESSMENT_OUTCOME}
-                            value={course.assessmentOutcome}
-                          />
-                        )}
-                        {/* attendancePct defaults to 0 and stays there until
-                            the run has actually happened — "0% attended" on a
-                            confirmed future seat is noise, not information. */}
-                        {course.attendancePct !== null && course.attendancePct > 0 && (
-                          <span className="text-xs text-[var(--text-muted)]">
-                            {course.attendancePct}% attended
+                          <span className="whitespace-nowrap text-xs text-[var(--text-muted)]">
+                            {formatDate(s.createdAt)}
                           </span>
+                          <span className="col-start-2 row-start-1 sm:col-start-2">
+                            <Badge tone="neutral">{SOURCE_LABELS[s.type] ?? s.type}</Badge>
+                          </span>
+                          <span className="col-span-2 min-w-0 sm:col-span-1 sm:col-start-3">
+                            {href ? (
+                              <Link
+                                to={href}
+                                className="text-sm text-[var(--text-primary)] hover:text-[var(--accent)]"
+                              >
+                                {s.label}
+                              </Link>
+                            ) : (
+                              <span className="text-sm text-[var(--text-primary)]">{s.label}</span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </FormSection>
+
+              <FormSection
+                title="Courses"
+                description="Every programme this person has enquired about or taken a seat on."
+              >
+                <div className="flex flex-col gap-3">
+                  {contact.courses.length === 0 && (
+                    <p className="text-sm text-[var(--text-muted)]">No courses yet.</p>
+                  )}
+                  {contact.courses.map((course) => {
+                    // Both stamps through formatDate before comparing: two records
+                    // hours apart are one day to the reader, and "12 Sep 2026 –
+                    // 12 Sep 2026" is not a span.
+                    const first = formatDate(course.firstAt);
+                    const last = formatDate(course.lastAt);
+                    return (
+                      <div
+                        key={course.trainingId}
+                        className="rounded-xl border border-[var(--border-subtle)] p-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          {/* A null slug means the programme has been deleted —
+                              TrainingsService.remove leaves its registrations and
+                              enrolments pointing at nothing, so there is no editor
+                              page left to link to. */}
+                          {course.slug ? (
+                            <Link
+                              to={`/admin/trainings/${course.trainingId}`}
+                              className="text-sm font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
+                            >
+                              {course.title}
+                            </Link>
+                          ) : (
+                            <span className="text-sm font-medium text-[var(--text-primary)]">
+                              {course.title}
+                            </span>
+                          )}
+                          <div className="flex flex-wrap gap-1">
+                            {course.enquiryCount > 0 && (
+                              <Badge tone="neutral">
+                                Enquired
+                                {course.enquiryCount > 1 && ` ×${course.enquiryCount}`}
+                              </Badge>
+                            )}
+                            {course.enrolmentCount > 0 && (
+                              <Badge tone="accent">
+                                Enrolled
+                                {course.enrolmentCount > 1 && ` ×${course.enrolmentCount}`}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* The seat's own state, and only when there is a seat —
+                            the four fields are null together. */}
+                        {course.enrolmentCount > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1">
+                            {course.status && (
+                              <VocabBadge vocab={ENROLMENT_STATUS} value={course.status} />
+                            )}
+                            {course.paymentStatus && (
+                              <VocabBadge vocab={PAYMENT_STATUS} value={course.paymentStatus} />
+                            )}
+                            {course.assessmentOutcome && (
+                              <VocabBadge
+                                vocab={ASSESSMENT_OUTCOME}
+                                value={course.assessmentOutcome}
+                              />
+                            )}
+                            {/* attendancePct defaults to 0 and stays there until
+                                the run has actually happened — "0% attended" on a
+                                confirmed future seat is noise, not information. */}
+                            {course.attendancePct !== null && course.attendancePct > 0 && (
+                              <span className="text-xs text-[var(--text-muted)]">
+                                {course.attendancePct}% attended
+                              </span>
+                            )}
+                          </div>
                         )}
+
+                        <p className="mt-2 text-xs text-[var(--text-muted)]">
+                          {course.runCodes.length > 0 && <>{course.runCodes.join(", ")} · </>}
+                          {first}
+                          {last !== first && <> – {last}</>}
+                        </p>
                       </div>
-                    )}
+                    );
+                  })}
+                </div>
+              </FormSection>
 
-                    <p className="mt-2 text-xs text-[var(--text-muted)]">
-                      {course.runCodes.length > 0 && <>{course.runCodes.join(", ")} · </>}
-                      {first}
-                      {last !== first && <> – {last}</>}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </FormSection>
-
-          <FormSection title="Notes">
-            <div className="flex flex-col gap-3">
-              {contact.notes.length === 0 && (
-                <p className="text-sm text-[var(--text-muted)]">No notes yet.</p>
-              )}
-              {[...contact.notes]
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map((n) => (
-                  <div
-                    key={n._id}
-                    className="rounded-xl border border-[var(--border-subtle)] p-3"
-                  >
-                    <p className="text-sm text-[var(--text-primary)]">{n.text}</p>
-                    <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-muted)]">
-                      <span>
-                        {n.authorName} · {formatDate(n.createdAt)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteNote(n._id)}
-                        className="text-[var(--text-muted)] hover:text-red-600 dark:hover:text-red-400"
+              <FormSection title="Notes">
+                <div className="flex flex-col gap-3">
+                  {contact.notes.length === 0 && (
+                    <p className="text-sm text-[var(--text-muted)]">No notes yet.</p>
+                  )}
+                  {[...contact.notes]
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .map((n) => (
+                      <div
+                        key={n._id}
+                        className="rounded-xl border border-[var(--border-subtle)] p-3"
                       >
-                        <Icon name="trash" size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-            </div>
-            <Textarea
-              rows={3}
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Add a note…"
-            />
-            <div>
-              <Button variant="secondary" size="sm" onClick={handleAddNote} disabled={noteSaving || !noteText.trim()}>
-                {noteSaving ? "Adding…" : "Add note"}
-              </Button>
-            </div>
-          </FormSection>
-        </div>
-
-        <div className="flex flex-col gap-6">
-          <FormSection title="Activity">
-            <div className="flex flex-col gap-3">
-              {timeline.map((s, i) => {
-                const href = SOURCE_ADMIN_HREF[s.type];
-                return (
-                  <div key={i} className="flex flex-col gap-1 border-l-2 border-[var(--border-subtle)] pl-3">
-                    <div className="flex items-center gap-2">
-                      <Badge tone="neutral">{SOURCE_LABELS[s.type] ?? s.type}</Badge>
-                      <span className="text-xs text-[var(--text-muted)]">{formatDate(s.createdAt)}</span>
-                    </div>
-                    {href ? (
-                      <Link
-                        to={href}
-                        className="text-sm text-[var(--text-primary)] hover:text-[var(--accent)]"
-                      >
-                        {s.label}
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-[var(--text-primary)]">{s.label}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </FormSection>
-
-          <Panel className="p-5 text-sm text-[var(--text-secondary)]">
-            <p>First seen: {formatDate(contact.firstSeenAt)}</p>
-            <p className="mt-1">Last activity: {formatDate(contact.lastActivityAt)}</p>
-          </Panel>
-        </div>
+                        <p className="text-sm text-[var(--text-primary)]">{n.text}</p>
+                        <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-muted)]">
+                          <span>
+                            {n.authorName} · {formatDate(n.createdAt)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteNote(n._id)}
+                            className="text-[var(--text-muted)] hover:text-red-600 dark:hover:text-red-400"
+                          >
+                            <Icon name="trash" size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                <Textarea
+                  rows={3}
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Add a note…"
+                />
+                <div>
+                  <Button variant="secondary" size="sm" onClick={handleAddNote} disabled={noteSaving || !noteText.trim()}>
+                    {noteSaving ? "Adding…" : "Add note"}
+                  </Button>
+                </div>
+              </FormSection>
       </div>
     </div>
   );

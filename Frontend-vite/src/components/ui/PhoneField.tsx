@@ -109,6 +109,13 @@ export function PhoneField({
   }, [controlled, value, defaultCountry]);
 
   const combined = combine(code, national);
+  const selected = COUNTRIES.find((c) => c.code.toLowerCase() === code.toLowerCase());
+
+  /** Left room for the dial code shown inside the input. Three buckets rather
+   * than a measurement: "+65" is 3 characters, "+971" is 4, "+1784" is 5, and
+   * nothing in the list is longer. */
+  const dial = dialCodeFor(code);
+  const prefixPadding = dial.length <= 3 ? 'pl-12' : dial.length === 4 ? 'pl-14' : 'pl-16';
 
   function emit(nextCode: string, nextNational: string) {
     setCode(nextCode);
@@ -119,30 +126,77 @@ export function PhoneField({
   return (
     <Field label={label} htmlFor={`${name}-national`} hint={hint} error={error} required={required}>
       <div className="flex gap-2">
-        <Select
-          aria-label={`${label} country code`}
-          value={code}
-          onChange={(e) => emit(e.target.value, national)}
-          className="w-36 shrink-0 sm:w-40"
-        >
-          {COUNTRIES.map((c) => (
-            <option key={c.code} value={c.code.toLowerCase()}>
-              {c.name} ({c.dialCode})
-            </option>
-          ))}
-        </Select>
-        <Input
-          id={`${name}-national`}
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          value={national}
-          placeholder={placeholder}
-          required={required}
-          aria-invalid={!!error}
-          onChange={(e) => emit(code, e.target.value)}
-          className="min-w-0 flex-1"
-        />
+        {/* Narrow on purpose: the number is what people type and read back,
+            and the country is chosen once. The closed control truncates the
+            name — "Singapo…" — which costs nothing, because the open list is
+            sized by the browser to its own content, not to this width.
+
+            The option label keeps the NAME FIRST. Native select type-ahead
+            matches from the start of the label, and with two hundred
+            countries typing "sing" is how anyone finds Singapore; putting the
+            dial code first would have made every option start with "+" and
+            broken that outright. `title` gives the full name on hover for the
+            truncated case. */}
+        {/* The width goes on this WRAPPER, not on the <Select>.
+            Every control carries `w-full` from controlBase, `cn` is a plain
+            join rather than tailwind-merge, and Tailwind emits `.w-full`
+            AFTER `.w-24` — so at equal specificity a width class passed to
+            Select loses, silently. The old `w-36 sm:w-40` here never applied
+            at all: the select took the whole row and squeezed the number box
+            down to nothing, which is precisely how this looked wrong. Sizing
+            the parent and letting the select fill it cannot be overridden. */}
+        <div className="w-24 shrink-0 sm:w-28">
+          <Select
+            aria-label={`${label} country code`}
+            title={selected ? `${selected.name} (${selected.dialCode})` : undefined}
+            value={code}
+            onChange={(e) => emit(e.target.value, national)}
+            // Ellipsis rather than a hard clip. `truncate` is safe to pass
+            // through here where a width class is not: nothing in controlBase
+            // sets overflow or text-overflow, so there is no later rule for it
+            // to lose to.
+            className="truncate"
+          >
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code.toLowerCase()}>
+                {c.name} ({c.dialCode})
+              </option>
+            ))}
+          </Select>
+        </div>
+        {/* The dial code rides on the NUMBER, not in the dropdown.
+            "Singapore (+65)" needs about 105px of text room, so even the old
+            160px select only just fitted it — shrinking the select at all
+            would have hidden the one part of it that has to be visible while
+            you type. Moving it here makes it more visible than before (it sits
+            against the digits it belongs to) and frees the select to be a
+            narrow chooser whose truncated name costs nothing. */}
+        <div className="relative min-w-0 flex-1">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-base text-[var(--text-secondary)] sm:text-[0.9375rem]"
+          >
+            {dial}
+          </span>
+          <Input
+            id={`${name}-national`}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={national}
+            placeholder={placeholder}
+            required={required}
+            aria-invalid={!!error}
+            onChange={(e) => emit(code, e.target.value)}
+            // Padding sized to THIS dial code, not to the longest one in the
+            // world. A flat pl-16 reserved room for "+1784" on every field,
+            // and in a two-column grid — the Contact page — that left about
+            // forty pixels for the digits: "+65   912" and the rest cut off.
+            // Written as whole literal class names because Tailwind scans the
+            // source for them and would not see an interpolated one.
+            className={`w-full min-w-0 ${prefixPadding}`}
+          />
+        </div>
       </div>
       {/* The real form field: FormData reads `name` from this hidden input. */}
       <input type="hidden" name={name} value={combined} />

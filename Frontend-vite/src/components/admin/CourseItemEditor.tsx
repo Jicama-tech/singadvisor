@@ -715,7 +715,7 @@ export function CourseItemEditor({
             />
             <CheckboxRow
               label="Free preview"
-              hint="Shown in full on the public course page, before anyone enrols."
+              hint="Marks the item as the free sample. The public course page does not show the curriculum yet, so this has no visible effect for now."
               checked={item.previewFree}
               onChange={(previewFree) => onChange({ previewFree })}
             />

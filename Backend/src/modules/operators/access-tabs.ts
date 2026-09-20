@@ -20,6 +20,8 @@ export const ACCESS_TABS = [
   'messages',
   'settings',
   'crm',
+  'memberships',
+  'whatsapp',
 ] as const;
 
 export type AccessTab = (typeof ACCESS_TABS)[number];

@@ -23,11 +23,16 @@ import {
 import { BlogFeedback, BlogFeedbackSchema } from '../blog/entities/blog-feedback.entity';
 import { CrmController } from './crm.controller';
 import { CrmService } from './crm.service';
+// The model only, never the module: MembershipsModule -> SubscribersModule ->
+// CrmModule is a cycle. Same read-only cross-module pattern as Registration
+// and Ticket above.
+import { Membership, MembershipSchema } from '../memberships/entities/membership.entity';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Contact.name, schema: ContactSchema },
+      { name: Membership.name, schema: MembershipSchema },
       // Read-only — see CrmService's constructor comment. Registration and
       // Enrolment carry a contact's courses as well as backfill().
       { name: Registration.name, schema: RegistrationSchema },

@@ -59,12 +59,48 @@ export class Newsletter {
   @Prop({ type: Boolean, required: true, default: false })
   published!: boolean;
 
-  /** Pins the issue to the top of the public newsletter listing. Issues
-   * written before this flag existed carry no such field; Mongo orders a
-   * missing value below `false`, so a descending sort still leaves them
-   * among the unfeatured. */
+  /**
+   * Pins the issue to the top of the public newsletter listing.
+   *
+   * Has to be STORED on every issue, including those written before the flag
+   * existed — `default: false` is not enough, because it is applied when
+   * Mongoose hydrates a document, long after the server has sorted. In the
+   * stored document the field is simply absent, and Mongo sorts an absent
+   * field as null: a distinct BSON type that orders below the WHOLE of
+   * Boolean. So it lands below `false`, not among the unfeatured, and the
+   * listing gets three groups where it wanted two — with the date only
+   * breaking ties inside a group. One issue saved with the toggle untouched
+   * would outrank every issue nobody has edited, however new.
+   *
+   * scripts/backfill-featured.ts is what keeps that from happening.
+   */
   @Prop({ type: Boolean, required: true, default: false })
   featured!: boolean;
+
+  /**
+   * Members only. The stories are withheld from everyone who cannot prove an
+   * active membership, and the gate is enforced on the Backend — a flag the
+   * SPA merely respects would be no gate at all, since the API is public.
+   *
+   * The issue still appears in the public listing, deliberately: a locked
+   * headline is how anybody finds out membership is worth having. What the
+   * listing must never carry is the stories: `presentForList` blanks each
+   * item's `message` for a gated issue and only then caps it at 300
+   * characters. The order matters and is tested — capping first looks
+   * equivalent and is not, because the first 300 characters of a gated issue
+   * are the opening of the lead story, which is the thing being sold.
+   */
+  @Prop({ type: Boolean, required: true, default: false, index: true })
+  membersOnly!: boolean;
+
+  /**
+   * When the members' announcement went out, and the reason it only goes out
+   * once. Publishing is not a single event here — an admin can save a
+   * published issue any number of times — so without a stamp every edit would
+   * mail the whole membership again.
+   */
+  @Prop({ type: Date, required: false, default: null })
+  memberEmailSentAt!: Date | null;
 
   // ---- Deprecated single-story fields (pre-`items` issues only) ----------
   // Optional now: a saved issue has these $unset, so requiring them would

@@ -84,6 +84,8 @@ type ContactBase = {
   name: string;
   phone: string;
   whatsapp: string;
+  /** Marketing on WhatsApp is refused for this contact. */
+  whatsappOptOut: boolean;
   role: string;
   company: string;
   tags: string[];
@@ -99,10 +101,23 @@ type ContactBase = {
  * the patch and both note writes all carry the full course history, because
  * CrmDetail replaces its whole contact state from each of them and a response
  * without `courses` would blank the panel. */
-export type ContactDoc = ContactBase & { courses: ContactCourse[] };
+export type ContactDoc = ContactBase &
+  ContactMemberState & { courses: ContactCourse[] };
+
+/** Derived by the Backend from the memberships collection, never stored on
+ * the contact — a copy would go stale the moment a membership lapsed, and the
+ * nightly expiry sweep would have to know about the CRM to keep it honest. */
+export type ContactMemberState = {
+  isMember: boolean;
+  /** Null when they are not a member, so the table renders a dash rather
+   * than a date that means nothing. */
+  membershipEndsAt: string | null;
+  membershipPlan: string | null;
+};
 
 /** GET /crm/contacts only — same contact, lighter courses. */
-export type ContactListItem = ContactBase & { courses: ContactCourseSummary[] };
+export type ContactListItem = ContactBase &
+  ContactMemberState & { courses: ContactCourseSummary[] };
 
 export type ContactFilters = {
   q?: string;
@@ -140,6 +155,7 @@ export function createContact(body: {
   name?: string;
   phone?: string;
   whatsapp?: string;
+  whatsappOptOut?: boolean;
   role?: string;
   company?: string;
 }): Promise<ContactDoc> {
@@ -157,6 +173,8 @@ export function updateContact(
     name: string;
     phone: string;
     whatsapp: string;
+  /** Marketing on WhatsApp is refused for this contact. */
+  whatsappOptOut: boolean;
     role: string;
     company: string;
     tags: string[];
@@ -193,6 +211,26 @@ export function deleteContactNote(id: string, noteId: string): Promise<ContactDo
  * createdAt. */
 export function runCrmBackfill(): Promise<{ scanned: number }> {
   return apiJson(`/crm/contacts/backfill`, { admin: true, method: "POST" });
+}
+
+/** What the eventsh pull answers with. `skipped` when eventsh is not
+ * configured on this Backend, or is unreachable — neither is an error worth
+ * failing the whole backfill over. */
+export type AttendeeSyncResult =
+  | { skipped: true; reason: string }
+  | { skipped: false; seen: number; recorded: number };
+
+/**
+ * Pull everyone holding a ticket to one of this organiser's events into the
+ * CRM.
+ *
+ * A separate call from the backfill above because it reaches a different
+ * system: the backfill walks THIS database, and this asks eventsh. It lives on
+ * the eventsh route rather than the CRM's because the module that owns the
+ * sync already depends on the CRM, and the reverse would be a cycle.
+ */
+export function syncEventAttendees(): Promise<AttendeeSyncResult> {
+  return apiJson(`/eventsh/sync-attendees`, { admin: true, method: "POST" });
 }
 
 export function crmExportPath(filters: ContactFilters = {}): string {

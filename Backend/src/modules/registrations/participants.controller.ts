@@ -1,5 +1,7 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TabsGuard } from '../../common/guards/tabs.guard';
+import { Tabs } from '../../common/decorators/tabs.decorator';
 import { ParticipantsService } from './participants.service';
 
 /**
@@ -22,7 +24,9 @@ import { ParticipantsService } from './participants.service';
  * all. Registration order between the two controllers is therefore irrelevant.
  */
 @Controller('registrations/participants')
-@UseGuards(JwtAuthGuard)
+// The course roster: names, phone numbers and outstanding balances.
+@UseGuards(JwtAuthGuard, TabsGuard)
+@Tabs('trainings')
 export class ParticipantsController {
   constructor(private readonly participantsService: ParticipantsService) {}
 

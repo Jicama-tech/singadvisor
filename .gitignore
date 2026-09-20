@@ -33,3 +33,10 @@ Thumbs.db
 # Misc
 *.tsbuildinfo
 .vercel
+
+# WhatsApp pairing (Baileys linked-device keys). MUST stay ignored:
+# Deployment/autodeploy.sh runs `git clean -fd`, which deletes untracked
+# files but spares ignored ones — untracked here would mean every deploy
+# silently unlinks the phone and someone has to scan a QR again.
+# It is also a live credential: anyone holding it can send as that number.
+/whatsapp-auth/

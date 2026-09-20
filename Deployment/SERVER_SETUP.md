@@ -28,7 +28,16 @@ the server already occupies 4000; the nginx /api proxy matches this port):
 - `SITE_URL` (the public SPA origin, e.g. `https://singadvisor.com`) and
   `PUBLIC_URL` (this Backend's own public origin) — both required by the
   link-preview renderer, see §5
-- `SMTP_*` (fallback mailer)
+- `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` /
+  `SMTP_FROM` — **not optional if you want any email at all.** With
+  `SMTP_HOST` unset the app sends nothing and says nothing: MailService
+  throws and every caller swallows it. That silently disables enrolment
+  confirmations, membership welcome emails and members-only announcements.
+  Set `SMTP_SECURE=true` only for port 465; leave it false for 587.
+- `GOOGLE_CLIENT_ID` — the Google OAuth client id tokens are verified
+  against. Must be the SAME id as the SPA's `VITE_GOOGLE_CLIENT_ID`. Unset,
+  the Backend falls back to accepting a typed address for enrolment, and
+  refuses to open members-only content to anyone at all.
 - `RAZORPAY_*` only if you prefer env over the Settings UI
 
 **`Frontend-vite/.env.production`** — build-time values (Vite reads this
@@ -37,8 +46,18 @@ file automatically during `npm run build`):
 VITE_API_URL=https://singadvisor.com/api      # or https://api.singadvisor.com
 VITE_EVENTSH_PUBLIC_URL=https://eventsh.yourdomain
 VITE_EVENTSH_ORGANIZER_ID=<the organizer id>
-SITE_URL=https://singadvisor.com              # used by the sitemap script
+VITE_GOOGLE_CLIENT_ID=<the same id as Backend GOOGLE_CLIENT_ID>
+SITE_URL=https://singadvisor.com              # sitemap + admin slug fields
 ```
+
+`VITE_GOOGLE_CLIENT_ID` is a public value, not a secret — but leaving it out
+is a silent half-outage: the sign-in button renders nothing, so nobody can
+buy a membership or open a members-only article. The live origin must also
+be listed under **Authorized JavaScript origins** on that OAuth client, or
+sign-in fails with `Error 400: origin_mismatch`.
+
+`SITE_URL` is read at BUILD time and compiled into the bundle, so changing
+it requires a rebuild, not just a restart.
 
 ### Install + first manual deploy (proves everything works before automation)
 

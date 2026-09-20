@@ -377,6 +377,7 @@ export async function savePost(formData: FormData): Promise<FormState> {
     published: bool(formData, "published"),
     featured: bool(formData, "featured"),
     listedOnBlog: bool(formData, "listedOnBlog"),
+    membersOnly: bool(formData, "membersOnly"),
     publishedAt,
     writtenByName: str(formData, "writtenByName"),
     writtenByPosition: str(formData, "writtenByPosition"),
@@ -449,6 +450,7 @@ export async function saveNewsletter(formData: FormData): Promise<FormState> {
     slug: str(formData, "slug") || slugify(title),
     items,
     published: bool(formData, "published"),
+    membersOnly: bool(formData, "membersOnly"),
     featured: bool(formData, "featured"),
   };
 
@@ -835,4 +837,96 @@ export async function moveLandingSection(formData: FormData): Promise<void> {
   const direction = str(formData, "direction") === "up" ? "up" : "down";
   await patchLandingSectionMove(key, direction);
 }
+
+// ---------------------------------------------------------------------------
+// Memberships
+// ---------------------------------------------------------------------------
+
+/**
+ * Plans. `perks` is a checkbox list, so it comes through `list()` rather than
+ * `str()` — FormData.get would see only the last ticked box.
+ *
+ * A membership deliberately does not change what a course costs — the
+ * percentage discount that used to live on a plan was removed, so there is no
+ * money field here at all beyond the plan's own price.
+ */
+export async function saveMembershipPlan(formData: FormData): Promise<FormState> {
+  const id = str(formData, "id") || null;
+  const name = str(formData, "name");
+  if (!name)
+    return { ok: false, errors: { name: "Name is required." }, values: collectValues(formData) };
+
+  const body = {
+    name,
+    description: str(formData, "description"),
+    // The form asks for a price in dollars because that is what the admin
+    // knows; the Backend stores and charges in minor units, and this is the
+    // one line that converts. Rounded because a price carrying a fraction of
+    // a cent is not one a PayNow QR can express.
+    priceCents: Math.round(num(formData, "price") * 100),
+    currency: str(formData, "currency") || "SGD",
+    durationDays: num(formData, "durationDays", 365),
+    perks: list(formData, "perks"),
+    published: bool(formData, "published"),
+  };
+
+  try {
+    const result = id
+      ? await sendJson("PATCH", `/memberships/admin/plans/${id}`, body)
+      : await sendJson("POST", "/memberships/admin/plans", body);
+    if (!result.ok)
+      return {
+        ok: false,
+        message: backendMessage(result.data, "Could not save the plan."),
+        values: collectValues(formData),
+      };
+    return { ok: true };
+  } catch (err) {
+    return errorState(err, formData, "Could not save the plan.");
+  }
+}
+
+/** Archive rather than delete — memberships sold on a plan keep pointing at
+ * it, and an admin reading last year's sales should still be able to open it.
+ * The list page sends the value it wants, so there is no read-then-flip. */
+export async function setMembershipPlanArchived(id: string, archived: boolean): Promise<void> {
+  const result = await sendJson("PATCH", `/memberships/admin/plans/${id}/archive`, { archived });
+  // sendJson resolves for a 4xx as readily as a 200 — it throws only when the
+  // request never reached the server. Without this the caller's try/catch can
+  // never fire on a refusal, and the page reports success for a write the API
+  // rejected. Same shape as verifyRegistrationPayment, which is the convention.
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not update the plan."));
+}
+
+/** The money arrived. This is also what starts the membership — the Backend
+ * stamps the term, applies the perks and sends the welcome email off the back
+ * of it, which is why there is no separate "activate" button to get wrong. */
+export async function verifyMembershipPayment(id: string): Promise<void> {
+  const result = await sendJson("PATCH", `/memberships/${id}/verify-payment`);
+  // This one matters most of the three: it is the money write, and the list
+  // was announcing "<name>'s membership is active" off a call the API had
+  // refused — a conflict, an already-verified row, a validation failure, all
+  // reported as success.
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not confirm the payment."));
+}
+
+/** Send the welcome email again. Returns whether it actually went, because
+ * sendBestEffort swallows failures — without the flag the admin would be
+ * told "sent" by a click that reached a dead SMTP host. */
+export async function resendMembershipWelcome(id: string): Promise<{ sent: boolean }> {
+  const result = await sendJson("POST", `/memberships/${id}/resend-welcome`);
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not resend the welcome email."));
+  return result.data as { sent: boolean };
+}
+
+/** Cancel, expire early, or put a mistakenly cancelled one back to pending.
+ * "active" is deliberately not offered: see verifyMembershipPayment. */
+export async function updateMembershipStatus(
+  id: string,
+  status: "pending" | "expired" | "cancelled",
+): Promise<void> {
+  const result = await sendJson("PATCH", `/memberships/${id}/status`, { status });
+  if (!result.ok) throw new Error(backendMessage(result.data, "Could not change the status."));
+}
+
 export * from "@/eventsActions";

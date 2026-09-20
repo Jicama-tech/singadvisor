@@ -12,6 +12,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { BlogService } from './blog.service';
 import { BlogFeedbackService } from './blog-feedback.service';
 import { SavePostDto } from './dto/save-post.dto';
+import { MemberViewDto } from '../../common/dto/member-view.dto';
+import { MembershipsService } from '../memberships/memberships.service';
 import { GenerateBlogDto } from './dto/generate-blog.dto';
 import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
 
@@ -22,6 +24,7 @@ export class BlogController {
   constructor(
     private readonly blogService: BlogService,
     private readonly feedbackService: BlogFeedbackService,
+    private readonly memberships: MembershipsService,
   ) {}
 
   @Get()
@@ -64,6 +67,22 @@ export class BlogController {
     @Body('featured') featured: boolean,
   ) {
     return this.feedbackService.setFeatured(feedbackId, featured);
+  }
+
+  /**
+   * The member's view of a post. A POST because the credential travels in a
+   * body and a GET has none — not because anything is written.
+   *
+   * A non-member gets exactly what the GET above gives: the teaser, with
+   * `membersOnly: true` and no body. That is deliberate — the page needs the
+   * title and excerpt to render its locked panel, and a 403 would leave it
+   * with nothing to show but an error.
+   */
+  @Post(':slug/members')
+  findBySlugForMember(@Param('slug') slug: string, @Body() dto: MemberViewDto) {
+    return this.memberships
+      .viewerFor(dto.credential)
+      .then((viewer) => this.blogService.findBySlugPublic(slug, viewer));
   }
 
   @Get(':slug')

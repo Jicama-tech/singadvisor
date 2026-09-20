@@ -70,4 +70,9 @@ export class SaveNewsletterDto {
   @IsOptional()
   @IsBoolean()
   featured?: boolean;
+
+  /** Members only — see Newsletter.membersOnly. */
+  @IsOptional()
+  @IsBoolean()
+  membersOnly?: boolean;
 }

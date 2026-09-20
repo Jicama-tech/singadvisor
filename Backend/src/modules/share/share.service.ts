@@ -60,7 +60,11 @@ export class ShareService {
 
       return this.render({
         title: post.title,
-        description: this.summarize(post.excerpt || post.content),
+        // `content` is absent on a members-only post — the gate withholds it, and
+        // this service is an anonymous caller of findBySlugPublic. So a gated
+        // card falls back to the excerpt somebody wrote to be public, and to an
+        // empty description if there is none. It can never reach the body.
+        description: this.summarize(post.excerpt || post.content || ''),
         url: `${this.siteUrl}/blog/${encodeURIComponent(post.slug)}`,
         image: this.absoluteImage(post.coverImage),
         imageAlt: post.title,
