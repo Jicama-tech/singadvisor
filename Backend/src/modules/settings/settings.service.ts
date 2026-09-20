@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Settings, SettingsDocument } from './entities/settings.entity';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
+import { lookupUen, type UenLookupResult } from './uen-lookup';
 import { decryptSecret, encryptSecret, hasEncryptionKey } from '../../common/secret-crypto.util';
 
 const SINGLETON_KEY = 'singleton';
@@ -11,6 +12,10 @@ const SINGLETON_KEY = 'singleton';
 export interface SettingsPublicView {
   companyName: string;
   companyUEN: string;
+  /** The ACRA check on the UEN above — admin view only, never public. */
+  uenVerified: boolean;
+  uenDetails: Record<string, unknown> | null;
+  uenVerifiedAt: string | null;
   payNowMobile: string;
   paynowEnabled: boolean;
   razorpayEnabled: boolean;
@@ -83,6 +88,9 @@ export class SettingsService {
     return {
       companyName: s.companyName,
       companyUEN: s.companyUEN,
+      uenVerified: s.uenVerified,
+      uenDetails: s.uenDetails,
+      uenVerifiedAt: s.uenVerifiedAt ? s.uenVerifiedAt.toISOString() : null,
       payNowMobile: s.payNowMobile,
       paynowEnabled: s.paynowEnabled,
       razorpayEnabled: s.razorpayEnabled,
@@ -183,7 +191,63 @@ export class SettingsService {
       throw new BadRequestException('UEN must be 8-10 letters/digits, e.g. 202012345K or T08LL1234K');
     }
 
+    // A verification belongs to the number it was run against. Changing the
+    // UEN discards it, so the page can never show "verified" beside a number
+    // nobody checked — which would read as reassurance and be the opposite.
+    if (update.companyUEN !== undefined && update.companyUEN !== current.companyUEN) {
+      update.uenVerified = false;
+      update.uenDetails = null;
+      update.uenVerifiedAt = null;
+    }
+
     await this.model.updateOne({ key: SINGLETON_KEY }, { $set: update }).exec();
     return this.getPublicView();
+  }
+
+  /**
+   * Check a UEN against ACRA and, if it is there, record the result.
+   *
+   * Saved immediately rather than handed back for the form to submit later:
+   * the admin asked a question about a specific number and got an answer about
+   * that number, and making the answer depend on them afterwards pressing Save
+   * is how a page ends up showing a verification for a different UEN.
+   *
+   * Verifying a UEN that is not the saved one records the answer without
+   * changing `companyUEN` — the field is the admin's to set. The next save
+   * clears the verification if the two do not match, per the rule above.
+   */
+  async verifyUen(uen: string): Promise<UenLookupResult & { savedAgainst: string | null }> {
+    const result = await lookupUen(uen);
+    const current = await this.getForInternalUse();
+    const normalized = (uen || '').trim().toUpperCase();
+
+    if (!result.found) {
+      // A failed check clears any stored one for the SAME number: the admin
+      // now knows it does not verify, and leaving the old tick would hide that.
+      if (current.companyUEN.toUpperCase() === normalized) {
+        await this.model
+          .updateOne(
+            { key: SINGLETON_KEY },
+            { $set: { uenVerified: false, uenDetails: null, uenVerifiedAt: null } },
+          )
+          .exec();
+      }
+      return { ...result, savedAgainst: null };
+    }
+
+    await this.model
+      .updateOne(
+        { key: SINGLETON_KEY },
+        {
+          $set: {
+            companyUEN: result.details.uen,
+            uenVerified: true,
+            uenDetails: result.details,
+            uenVerifiedAt: new Date(),
+          },
+        },
+      )
+      .exec();
+    return { ...result, savedAgainst: result.details.uen };
   }
 }

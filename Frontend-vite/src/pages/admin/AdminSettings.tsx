@@ -6,6 +6,7 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { formatDate } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { OperatorsPanel } from "@/components/admin/OperatorsPanel";
@@ -25,6 +26,16 @@ import { ProfilePanel } from "@/components/admin/ProfilePanel";
 type SettingsView = {
   companyName: string;
   companyUEN: string;
+  uenVerified: boolean;
+  uenDetails: {
+    entityName?: string;
+    status?: string;
+    entityType?: string;
+    issueDate?: string;
+    agency?: string;
+    address?: string;
+  } | null;
+  uenVerifiedAt: string | null;
   payNowMobile: string;
   paynowEnabled: boolean;
   razorpayEnabled: boolean;
@@ -66,9 +77,26 @@ type OverviewStats = {
 
 const ORGANIZER_ID = __EVENTSH_ORGANIZER_ID__;
 
+/** One labelled fact from the ACRA record. Omitted entirely when the register
+ * has nothing for it, rather than printing a label against a dash. */
+function UenRow({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+  return (
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
+      <dt className="shrink-0 text-[var(--text-muted)] sm:w-32">{label}</dt>
+      <dd className="min-w-0 break-words text-[var(--text-primary)]">{value}</dd>
+    </div>
+  );
+}
+
 export default function AdminSettings() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<SettingsView | null>(null);
+  /** The UEN box is controlled, so the Verify button can send what is on
+   * screen rather than what was last saved. */
+  const [uen, setUen] = useState("");
+  const [verifyingUen, setVerifyingUen] = useState(false);
+  const [uenMsg, setUenMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [savingPayments, setSavingPayments] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -116,6 +144,12 @@ export default function AdminSettings() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Whatever the server says the UEN is, including after a verification
+  // rewrote it to ACRA's own casing.
+  useEffect(() => {
+    if (settings) setUen(settings.companyUEN ?? "");
+  }, [settings]);
 
   useEffect(() => {
     if (!settings) return;
@@ -209,6 +243,45 @@ export default function AdminSettings() {
       setError(err instanceof Error ? err.message : "Could not save contact settings.");
     } finally {
       setSavingContact(false);
+    }
+  }
+
+  /**
+   * Check the UEN against ACRA.
+   *
+   * The result is rendered from `settings`, not from local state, because the
+   * server is what stored it — reading it back means the panel shows what was
+   * actually saved rather than what this tab happens to remember.
+   */
+  async function verifyUen() {
+    setVerifyingUen(true);
+    setUenMsg(null);
+    try {
+      const res = await adminFetch(`${__API_URL__}/settings/verify-uen`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ uen: uen.trim() }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { found?: boolean; reason?: string; details?: { entityName?: string }; message?: string }
+        | null;
+      if (!res.ok) {
+        setUenMsg({ ok: false, text: data?.message ?? "That check could not be run." });
+        return;
+      }
+      if (!data?.found) {
+        setUenMsg({ ok: false, text: data?.reason ?? "That UEN could not be verified." });
+      } else {
+        setUenMsg({
+          ok: true,
+          text: `Verified — ${data.details?.entityName ?? uen} is registered with ACRA.`,
+        });
+      }
+      await load();
+    } catch {
+      setUenMsg({ ok: false, text: "Could not reach the server." });
+    } finally {
+      setVerifyingUen(false);
     }
   }
 
@@ -337,9 +410,79 @@ export default function AdminSettings() {
             <Field label="Company name" htmlFor="s-company" hint="Shown as the payee on the QR">
               <Input id="s-company" name="companyName" defaultValue={settings?.companyName} />
             </Field>
-            <Field label="Company UEN" htmlFor="s-uen" hint="e.g. 202012345K, 12345678A or T08LL1234K">
-              <Input id="s-uen" name="companyUEN" defaultValue={settings?.companyUEN} placeholder="202012345K" />
+            {/* The UEN, with a check against ACRA's public register beside
+                it. Verifying SAVES — the admin asked about one number and the
+                answer belongs to that number, so it is not left waiting on a
+                later press of Save that might carry a different one. */}
+            <Field
+              label="Company UEN"
+              htmlFor="s-uen"
+              hint="e.g. 202012345K, 12345678A or T08LL1234K"
+            >
+              <div className="flex gap-2">
+                <Input
+                  id="s-uen"
+                  name="companyUEN"
+                  value={uen}
+                  onChange={(e) => setUen(e.target.value.toUpperCase())}
+                  placeholder="202012345K"
+                  className="min-w-0 flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={verifyingUen || !uen.trim()}
+                  onClick={() => void verifyUen()}
+                >
+                  {verifyingUen ? "Checking…" : "Verify"}
+                </Button>
+              </div>
             </Field>
+            {/* What ACRA says about this number, once it has been checked.
+                Rendered from the saved settings rather than the last click, so
+                it survives a reload and cannot outlive the UEN it describes —
+                changing the number clears it server-side. */}
+            {(settings.uenVerified || uenMsg) && (
+              <div className="sm:col-span-2">
+                {uenMsg && (
+                  <p
+                    role="status"
+                    className={`text-sm ${
+                      uenMsg.ok
+                        ? "text-[var(--text-secondary)]"
+                        : "font-medium text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {uenMsg.text}
+                  </p>
+                )}
+                {settings.uenVerified && settings.uenDetails && (
+                  <div className="mt-2 rounded-xl border border-[var(--border-subtle)] surface-sunken p-4 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone="success">Verified with ACRA</Badge>
+                      {settings.uenVerifiedAt && (
+                        <span className="text-xs text-[var(--text-muted)]">
+                          checked {formatDate(settings.uenVerifiedAt)}
+                        </span>
+                      )}
+                    </div>
+                    <dl className="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                      <UenRow label="Registered name" value={settings.uenDetails.entityName} />
+                      <UenRow label="Status" value={settings.uenDetails.status} />
+                      <UenRow label="Entity type" value={settings.uenDetails.entityType} />
+                      <UenRow label="Issued" value={settings.uenDetails.issueDate} />
+                      <UenRow label="Address" value={settings.uenDetails.address} />
+                      <UenRow label="Registry" value={settings.uenDetails.agency} />
+                    </dl>
+                    <p className="mt-3 text-xs text-[var(--text-muted)]">
+                      This confirms the number is in the public register under that name. It does
+                      not verify who is using it.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <PhoneField
               name="payNowMobile"
               label="PayNow mobile (fallback)"
