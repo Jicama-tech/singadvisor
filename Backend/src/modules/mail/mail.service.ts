@@ -45,8 +45,36 @@ export class MailService {
   }
 
   async send(input: SendEmailInput): Promise<void> {
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@singadvisor.com';
-    await this.getTransporter().sendMail({ from, ...input });
+    await this.getTransporter().sendMail({
+      from: this.sender(),
+      ...input,
+      headers: {
+        // Every message goes out from an unmonitored no-reply address (the
+        // footer of email-layout says so to the reader). These say it to the
+        // machines: RFC 3834's marker that the message is automated, so
+        // well-behaved vacation responders and ticketing systems do not answer
+        // it, and Exchange/Outlook's own equivalent for out-of-office and
+        // auto-replies. Bounces (NDRs) are deliberately NOT suppressed — they
+        // are how a dead address gets noticed.
+        'Auto-Submitted': 'auto-generated',
+        'X-Auto-Response-Suppress': 'OOF, AutoReply',
+      },
+    });
+  }
+
+  /**
+   * The From line. SMTP_FROM is documented as a bare address
+   * (no-reply@singadvisor.com), which inboxes display as "no-reply" — so a bare
+   * address gets the brand as its display name. One already written as
+   * `Name <address>` is left exactly as the deployment set it.
+   */
+  private sender(): string | { name: string; address: string } {
+    const from = (
+      process.env.SMTP_FROM ||
+      process.env.SMTP_USER ||
+      'no-reply@singadvisor.com'
+    ).trim();
+    return from.includes('<') ? from : { name: 'SingAdvisor', address: from };
   }
 
   /** Never throws — logs and returns whether it succeeded, for best-effort call sites. */
