@@ -165,4 +165,8 @@ or Facebook's Sharing Debugger; WhatsApp has no tool — share the link with a
   port 4000) when moving to live keys.
 - The eventsh dedicated instance this Backend talks to must itself be
   deployed and reachable at `EVENTSH_BACKEND_URL` (see the eventsh repo's
-  WHITE_LABEL_DEPLOYMENT docs).
+  WHITE_LABEL_DEPLOYMENT docs). Set `EMAIL_BRAND=singadvisor` in **that
+  instance's** env: ticket, booking, sponsor and speaker emails are sent by
+  eventsh, not this Backend, and without it they go out in the EventSH
+  template. Give it a singadvisor.com SMTP mailbox too, or the From address
+  still reads eventsh.
