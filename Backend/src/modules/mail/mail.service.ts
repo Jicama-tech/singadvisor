@@ -64,7 +64,7 @@ export class MailService {
 
   /**
    * The From line. SMTP_FROM is documented as a bare address
-   * (no-reply@singadvisor.com), which inboxes display as "no-reply" — so a bare
+   * (noreply@singadvisor.com), which inboxes display as "noreply" — so a bare
    * address gets the brand as its display name. One already written as
    * `Name <address>` is left exactly as the deployment set it.
    */
@@ -72,7 +72,7 @@ export class MailService {
     const from = (
       process.env.SMTP_FROM ||
       process.env.SMTP_USER ||
-      'no-reply@singadvisor.com'
+      'noreply@singadvisor.com'
     ).trim();
     return from.includes('<') ? from : { name: 'SingAdvisor', address: from };
   }

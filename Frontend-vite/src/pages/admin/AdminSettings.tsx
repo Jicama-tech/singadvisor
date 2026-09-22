@@ -68,6 +68,16 @@ type EmailConfig = {
   hasPassword?: boolean;
 };
 
+/** SingAdvisor's own mailbox on the jicama mailcow server — the only host
+ * singadvisor.com's SPF lets send as the domain. Pre-fills an email config
+ * that has never been set, so turning it on is: tick, paste the mailbox's app
+ * password, save. The password is never pre-filled. */
+const OWN_MAILBOX = {
+  fromName: "SingAdvisor",
+  address: "noreply@singadvisor.com",
+  host: "mail.jicama.tech",
+} as const;
+
 type OverviewStats = {
   events: number;
   ticketsSold: number;
@@ -580,7 +590,7 @@ export default function AdminSettings() {
       <Panel className="p-6">
         <h2 className="text-lg">Email</h2>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Ticket emails (with the QR PDF) are generated and sent by the event platform — this SMTP config tells it who to send from. Leave disabled to use the platform default sender.
+          Ticket, booking, sponsor and speaker emails (with the QR PDF) are generated and sent by the event platform — this tells it to send them through SingAdvisor's own mailbox, noreply@singadvisor.com on mail.jicama.tech, using that mailbox's SMTP app password. Left disabled, they go out from the platform's default sender.
         </p>
         {emailUnavailable ? (
           <p className="mt-4 text-sm text-[var(--text-muted)]">Email settings are temporarily unavailable — please try again later.</p>
@@ -594,19 +604,19 @@ export default function AdminSettings() {
             </label>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="From name" htmlFor="e-fromname">
-                <Input id="e-fromname" name="fromName" defaultValue={email?.fromName} />
+                <Input id="e-fromname" name="fromName" defaultValue={email?.fromName || OWN_MAILBOX.fromName} />
               </Field>
               <Field label="From email" htmlFor="e-fromemail">
-                <Input id="e-fromemail" name="fromEmail" type="email" defaultValue={email?.fromEmail} />
+                <Input id="e-fromemail" name="fromEmail" type="email" defaultValue={email?.fromEmail || OWN_MAILBOX.address} />
               </Field>
               <Field label="SMTP host" htmlFor="e-host">
-                <Input id="e-host" name="smtpHost" defaultValue={email?.smtpHost} placeholder="smtp.gmail.com" />
+                <Input id="e-host" name="smtpHost" defaultValue={email?.smtpHost || OWN_MAILBOX.host} />
               </Field>
               <Field label="SMTP port" htmlFor="e-port">
                 <Input id="e-port" name="smtpPort" type="number" defaultValue={email?.smtpPort ?? 465} />
               </Field>
               <Field label="SMTP user" htmlFor="e-user">
-                <Input id="e-user" name="smtpUser" defaultValue={email?.smtpUser} />
+                <Input id="e-user" name="smtpUser" defaultValue={email?.smtpUser || OWN_MAILBOX.address} />
               </Field>
               <Field label="SMTP password" htmlFor="e-pass">
                 <Input
@@ -619,7 +629,15 @@ export default function AdminSettings() {
               </Field>
             </div>
             <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input type="checkbox" name="smtpSecure" defaultChecked={email?.smtpSecure} className="h-4 w-4 accent-[var(--accent)]" />
+              <input
+                type="checkbox"
+                name="smtpSecure"
+                // Unset means never configured: follow the port, as eventsh's
+                // own sender does. The form defaults the port to 465, and 465
+                // with SSL off makes the connection hang instead of failing.
+                defaultChecked={email?.smtpSecure ?? (email?.smtpPort ?? 465) === 465}
+                className="h-4 w-4 accent-[var(--accent)]"
+              />
               Use SSL (smtpSecure)
             </label>
 
