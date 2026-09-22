@@ -22,6 +22,27 @@ export class Settings {
   @Prop({ type: String, default: '' })
   companyUEN!: string;
 
+  /**
+   * The ACRA check on `companyUEN`, if one has been run.
+   *
+   * Stored rather than looked up on demand: the register is a third party, the
+   * answer does not change between page loads, and the Settings page should
+   * not depend on data.gov.sg being reachable to render.
+   *
+   * Cleared whenever companyUEN changes — see SettingsService.update. A
+   * verification that outlived the number it verified would be worse than
+   * none, because it would look like reassurance.
+   */
+  @Prop({ type: Boolean, default: false })
+  uenVerified!: boolean;
+
+  /** The registered name, status, type and address as ACRA returned them. */
+  @Prop({ type: Object, default: null })
+  uenDetails!: Record<string, unknown> | null;
+
+  @Prop({ type: Date, default: null })
+  uenVerifiedAt!: Date | null;
+
   /** Fallback PayNow proxy when no UEN is set: +65 mobile number. */
   @Prop({ type: String, default: '' })
   payNowMobile!: string;

@@ -34,6 +34,12 @@ the server already occupies 4000; the nginx /api proxy matches this port):
   throws and every caller swallows it. That silently disables enrolment
   confirmations, membership welcome emails and members-only announcements.
   Set `SMTP_SECURE=true` only for port 465; leave it false for 587.
+  Use SingAdvisor's own mailbox, `noreply@singadvisor.com` on the jicama
+  mailcow server: `SMTP_HOST=mail.jicama.tech`, `SMTP_PORT=587`,
+  `SMTP_SECURE=false`, `SMTP_USER` and `SMTP_FROM` both
+  `noreply@singadvisor.com`, `SMTP_PASS` its SMTP-only app password (mailcow
+  admin → Mailboxes → App passwords). singadvisor.com's SPF authorises only
+  mail.jicama.tech, so any other provider fails it.
 - `GOOGLE_CLIENT_ID` — the Google OAuth client id tokens are verified
   against. Must be the SAME id as the SPA's `VITE_GOOGLE_CLIENT_ID`. Unset,
   the Backend falls back to accepting a typed address for enrolment, and
@@ -165,4 +171,13 @@ or Facebook's Sharing Debugger; WhatsApp has no tool — share the link with a
   port 4000) when moving to live keys.
 - The eventsh dedicated instance this Backend talks to must itself be
   deployed and reachable at `EVENTSH_BACKEND_URL` (see the eventsh repo's
-  WHITE_LABEL_DEPLOYMENT docs).
+  WHITE_LABEL_DEPLOYMENT docs). Set `EMAIL_BRAND=singadvisor` in **that
+  instance's** env: ticket, booking, sponsor and speaker emails are sent by
+  eventsh, not this Backend, and without it they go out in the EventSH
+  template. Point its mail at SingAdvisor's own mailbox too, or the From
+  address still reads eventsh: in SingAdvisor Admin → Settings → Email tick
+  "Send from my own SMTP server" and enter the same `noreply@singadvisor.com`
+  / `mail.jicama.tech` / 465 with SSL (or 587 without) and app password, then
+  "Send test". That is the organizer SMTP config eventsh uses for every email
+  about SingAdvisor's events; the instance's own `SMTP_*` can be the same
+  mailbox for its platform mail.

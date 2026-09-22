@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { brandedEmail, emailButton, p, strong } from './email-layout';
+import { brandedEmail, emailButton, heading, p, strong } from './email-layout';
 import type { MailService } from '../modules/mail/mail.service';
 import type { MembershipsService } from '../modules/memberships/memberships.service';
 
@@ -71,9 +71,7 @@ export async function announceToMembers(
     // is the one thing worth reading before opening.
     preview: announcement.title,
     body: [
-      `<h1 style="margin:0 0 14px 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.3;font-weight:700;color:#08111f;">${escapeHtml(
-        announcement.title,
-      )}</h1>`,
+      heading(announcement.title),
       announcement.teaser ? p(escapeHtml(announcement.teaser)) : '',
       emailButton('Read it now', url),
       p(

@@ -16,7 +16,14 @@ import { ClaimPaymentDto } from './dto/claim-payment.dto';
 import { CrmService } from '../crm/crm.service';
 import { MailService } from '../mail/mail.service';
 import { PaynowService } from '../paynow/paynow.service';
-import { brandedEmail, detail, p, strong } from '../../common/email-layout';
+import {
+  brandedEmail,
+  detail,
+  emailContactUrl,
+  link,
+  p,
+  strong,
+} from '../../common/email-layout';
 
 @Injectable()
 export class RegistrationsService {
@@ -442,13 +449,9 @@ export class RegistrationsService {
         ? p(`${strong('Where:')}<br />${escapeHtml(address).replace(/\n/g, '<br />')}`)
         : p('We will send you the venue address before the course starts.');
     }
-    const link = training.googleClassroomLink?.trim();
-    return link
-      // Styled inline: a bare <a> inherits nothing in Outlook and renders in
-      // the client's default blue — the one place brand colour slips.
-      ? p(
-          `${strong('Join here:')} <a href="${escapeHtml(link)}" style="color:#0d8266;text-decoration:underline;">${escapeHtml(link)}</a>`,
-        )
+    const classroom = training.googleClassroomLink?.trim();
+    return classroom
+      ? p(`${strong('Join here:')} ${link(classroom, classroom)}`)
       : p('We will send you the Google Classroom link before the course starts.');
   }
 
@@ -504,7 +507,11 @@ export class RegistrationsService {
           detail('Seats:', String(registration.seats)),
           amount,
           this.joiningDetails(training),
-          p('If anything here looks wrong, reply to this email and we will put it right.'),
+          // Not "reply to this email": it comes from an unmonitored no-reply
+          // address, and the footer says so. Point at a channel someone reads.
+          p(
+            `If anything here looks wrong, ${link('get in touch with us', emailContactUrl())} and we will put it right.`,
+          ),
         ].join(''),
       }),
     });
