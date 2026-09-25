@@ -4,6 +4,7 @@ import "react-quill/dist/quill.snow.css";
 import { adminFetch } from "@/lib/adminFetch";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { PLACEHOLDERS, unknownPlaceholders } from "@/lib/campaignTemplate";
 
 /**
  * Writing a WhatsApp campaign.
@@ -30,6 +31,12 @@ import { Icon } from "@/components/ui/Icon";
  * control with its own upload — and the caption limit that comes with it is
  * a quarter of the plain-text limit, which is why attaching one changes the
  * counter below.
+ *
+ * Personalisation, as in kioscart-v1's campaigns: `{{name}}` and friends are
+ * filled per recipient on the server, and `{Hi|Hello|Hey}` picks one option
+ * per person so a hundred people do not get a hundred identical messages —
+ * the pattern WhatsApp treats as bulk spam. The buttons insert a placeholder
+ * at the cursor; nothing here renders them, the preview does.
  */
 
 /** WhatsApp's own limits. Attaching an image makes the text a caption. */
@@ -49,6 +56,18 @@ export function WhatsappMessageEditor({
   onImageChange: (url: string | null) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const quillRef = useRef<ReactQuill>(null);
+
+  /** Put `{{key}}` where the cursor is — or at the end if the editor was
+   * never focused — and leave the cursor after it, ready to keep typing. */
+  function insertPlaceholder(key: string) {
+    const quill = quillRef.current?.getEditor();
+    if (!quill) return;
+    const token = `{{${key}}}`;
+    const at = quill.getSelection(true)?.index ?? Math.max(0, quill.getLength() - 1);
+    quill.insertText(at, token, "user");
+    quill.setSelection(at + token.length, 0, "user");
+  }
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -88,6 +107,11 @@ export function WhatsappMessageEditor({
       .trim().length;
   }, [value]);
 
+  const unknown = useMemo(
+    () => unknownPlaceholders(value.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ")),
+    [value],
+  );
+
   const limit = imageUrl ? MAX_CAPTION : MAX_TEXT;
   const overLimit = plainLength > limit;
 
@@ -117,14 +141,45 @@ export function WhatsappMessageEditor({
     <div className="flex flex-col gap-3">
       <div className="rich-text-editor rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] [&_.ql-toolbar]:rounded-t-xl [&_.ql-toolbar]:border-[var(--border-strong)] [&_.ql-container]:rounded-b-xl [&_.ql-container]:border-[var(--border-strong)] [&_.ql-editor]:min-h-[9rem]">
         <ReactQuill
+          ref={quillRef}
           theme="snow"
           value={value}
           onChange={onChange}
           modules={modules}
           formats={formats}
-          placeholder="Hi! Just a reminder that…"
+          placeholder="{Hi|Hello} {{first_name}}, just a reminder that…"
         />
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-[var(--text-secondary)]">Insert:</span>
+        {PLACEHOLDERS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => insertPlaceholder(p.key)}
+            className="rounded-full border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 py-1 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+        Each person gets their own copy. <code>{"{{first_name}}"}</code> becomes their first
+        name, and <code>{"{{name|friend}}"}</code> says “friend” when a contact has no name
+        (without a fallback, a missing name reads “there”). Write{" "}
+        <code>{"{Hi|Hello|Hey}"}</code> and each person gets one of those at random, so the
+        messages are not all identical.
+      </p>
+
+      {unknown.length > 0 && (
+        <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
+          {unknown.map((k) => `{{${k}}}`).join(", ")}{" "}
+          {unknown.length === 1 ? "is not a placeholder" : "are not placeholders"}. Use{" "}
+          {PLACEHOLDERS.map((p) => `{{${p.key}}}`).join(", ")}.
+        </p>
+      )}
 
       <p className="text-xs leading-relaxed text-[var(--text-muted)]">
         WhatsApp supports <strong>bold</strong>, <em>italic</em>, <s>strikethrough</s> and
