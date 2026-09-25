@@ -2,6 +2,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsIn,
+  IsMongoId,
   IsOptional,
   IsString,
   Matches,
@@ -69,6 +70,17 @@ export class SendBroadcastDto {
   @IsString()
   @MaxLength(80)
   tag?: string;
+
+  /**
+   * Required when `audience` is 'selected': the CRM contacts ticked in the
+   * composer. Ids only — the server looks up each number and name itself, so
+   * a client cannot pair a contact's name with somebody else's phone.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  @ArrayMaxSize(500)
+  contactIds?: string[];
 
   /**
    * Required when `audience` is 'manual'. Capped at the same ceiling the

@@ -6,10 +6,16 @@ export type WhatsappBroadcastDocument = HydratedDocument<WhatsappBroadcast>;
 /** Who a campaign went to. Resolved to a fixed list the moment it is sent, so
  * the record says who was actually messaged rather than who a query would
  * return today. */
-export const BROADCAST_AUDIENCES = ['members', 'contacts', 'tag', 'manual'] as const;
+export const BROADCAST_AUDIENCES = ['members', 'contacts', 'tag', 'selected', 'manual'] as const;
 export type BroadcastAudience = (typeof BROADCAST_AUDIENCES)[number];
 
-export const BROADCAST_STATUSES = ['queued', 'sending', 'sent', 'failed', 'cancelled'] as const;
+/**
+ * `sent` is the finished state (kept under that name so campaigns stored
+ * before pausing existed still read correctly). `paused` is a campaign that
+ * stopped with people still pending — the daily limit, a dropped session, a
+ * restart — and can be resumed. `cancelled` was stopped by an admin.
+ */
+export const BROADCAST_STATUSES = ['queued', 'sending', 'paused', 'sent', 'failed', 'cancelled'] as const;
 export type BroadcastStatus = (typeof BROADCAST_STATUSES)[number];
 
 export const RECIPIENT_STATUSES = ['pending', 'sent', 'failed', 'skipped'] as const;
@@ -51,6 +57,30 @@ export class BroadcastRecipient {
 
   @Prop({ type: Date, default: null })
   sentAt!: Date | null;
+
+  /** The CRM contact this row came from, when it came from one. What the
+   * spintax seed is, and how an opt-out made mid-campaign is matched. */
+  @Prop({ type: String, default: null })
+  contactId!: string | null;
+
+  /**
+   * The exact message this person gets — placeholders filled, spintax picked.
+   * Rendered once when the campaign is created, so the preview, the send and
+   * the record are provably the same text. Empty on campaigns from before
+   * personalisation; the runner falls back to the campaign's `message`.
+   */
+  @Prop({ type: String, default: '' })
+  text!: string;
+
+  /**
+   * Set the moment this row is taken for sending, BEFORE the message goes
+   * out; the outcome is written right after. A row found pending with this
+   * set was taken by a run that died between the two — WhatsApp may have
+   * delivered it — so it is closed as failed and never sent again. At most
+   * once: a duplicate marketing message is worse than a missed one.
+   */
+  @Prop({ type: Date, default: null })
+  attemptAt!: Date | null;
 }
 export const BroadcastRecipientSchema = SchemaFactory.createForClass(BroadcastRecipient);
 
@@ -71,9 +101,10 @@ export class WhatsappBroadcast {
   name!: string;
 
   /**
-   * The message body as WhatsApp received it — already converted to its own
-   * markup, newlines and all. Snapshotted so the record shows what people
-   * actually got, and it is this that is handed to sendMessage.
+   * The message as WhatsApp markup — converted from the composer's HTML, with
+   * its `{{placeholders}}` and `{spintax}` still in it. Each recipient's
+   * rendered copy is on their row (`recipients.text`); this is the template
+   * they were all made from.
    */
   @Prop({ type: String, required: true })
   message!: string;
@@ -124,6 +155,11 @@ export class WhatsappBroadcast {
 
   @Prop({ type: Number, default: 0 })
   sentCount!: number;
+
+  /** Rows still to be attempted. Kept as a counter so the list view can show
+   * progress without loading every recipient. */
+  @Prop({ type: Number, default: 0 })
+  pendingCount!: number;
 
   @Prop({ type: Number, default: 0 })
   failedCount!: number;

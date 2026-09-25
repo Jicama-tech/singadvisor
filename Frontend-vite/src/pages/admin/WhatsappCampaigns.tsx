@@ -1,65 +1,80 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { adminFetch } from "@/lib/adminFetch";
 import { AdminEmpty, PageHeading, Panel, TableWrap, Td, Th } from "@/components/admin/AdminUI";
-import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { WhatsappMessageEditor } from "@/components/admin/WhatsappMessageEditor";
+import { WhatsappContactPicker } from "@/components/admin/WhatsappContactPicker";
+import {
+  STATUS_LABEL,
+  STATUS_TONE,
+  WhatsappCampaignRun,
+  type BroadcastStatus,
+} from "@/components/admin/WhatsappCampaignRun";
+import { unknownPlaceholders } from "@/lib/campaignTemplate";
 import { formatDateTime } from "@/lib/utils";
 
-type BroadcastStatus = "queued" | "sending" | "sent" | "failed" | "cancelled";
+type Audience = "members" | "contacts" | "tag" | "selected" | "manual";
 
 type BroadcastRow = {
   _id: string;
   name: string;
   message: string;
-  audience: "members" | "contacts" | "tag" | "manual";
+  audience: Audience;
   tag: string | null;
   status: BroadcastStatus;
-  sentFrom: string | null;
   sentCount: number;
   failedCount: number;
   skippedCount: number;
+  pendingCount?: number;
   lastError: string | null;
   createdAt?: string;
   startedAt: string | null;
-  finishedAt: string | null;
 };
 
+/** POST /whatsapp/broadcasts/preview — the server's own rendering, so what is
+ * shown is exactly what each person will receive. */
 type Preview = {
-  /** Exactly what WhatsApp will receive — the server's own conversion, not a
-   * guess made here, so the composer can show it rather than describe it. */
-  message: string;
+  template: string;
   hasImage: boolean;
   total: number;
   willSend: number;
   willSkip: number;
-  sample: { name: string; phone: string; status: string; reason: string | null }[];
+  skipped: Record<string, number>;
+  unknownPlaceholders: string[];
+  warnings: string[];
+  estimatedMinutes: number;
+  dailyLimit: number;
+  dailyRemaining: number;
+  connected: boolean;
+  samples: { name: string; phone: string; text: string }[];
 };
 
-const STATUS_TONE: Record<BroadcastStatus, BadgeTone> = {
-  queued: "neutral",
-  sending: "warn",
-  sent: "success",
-  failed: "danger",
-  cancelled: "neutral",
+const AUDIENCE_LABEL: Record<Audience, string> = {
+  members: "Active members",
+  contacts: "Everyone in the CRM",
+  tag: "CRM contacts with a tag",
+  selected: "Contacts I pick",
+  manual: "A list I paste in",
 };
+
+/** The server's per-campaign ceiling. */
+const MAX_RECIPIENTS = 500;
 
 /**
- * WhatsApp campaigns.
+ * WhatsApp campaigns, the way kioscart-v1 does them: write one message, and
+ * each person gets their own copy — their name in it, a greeting picked for
+ * them — sent slowly from the linked phone.
  *
- * The shape of this page follows from one fact: a WhatsApp message cannot be
- * unsent, and it lands on somebody's personal phone. So the flow is
- * deliberately two-step — you ask who this would reach, see the count and a
- * sample, and only then send. There is no one-click send, and the confirm
- * names the number of people.
- *
- * A campaign is paced at roughly one message every few seconds, so a send is
- * a thing that runs for minutes. The list refreshes while one is in flight
- * rather than pretending it completed.
+ * The page follows from one fact: a WhatsApp message cannot be unsent, and it
+ * lands on somebody's personal phone. So the preview is live and literal —
+ * the real rendered message for each of the first twenty people, who will be
+ * skipped and why, how long it takes and how much of today's allowance it
+ * uses — and Send only works on a preview of exactly what is on screen.
  */
 export default function WhatsappCampaigns() {
   const { user } = useAuth();
@@ -68,17 +83,22 @@ export default function WhatsappCampaigns() {
   const [rows, setRows] = useState<BroadcastRow[] | null>(null);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [sendingFrom, setSendingFrom] = useState<string | null>(null);
+  /** The campaign whose progress view is open, if any. */
+  const [viewing, setViewing] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  /** The editor's HTML. The server converts it to WhatsApp markup and stores
-   * both, so `message` on a saved campaign is what was actually sent. */
   const [messageHtml, setMessageHtml] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [audience, setAudience] = useState<BroadcastRow["audience"]>("members");
+  const [audience, setAudience] = useState<Audience>("members");
   const [tag, setTag] = useState("");
   const [numbers, setNumbers] = useState("");
+  const [contactIds, setContactIds] = useState<string[]>([]);
 
   const [preview, setPreview] = useState<Preview | null>(null);
+  /** The request body the preview above was made from. */
+  const [previewedFor, setPreviewedFor] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [sample, setSample] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,25 +117,30 @@ export default function WhatsappCampaigns() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, viewing]);
 
-  // A campaign in flight changes its counts every few seconds.
-  const inFlight = (rows ?? []).some((r) => r.status === "sending" || r.status === "queued");
+  /** The campaign the banner is about: one going out, else one paused. */
+  const sending = (rows ?? []).find((r) => r.status === "sending" || r.status === "queued");
+  const active = sending ?? (rows ?? []).find((r) => r.status === "paused");
+  const inFlight = !!sending;
   useEffect(() => {
-    if (!inFlight) return;
-    const id = setInterval(() => void load(), 4000);
-    return () => clearInterval(id);
-  }, [inFlight, load]);
+    if (!inFlight || viewing) return;
+    const t = setInterval(() => void load(), 5000);
+    return () => clearInterval(t);
+  }, [inFlight, viewing, load]);
 
-  /** The request body both preview and send use, so the two can never disagree
-   * about who the audience is. */
-  function body() {
-    return {
-      name: name.trim(),
+  /** The request body both preview and send use, so the two can never
+   * disagree about who the audience is or what the message says. The name
+   * is added only when sending: it is never sent to anyone, and typing it
+   * should not re-run the preview. */
+  const body = useMemo(
+    () => ({
+      name: "preview",
       messageHtml,
       ...(imageUrl ? { imageUrl } : {}),
       audience,
       ...(audience === "tag" ? { tag: tag.trim() } : {}),
+      ...(audience === "selected" ? { contactIds } : {}),
       ...(audience === "manual"
         ? {
             numbers: numbers
@@ -124,37 +149,83 @@ export default function WhatsappCampaigns() {
               .filter(Boolean),
           }
         : {}),
-    };
-  }
+    }),
+    [messageHtml, imageUrl, audience, tag, contactIds, numbers],
+  );
+  const bodyKey = JSON.stringify(body);
 
-  async function runPreview() {
-    setBusy(true);
+  // `<p><br></p>` is what an empty Quill editor emits.
+  const plain = messageHtml.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
+  const audienceReady =
+    audience === "tag"
+      ? tag.trim().length > 0
+      : audience === "selected"
+        ? contactIds.length > 0
+        : audience === "manual"
+          ? numbers.trim().length > 0
+          : true;
+  const canPreview = plain.length > 0 && audienceReady;
+
+  const runPreview = useCallback(async () => {
+    const key = bodyKey;
+    setPreviewing(true);
     setError(null);
-    setPreview(null);
     try {
       const res = await adminFetch(`${__API_URL__}/whatsapp/broadcasts/preview`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(body()),
+        body: key,
       });
-      const data = (await res.json().catch(() => null)) as (Preview & { message?: string }) | null;
+      const data = (await res.json().catch(() => null)) as (Preview & { message?: string | string[] }) | null;
       if (!res.ok) {
-        setError(data?.message ?? "Could not work out who that would reach.");
+        const msg = data?.message;
+        setError(Array.isArray(msg) ? msg.join(" ") : (msg ?? "Could not preview this campaign."));
+        setPreview(null);
+        setPreviewedFor(null);
         return;
       }
       setPreview(data);
+      setPreviewedFor(key);
+      setSample(0);
     } finally {
-      setBusy(false);
+      setPreviewing(false);
     }
-  }
+  }, [bodyKey]);
+
+  // Live preview: re-asked a moment after the last edit, as kioscart-v1's
+  // composer does, so the bubble keeps up with the typing.
+  useEffect(() => {
+    if (!canPreview || bodyKey === previewedFor) return;
+    const t = setTimeout(() => void runPreview(), 800);
+    return () => clearTimeout(t);
+  }, [canPreview, bodyKey, previewedFor, runPreview]);
+
+  const fresh = !!preview && previewedFor === bodyKey;
+  const typedUnknown = unknownPlaceholders(plain);
+  const canSend =
+    fresh &&
+    !busy &&
+    connected === true &&
+    name.trim().length > 0 &&
+    // Only one campaign SENDS at a time (the server refuses a second with
+    // 409). A paused one does not block: it may sit at the daily limit
+    // until tomorrow.
+    !inFlight &&
+    preview.willSend > 0 &&
+    preview.willSend <= MAX_RECIPIENTS &&
+    preview.unknownPlaceholders.length === 0 &&
+    typedUnknown.length === 0;
 
   async function send() {
     if (!preview) return;
+    const n = preview.willSend;
+    const overDaily = n > preview.dailyRemaining;
     const agreed = await confirm({
-      title: `Send to ${preview.willSend} ${preview.willSend === 1 ? "person" : "people"}?`,
+      title: `Send to ${n} ${n === 1 ? "person" : "people"}?`,
       message: `This goes out on WhatsApp from ${sendingFrom ? `+${sendingFrom}` : "the linked phone"}, and cannot be unsent.`,
-      detail:
-        "Messages are spaced a few seconds apart, so this runs for a while. You can watch it in the list below.",
+      detail: overDaily
+        ? `Only ${preview.dailyRemaining} more can go out in the next 24 hours, so it will pause at the daily limit and you can resume it tomorrow. Sending is spaced out to protect the number from a WhatsApp ban.`
+        : `Takes about ${preview.estimatedMinutes} min — messages are spaced out to protect the number from a WhatsApp ban. You can stop it at any time.`,
       confirmLabel: "Send now",
       tone: "danger",
     });
@@ -166,10 +237,10 @@ export default function WhatsappCampaigns() {
       const res = await adminFetch(`${__API_URL__}/whatsapp/broadcasts`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(body()),
+        body: JSON.stringify({ ...body, name: name.trim() }),
       });
-      const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { id?: string; message?: string } | null;
+      if (!res.ok || !data?.id) {
         setError(data?.message ?? "It did not start.");
         return;
       }
@@ -177,8 +248,10 @@ export default function WhatsappCampaigns() {
       setMessageHtml("");
       setImageUrl(null);
       setNumbers("");
+      setContactIds([]);
       setPreview(null);
-      await load();
+      setPreviewedFor(null);
+      setViewing(data.id);
     } finally {
       setBusy(false);
     }
@@ -186,10 +259,16 @@ export default function WhatsappCampaigns() {
 
   if (!user) return null;
 
-  // `<p><br></p>` is what an empty Quill editor emits, so a length check on
-  // the raw HTML would call an empty message written.
-  const hasMessage = messageHtml.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim().length > 0;
-  const canCompose = name.trim().length > 0 && hasMessage;
+  if (viewing) {
+    return (
+      <div className="flex flex-col gap-8">
+        <PageHeading title="WhatsApp campaigns" />
+        <WhatsappCampaignRun id={viewing} onBack={() => setViewing(null)} />
+      </div>
+    );
+  }
+
+  const current = preview?.samples[sample];
 
   return (
     <div className="flex flex-col gap-8">
@@ -200,7 +279,7 @@ export default function WhatsappCampaigns() {
             ? "No phone is linked — pair one under Settings → WhatsApp before sending."
             : sendingFrom
               ? `Sending from +${sendingFrom}`
-              : "One message, to a chosen audience."
+              : "One message, personalised for each person."
         }
       />
 
@@ -208,165 +287,227 @@ export default function WhatsappCampaigns() {
         <Panel className="p-5">
           <p className="text-sm text-[var(--text-secondary)]">
             WhatsApp messaging is not connected. Open <span className="font-medium">Settings → WhatsApp</span>,
-            switch it on and scan the code with the phone you want to send from.
+            switch it on and scan the code with the phone you want to send from. You can still write and
+            preview a campaign meanwhile.
           </p>
         </Panel>
       )}
 
-      <Panel className="p-6">
-        <h2 className="text-lg">New campaign</h2>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Check who it reaches before you send. A WhatsApp message lands on a personal phone and
-          cannot be taken back.
-        </p>
+      {active && (
+        <Panel className="flex flex-wrap items-center gap-3 p-4">
+          <Badge tone={STATUS_TONE[active.status]}>{STATUS_LABEL[active.status]}</Badge>
+          <span className="text-sm text-[var(--text-primary)]">
+            <span className="font-medium">{active.name}</span>
+            {active.status === "paused"
+              ? ` is paused${active.lastError ? ` — ${active.lastError}` : "."}`
+              : ` is going out: ${active.sentCount} sent so far.`}
+          </span>
+          <Button size="sm" variant="secondary" className="ml-auto" onClick={() => setViewing(active._id)}>
+            View progress
+          </Button>
+        </Panel>
+      )}
 
-        <div className="mt-5 flex flex-col gap-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Campaign name" htmlFor="wc-name" hint="For your reference — never sent." required>
-              <Input
-                id="wc-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="March workshop reminder"
-              />
-            </Field>
-
-            <Field label="Audience" htmlFor="wc-audience">
-              <Select
-                id="wc-audience"
-                value={audience}
-                onChange={(e) => {
-                  setAudience(e.target.value as BroadcastRow["audience"]);
-                  setPreview(null);
-                }}
-              >
-                <option value="members">Active members</option>
-                <option value="contacts">Everyone in the CRM</option>
-                <option value="tag">CRM contacts with a tag</option>
-                <option value="manual">A list I paste in</option>
-              </Select>
-            </Field>
-          </div>
-
-          {audience === "tag" && (
-            <Field label="Tag" htmlFor="wc-tag" hint="Contacts carrying this tag." required>
-              <Input
-                id="wc-tag"
-                value={tag}
-                onChange={(e) => {
-                  setTag(e.target.value);
-                  setPreview(null);
-                }}
-                placeholder="workshop-2026"
-                className="max-w-xs"
-              />
-            </Field>
-          )}
-
-          {audience === "manual" && (
-            <Field
-              label="Numbers"
-              htmlFor="wc-numbers"
-              hint="One per line, or comma separated. Include the country code."
-              required
-            >
-              <Textarea
-                id="wc-numbers"
-                rows={4}
-                value={numbers}
-                onChange={(e) => {
-                  setNumbers(e.target.value);
-                  setPreview(null);
-                }}
-                placeholder={"+65 9123 4567\n+65 8765 4321"}
-              />
-            </Field>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-[var(--text-primary)]">
-              Message <span className="text-red-600 dark:text-red-400">*</span>
-            </span>
-            <WhatsappMessageEditor
-              value={messageHtml}
-              onChange={(html) => {
-                setMessageHtml(html);
-                setPreview(null);
-              }}
-              imageUrl={imageUrl}
-              onImageChange={(url) => {
-                setImageUrl(url);
-                setPreview(null);
-              }}
-            />
-          </div>
-
-          {error && (
-            <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
-              {error}
-            </p>
-          )}
-
-          {preview && (
-            <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] surface-sunken p-4 text-sm">
-              {/* What WhatsApp will actually render, converted by the server
-                  rather than guessed here — so the asterisks and bullets on
-                  screen are literally the characters that will be sent. */}
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
-                They will receive
-              </p>
-              <pre className="mt-1.5 mb-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface)] p-3 font-sans text-sm text-[var(--text-primary)]">
-                {preview.message}
-              </pre>
-              {preview.hasImage && (
-                <p className="mb-3 text-xs text-[var(--text-muted)]">
-                  …with the attached image above it, as its caption.
-                </p>
-              )}
-
-              <p className="font-medium text-[var(--text-primary)]">
-                {preview.willSend} will receive this
-                {preview.willSkip > 0 && (
-                  <span className="font-normal text-[var(--text-secondary)]">
-                    {" "}· {preview.willSkip} skipped
-                  </span>
-                )}
-              </p>
-              {preview.sample.length > 0 && (
-                <ul className="mt-2 flex flex-col gap-1 text-[var(--text-secondary)]">
-                  {preview.sample.map((r, i) => (
-                    <li key={`${r.phone}-${i}`} className="flex flex-wrap items-center gap-2">
-                      <span>{r.name || "(no name)"}</span>
-                      <span className="text-[var(--text-muted)]">{r.phone}</span>
-                      {r.status === "skipped" && (
-                        <Badge tone="neutral">{r.reason ?? "skipped"}</Badge>
-                      )}
-                    </li>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <Panel className="p-6">
+          <h2 className="text-lg">New campaign</h2>
+          <div className="mt-5 flex flex-col gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Campaign name" htmlFor="wc-name" hint="For your reference — never sent." required>
+                <Input
+                  id="wc-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="March workshop reminder"
+                />
+              </Field>
+              <Field label="Send to" htmlFor="wc-audience">
+                <Select id="wc-audience" value={audience} onChange={(e) => setAudience(e.target.value as Audience)}>
+                  {(Object.keys(AUDIENCE_LABEL) as Audience[]).map((a) => (
+                    <option key={a} value={a}>
+                      {AUDIENCE_LABEL[a]}
+                    </option>
                   ))}
-                  {preview.total > preview.sample.length && (
-                    <li className="text-[var(--text-muted)]">
-                      …and {preview.total - preview.sample.length} more
-                    </li>
-                  )}
-                </ul>
-              )}
+                </Select>
+              </Field>
             </div>
-          )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" disabled={busy || !canCompose} onClick={() => void runPreview()}>
-              Who will get this?
-            </Button>
-            <Button
-              disabled={busy || !preview || preview.willSend === 0 || connected !== true}
-              onClick={() => void send()}
-            >
-              <Icon name="whatsapp" size={16} />
-              Send campaign
-            </Button>
+            {audience === "tag" && (
+              <Field label="Tag" htmlFor="wc-tag" hint="Contacts carrying this tag." required>
+                <Input
+                  id="wc-tag"
+                  value={tag}
+                  onChange={(e) => setTag(e.target.value)}
+                  placeholder="workshop-2026"
+                  className="max-w-xs"
+                />
+              </Field>
+            )}
+
+            {audience === "selected" && <WhatsappContactPicker selected={contactIds} onChange={setContactIds} />}
+
+            {audience === "manual" && (
+              <Field
+                label="Numbers"
+                htmlFor="wc-numbers"
+                hint="One per line, or comma separated. Include the country code. Names are not known, so {{name}} falls back."
+                required
+              >
+                <Textarea
+                  id="wc-numbers"
+                  rows={4}
+                  value={numbers}
+                  onChange={(e) => setNumbers(e.target.value)}
+                  placeholder={"+65 9123 4567\n+65 8765 4321"}
+                />
+              </Field>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-[var(--text-primary)]">
+                Message <span className="text-red-600 dark:text-red-400">*</span>
+              </span>
+              <WhatsappMessageEditor
+                value={messageHtml}
+                onChange={setMessageHtml}
+                imageUrl={imageUrl}
+                onImageChange={setImageUrl}
+              />
+            </div>
           </div>
+        </Panel>
+
+        {/* The preview: sticky beside the form on wide screens, below it on
+            narrow ones. */}
+        <div className="flex flex-col gap-4 lg:sticky lg:top-6">
+          <Panel className="p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base">Preview</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!canPreview || previewing}
+                onClick={() => void runPreview()}
+              >
+                {previewing ? "Updating…" : "Refresh"}
+              </Button>
+            </div>
+
+            {!canPreview ? (
+              <p className="mt-3 text-sm text-[var(--text-muted)]">
+                Write a message and choose who it goes to, and each person’s copy appears here.
+              </p>
+            ) : !preview ? (
+              <p className="mt-3 text-sm text-[var(--text-muted)]">{previewing ? "Working it out…" : ""}</p>
+            ) : (
+              <div className={`mt-3 flex flex-col gap-4 ${fresh ? "" : "opacity-60"}`}>
+                {current ? (
+                  <div>
+                    <div className="rounded-xl bg-[#e5ddd5] p-3 dark:bg-[#0b141a]">
+                      <div className="ml-auto max-w-[95%] rounded-lg rounded-tr-none bg-[#d9fdd3] p-2 text-[0.875rem] text-[#111b21] shadow-sm dark:bg-[#005c4b] dark:text-[#e9edef]">
+                        {imageUrl && preview.hasImage && (
+                          <img
+                            src={`${__API_URL__}${imageUrl}`}
+                            alt=""
+                            className="mb-1.5 max-h-48 w-full rounded-md object-cover"
+                          />
+                        )}
+                        <p className="whitespace-pre-wrap break-words">{current.text}</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                      <button
+                        type="button"
+                        aria-label="Previous person"
+                        disabled={sample === 0}
+                        onClick={() => setSample((s) => s - 1)}
+                        className="rounded-full p-1 hover:bg-[var(--surface-sunken)] disabled:opacity-30"
+                      >
+                        <Icon name="chevron-left" size={16} />
+                      </button>
+                      <span>
+                        To <span className="font-medium text-[var(--text-primary)]">{current.name || "(no name)"}</span>{" "}
+                        {current.phone} · {sample + 1} of {preview.samples.length}
+                        {preview.willSend > preview.samples.length && ` (first ${preview.samples.length})`}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Next person"
+                        disabled={sample >= preview.samples.length - 1}
+                        onClick={() => setSample((s) => s + 1)}
+                        className="rounded-full p-1 hover:bg-[var(--surface-sunken)] disabled:opacity-30"
+                      >
+                        <Icon name="chevron-right" size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[var(--text-muted)]">Nobody in this audience can receive it.</p>
+                )}
+
+                <div className="text-sm">
+                  <p className="font-medium text-[var(--text-primary)]">
+                    {preview.willSend} will receive this
+                  </p>
+                  {preview.willSkip > 0 && (
+                    <>
+                      <p className="mt-1 text-[var(--text-secondary)]">{preview.willSkip} will be skipped:</p>
+                      <ul className="mt-1 flex flex-col gap-0.5 text-[var(--text-secondary)]">
+                        {Object.entries(preview.skipped).map(([reason, n]) => (
+                          <li key={reason}>
+                            · {reason} ({n})
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {preview.willSend > 0 && (
+                    <p className="mt-2 text-[var(--text-secondary)]">
+                      Takes about {preview.estimatedMinutes} min · {preview.dailyRemaining} of {preview.dailyLimit}{" "}
+                      messages left today
+                    </p>
+                  )}
+                  {preview.willSend > preview.dailyRemaining && (
+                    <p className="mt-2 font-medium text-amber-700 dark:text-amber-400">
+                      More than today’s allowance — it will pause at the daily limit and can be resumed
+                      tomorrow.
+                    </p>
+                  )}
+                  {preview.unknownPlaceholders.length > 0 && (
+                    <p className="mt-2 font-medium text-red-600 dark:text-red-400">
+                      Fix {preview.unknownPlaceholders.map((k) => `{{${k}}}`).join(", ")} before sending.
+                    </p>
+                  )}
+                  {preview.warnings.map((w) => (
+                    <p key={w} className="mt-2 font-medium text-red-600 dark:text-red-400">
+                      {w}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <p role="alert" className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+                {error}
+              </p>
+            )}
+
+            <Button className="mt-4 w-full" disabled={!canSend} onClick={() => void send()}>
+              <Icon name="whatsapp" size={16} />
+              {fresh && preview ? `Send to ${preview.willSend}` : "Send campaign"}
+            </Button>
+            {inFlight && (
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                Another campaign is sending. Wait for it to finish, or stop it, first.
+              </p>
+            )}
+            {!inFlight && fresh && name.trim().length === 0 && (
+              <p className="mt-2 text-xs text-[var(--text-muted)]">Give the campaign a name to send it.</p>
+            )}
+          </Panel>
         </div>
-      </Panel>
+      </div>
 
       <Panel>
         {rows && rows.length === 0 ? (
@@ -384,30 +525,27 @@ export default function WhatsappCampaigns() {
             </thead>
             <tbody>
               {(rows ?? []).map((r) => (
-                <tr key={r._id} className="hover:bg-[var(--surface-sunken)]">
+                <tr
+                  key={r._id}
+                  className="cursor-pointer hover:bg-[var(--surface-sunken)]"
+                  onClick={() => setViewing(r._id)}
+                >
                   <Td>
                     <span className="font-medium text-[var(--text-primary)]">{r.name}</span>
-                    <span className="block max-w-md truncate text-xs text-[var(--text-muted)]">
-                      {r.message}
-                    </span>
+                    <span className="block max-w-md truncate text-xs text-[var(--text-muted)]">{r.message}</span>
                   </Td>
                   <Td className="whitespace-nowrap text-[var(--text-secondary)]">
-                    {r.audience === "tag" ? `Tag: ${r.tag ?? ""}` : r.audience}
+                    {r.audience === "tag" ? `Tag: ${r.tag ?? ""}` : AUDIENCE_LABEL[r.audience]}
                   </Td>
                   <Td className="whitespace-nowrap text-[var(--text-secondary)]">
                     {r.sentCount}
                     {r.failedCount > 0 && (
                       <span className="text-red-600 dark:text-red-400"> · {r.failedCount} failed</span>
                     )}
-                    {r.skippedCount > 0 && (
-                      <span className="text-[var(--text-muted)]"> · {r.skippedCount} skipped</span>
-                    )}
+                    {r.skippedCount > 0 && <span className="text-[var(--text-muted)]"> · {r.skippedCount} skipped</span>}
                   </Td>
                   <Td>
-                    <Badge tone={STATUS_TONE[r.status]}>{r.status}</Badge>
-                    {r.lastError && (
-                      <span className="block text-xs text-[var(--text-muted)]">{r.lastError}</span>
-                    )}
+                    <Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
                   </Td>
                   <Td className="whitespace-nowrap text-[var(--text-secondary)]">
                     {r.startedAt ? formatDateTime(r.startedAt) : "—"}

@@ -120,6 +120,14 @@ export class WhatsappController {
     return this.broadcasts.list();
   }
 
+  /** The CRM contacts the composer's picker can tick. Before `:id`, which
+   * would otherwise swallow the word "contacts" as a campaign id. */
+  @Tabs('whatsapp')
+  @Get('broadcasts/contacts')
+  pickableContacts() {
+    return this.broadcasts.pickableContacts();
+  }
+
   @Tabs('whatsapp')
   @Get('broadcasts/:id')
   getBroadcast(@Param('id') id: string) {
@@ -138,5 +146,21 @@ export class WhatsappController {
   @Post('broadcasts')
   sendBroadcast(@Body() dto: SendBroadcastDto) {
     return this.broadcasts.send(dto, 'admin');
+  }
+
+  /** Stop a campaign. Everyone not yet messaged is skipped as "Campaign
+   * stopped"; the message in flight, if any, finishes. */
+  @Tabs('whatsapp')
+  @Post('broadcasts/:id/cancel')
+  cancelBroadcast(@Param('id') id: string) {
+    return this.broadcasts.cancel(id);
+  }
+
+  /** Carry on with a paused campaign — the daily limit, a dropped session or
+   * a restart paused it — from the next person not yet messaged. */
+  @Tabs('whatsapp')
+  @Post('broadcasts/:id/resume')
+  resumeBroadcast(@Param('id') id: string) {
+    return this.broadcasts.resume(id);
   }
 }
