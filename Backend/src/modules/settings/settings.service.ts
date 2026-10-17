@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { Settings, SettingsDocument } from './entities/settings.entity';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { lookupUen, type UenLookupResult } from './uen-lookup';
+import { sanitizeAbout, type AboutContent } from './about-fields';
 import { decryptSecret, encryptSecret, hasEncryptionKey } from '../../common/secret-crypto.util';
 
 const SINGLETON_KEY = 'singleton';
@@ -37,6 +38,7 @@ export interface SettingsPublicView {
   contactPhoneNote: string;
   whatsappNote: string;
   officeAddressNote: string;
+  about: AboutContent;
 }
 
 /** The shape the PUBLIC endpoint returns to the public event pages — only
@@ -63,6 +65,8 @@ export interface SettingsPublicPayload {
   contactPhoneNote: string;
   whatsappNote: string;
   officeAddressNote: string;
+  /** About-page copy; absent keys mean "use the page's own wording". */
+  about: AboutContent;
 }
 
 @Injectable()
@@ -110,6 +114,7 @@ export class SettingsService {
       contactPhoneNote: s.contactPhoneNote,
       whatsappNote: s.whatsappNote,
       officeAddressNote: s.officeAddressNote,
+      about: sanitizeAbout(s.about),
     };
   }
 
@@ -140,6 +145,7 @@ export class SettingsService {
       contactPhoneNote: s.contactPhoneNote,
       whatsappNote: s.whatsappNote,
       officeAddressNote: s.officeAddressNote,
+      about: sanitizeAbout(s.about),
     };
   }
 
@@ -169,6 +175,11 @@ export class SettingsService {
     if (dto.contactPhoneNote !== undefined) update.contactPhoneNote = dto.contactPhoneNote;
     if (dto.whatsappNote !== undefined) update.whatsappNote = dto.whatsappNote;
     if (dto.officeAddressNote !== undefined) update.officeAddressNote = dto.officeAddressNote;
+    // Merged key by key so a partial save cannot wipe copy it did not mention;
+    // a blank value is kept as '' (= back to the page's own wording).
+    if (dto.about !== undefined) {
+      update.about = { ...sanitizeAbout(current.about), ...sanitizeAbout(dto.about) };
+    }
 
     // Secrets: blank = keep existing, clear flags wipe, otherwise encrypt.
     // encryptSecret throws without SETTINGS_ENC_KEY — fail-safe, never
