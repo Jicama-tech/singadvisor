@@ -11,34 +11,28 @@ import {
   type TrainingDoc,
 } from "@/lib/contentClient";
 import { withBackendUrl } from "@/lib/media-url";
-
-const PRINCIPLES = [
-  {
-    title: "Measure the change, not the mood",
-    body: "A programme that everyone enjoyed and nobody applied has failed. We build measurement into the design and report it honestly, including when the answer is unflattering.",
-  },
-  {
-    title: "Practical over comprehensive",
-    body: "We would rather you leave with three things you will genuinely use than thirty you will not. Every session ends with something concrete you can act on.",
-  },
-  {
-    title: "Say no to bad-fit work",
-    body: "If we do not think we can help, we say so and point you elsewhere. It costs us engagements and it is why our recommendations are worth something.",
-  },
-  {
-    title: "Build capability, not dependency",
-    body: "Our consultancy engagements end with your team owning the work. If you need us permanently, we designed it wrong.",
-  },
-];
+import { ABOUT_DEFAULTS, resolveAbout, splitParagraphs, type AboutContent } from "@/lib/aboutContent";
 
 type Trainer = NonNullable<TrainingDoc["trainers"]>[number];
 
 export default function AboutPage() {
   const [trainers, setTrainers] = useState<Trainer[] | null>(null);
+  // Starts on the shipped wording; Settings -> About overrides replace it
+  // once /settings/public answers. If that call fails the page is unchanged.
+  const [about, setAbout] = useState<AboutContent>(ABOUT_DEFAULTS);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      try {
+        const res = await fetch(`${__API_URL__}/settings/public`);
+        if (res.ok) {
+          const body = (await res.json()) as { about?: Partial<Record<string, string>> };
+          if (!cancelled) setAbout(resolveAbout(body.about));
+        }
+      } catch {
+        /* keep the shipped wording */
+      }
       const trainings = await fetchTrainings();
 
       // The Backend has no public trainer-list endpoint, so the team is
@@ -87,41 +81,25 @@ export default function AboutPage() {
         <title>About — SingAdvisor</title>
         <meta
           name="description"
-          content="SingAdvisor is a Singapore learning and consultancy practice working with students, corporate teams and professionals since 2016."
+          content={about.metaDescription}
         />
       </Helmet>
 
       <PageHero
-        eyebrow="About"
-        title="A small practice with a narrow definition of success"
-        description="Since 2016 we have worked with students, corporate teams and professionals across Singapore. We are deliberately small, which means the person who scopes your work is usually the person who does it."
+        eyebrow={about.heroEyebrow}
+        title={about.heroTitle}
+        description={about.heroDescription}
       />
 
       {/* ---- Story ------------------------------------------------------- */}
       <Section>
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
           <div className="prose-body">
-            <SectionHeader eyebrow="Our story" title="Why we started" />
+            <SectionHeader eyebrow={about.storyEyebrow} title={about.storyTitle} />
             <div className="mt-5">
-              <p>
-                SingAdvisor began with a free weekend workshop for students on
-                managing time and money — the two things that derail more early
-                careers than any skills gap. It filled up, ran again, and kept
-                running.
-              </p>
-              <p>
-                Corporate clients started asking for the same material for their
-                teams. That grew into leadership and communication programmes,
-                which in turn surfaced a recurring pattern: organisations kept
-                buying training for problems that training could not solve. So
-                we built a consultancy practice to work on those properly.
-              </p>
-              <p>
-                Today we run four things — trainings, events, consultancy
-                engagements and a hiring pipeline of people who care about this
-                work. The free student programmes still run, and they always
-                will.
-              </p>
+              {splitParagraphs(about.story).map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
             </div>
           </div>
 
@@ -154,15 +132,15 @@ export default function AboutPage() {
           {[
             {
               image: "/Images/Trainingimgae/mission.jpg",
-              label: "Mission",
-              title: "Make capability building actually work",
-              body: "To design and deliver learning that changes what people do, and to be honest about when it has not.",
+              label: about.missionLabel,
+              title: about.missionTitle,
+              body: about.missionBody,
             },
             {
               image: "/Images/Trainingimgae/vision.jpeg",
-              label: "Vision",
-              title: "A region that measures learning by its effect",
-              body: "A Southeast Asian market where organisations judge learning investment by behaviour change rather than attendance.",
+              label: about.visionLabel,
+              title: about.visionTitle,
+              body: about.visionBody,
             },
           ].map((item) => (
             <div
@@ -195,13 +173,18 @@ export default function AboutPage() {
       {/* ---- Principles ---------------------------------------------------- */}
       <Section>
         <SectionHeader
-          eyebrow="How we work"
-          title="Four things we hold to"
-          description="These are not aspirations on a wall — they decide which engagements we take and how we run them."
+          eyebrow={about.principlesEyebrow}
+          title={about.principlesTitle}
+          description={about.principlesDescription}
           align="center"
         />
         <div className="mt-12 grid gap-6 md:grid-cols-2">
-          {PRINCIPLES.map((p, i) => (
+          {[
+            { title: about.principle1Title, body: about.principle1Body },
+            { title: about.principle2Title, body: about.principle2Body },
+            { title: about.principle3Title, body: about.principle3Body },
+            { title: about.principle4Title, body: about.principle4Body },
+          ].map((p, i) => (
             <div
               key={p.title}
               className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] p-7"
@@ -222,8 +205,8 @@ export default function AboutPage() {
       {trainers.length > 0 && (
         <Section tone="sunken">
           <SectionHeader
-            eyebrow="The team"
-            title="Who you'll actually work with"
+            eyebrow={about.teamEyebrow}
+            title={about.teamTitle}
             align="center"
           />
           <div className="mx-auto mt-12 grid max-w-4xl gap-6 sm:grid-cols-2">
@@ -258,11 +241,10 @@ export default function AboutPage() {
       <Section>
         <div className="flex flex-col items-center gap-6 rounded-[var(--radius-card)] bg-[var(--color-ink-950)] px-6 py-16 text-center">
           <h2 className="max-w-2xl text-3xl text-white md:text-4xl">
-            Want to work with us — or for us?
+            {about.ctaTitle}
           </h2>
           <p className="max-w-xl text-white/70">
-            Clients, participants and candidates all start the same way: tell us
-            what you are trying to change.
+            {about.ctaBody}
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <ButtonLink to="/contact" size="lg">
