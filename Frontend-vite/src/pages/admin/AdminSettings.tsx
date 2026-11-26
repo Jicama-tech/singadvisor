@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { OperatorsPanel } from "@/components/admin/OperatorsPanel";
 import { WhatsappPanel } from "@/components/admin/WhatsappPanel";
 import { ProfilePanel } from "@/components/admin/ProfilePanel";
+import { AboutPanel } from "@/components/admin/AboutPanel";
 
 /**
  * The single Settings tab (main sidebar). Three sections:
@@ -54,6 +55,7 @@ type SettingsView = {
   contactPhoneNote: string;
   whatsappNote: string;
   officeAddressNote: string;
+  about?: Partial<Record<string, string>>;
 };
 
 type EmailConfig = {
@@ -379,7 +381,7 @@ export default function AdminSettings() {
     <div className="flex w-full flex-col gap-8">
       <PageHeading
         title="Settings"
-        description="Payments, email, and what the platform can see."
+        description="Payments, email, contact details, the About page, and what the platform can see."
       />
 
       {error && (
@@ -402,6 +404,7 @@ export default function AdminSettings() {
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="contact">Contact</TabsTrigger>
+          <TabsTrigger value="about">About</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="operators">Operators</TabsTrigger>
         </TabsList>
@@ -844,6 +847,22 @@ export default function AdminSettings() {
           </p>
           <WhatsappPanel />
         </Panel>
+      </TabsContent>
+
+      {/* ---- About: the public About page's copy -------------------------- */}
+      <TabsContent value="about">
+        {settings ? (
+          <AboutPanel
+            about={settings.about}
+            onSaved={(s) => setSettings((cur) => (cur ? { ...cur, ...s } : cur))}
+            onMessage={setMessage}
+            onError={setError}
+          />
+        ) : (
+          <Panel className="p-6">
+            <p className="text-sm text-[var(--text-muted)]">Loading…</p>
+          </Panel>
+        )}
       </TabsContent>
 
       <TabsContent value="operators">

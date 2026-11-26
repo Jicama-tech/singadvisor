@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
+import { IsBoolean, IsObject, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 
 /**
  * Partial update of the platform settings. Secrets follow the
@@ -111,4 +111,10 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   officeAddressNote?: string;
+
+  /** About-page copy, merged key by key (see about-fields.ts). Validated by
+   * sanitizeAbout in the service, so the shape is just "an object". */
+  @IsOptional()
+  @IsObject()
+  about?: Record<string, string>;
 }

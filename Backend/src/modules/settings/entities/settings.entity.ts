@@ -135,6 +135,11 @@ export class Settings {
   @Prop({ type: String, default: '' })
   officeAddressNote!: string;
 
+  /** Editable copy of the public About page — see about-fields.ts. A blank or
+   * missing key means "use the page's own wording". */
+  @Prop({ type: Object, default: {} })
+  about!: Record<string, string>;
+
   @Prop({ type: String, default: '' })
   updatedBy!: string;
 
