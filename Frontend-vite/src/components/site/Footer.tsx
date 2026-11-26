@@ -19,7 +19,8 @@ const COLUMNS = [
   {
     heading: "What we do",
     links: [
-      { href: "/trainings", label: "Trainings" },
+      // the course store on Gurukulam (served at /learn/* by nginx), like the navbar's Trainings tab
+      { href: "/learn/store", label: "Trainings" },
       { href: "/events", label: "Events" },
       { href: "/consultancy", label: "Consultancy" },
       { href: "/careers", label: "Careers" },
@@ -90,14 +91,24 @@ export function Footer() {
               <ul className="flex flex-col gap-2">
                 {col.links.map((link) => (
                   <li key={link.href + link.label}>
-                    <Link
-                      to={link.href}
-                      // -my-1 py-1 enlarges the touch target to ~25px without
-                      // altering the visual rhythm of the list.
-                      className="-my-1 inline-block py-1 text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
-                    >
-                      {link.label}
-                    </Link>
+                    {/* /learn/* is the Gurukulam store, not a route of this app: a full page load */}
+                    {link.href.startsWith("/learn/") ? (
+                      <a
+                        href={link.href}
+                        className="-my-1 inline-block py-1 text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
+                      >
+                        {link.label}
+                      </a>
+                    ) : (
+                      <Link
+                        to={link.href}
+                        // -my-1 py-1 enlarges the touch target to ~25px without
+                        // altering the visual rhythm of the list.
+                        className="-my-1 inline-block py-1 text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
+                      >
+                        {link.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

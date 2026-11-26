@@ -13,8 +13,13 @@ import { fetchLandingSections } from "@/lib/landing-client";
 // is set to Hidden in the admin's Landing page, the matching navbar link
 // hides too (so the public nav and the homepage always agree). "about" has
 // no section (it is always visible).
+// Trainings opens SingAdvisor's course store on Gurukulam, served at
+// /learn/* by nginx (see Deployment/nginx-singadvisor.conf). It is not a
+// route of this app, so it must be a full page load: see isOtherSite.
+const TRAININGS_STORE = "/learn/store";
+
 const NAV = [
-  { href: "/trainings", label: "Trainings", section: "trainings" },
+  { href: TRAININGS_STORE, label: "Trainings", section: "trainings" },
   { href: "/events", label: "Events", section: "events" },
   { href: "/consultancy", label: "Consultancy", section: "consultancy" },
   { href: "/careers", label: "Careers", section: "careers" },
@@ -69,6 +74,10 @@ export function Navbar() {
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
+  /** /learn/* is the Gurukulam store, outside this app: a router <Link> would
+   * stay inside the SPA and land on its "page not found". */
+  const isOtherSite = (href: string) => href.startsWith("/learn/");
+
   const visibleNav = NAV.filter((item) => !hiddenSections || !item.section || !hiddenSections.has(item.section));
 
   return (
@@ -108,25 +117,34 @@ export function Navbar() {
         </Link>
 
         <ul className="hidden items-center gap-1 lg:flex">
-          {visibleNav.map((item) => (
-            <li key={item.href}>
-              <Link
-                to={item.href}
-                aria-current={isActive(item.href) ? "page" : undefined}
-                className={cn(
-                  "relative rounded-full px-4 py-2 text-[0.9375rem] font-medium transition-colors",
-                  isActive(item.href)
-                    ? "text-[var(--accent)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+          {visibleNav.map((item) => {
+            const className = cn(
+              "relative rounded-full px-4 py-2 text-[0.9375rem] font-medium transition-colors",
+              isActive(item.href)
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+            );
+            return (
+              <li key={item.href}>
+                {isOtherSite(item.href) ? (
+                  <a href={item.href} className={className}>
+                    {item.label}
+                  </a>
+                ) : (
+                  <Link
+                    to={item.href}
+                    aria-current={isActive(item.href) ? "page" : undefined}
+                    className={className}
+                  >
+                    {item.label}
+                    {isActive(item.href) && (
+                      <span className="absolute inset-x-4 -bottom-px h-0.5 rounded-full bg-[var(--accent)]" />
+                    )}
+                  </Link>
                 )}
-              >
-                {item.label}
-                {isActive(item.href) && (
-                  <span className="absolute inset-x-4 -bottom-px h-0.5 rounded-full bg-[var(--accent)]" />
-                )}
-              </Link>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
 
         <div className="flex items-center gap-2">
@@ -159,23 +177,31 @@ export function Navbar() {
           className="border-t border-[var(--border-subtle)] bg-[var(--surface)] lg:hidden"
         >
           <ul className="container-page flex flex-col py-3">
-            {visibleNav.map((item) => (
-              <li key={item.href}>
-                <Link
-                  to={item.href}
-                  aria-current={isActive(item.href) ? "page" : undefined}
-                  className={cn(
-                    "flex items-center justify-between rounded-xl px-3 py-3 text-base font-medium transition-colors",
-                    isActive(item.href)
-                      ? "bg-[var(--accent-soft)] text-[var(--accent-on-soft)]"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)]",
-                  )}
-                >
+            {visibleNav.map((item) => {
+              const className = cn(
+                "flex items-center justify-between rounded-xl px-3 py-3 text-base font-medium transition-colors",
+                isActive(item.href)
+                  ? "bg-[var(--accent-soft)] text-[var(--accent-on-soft)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)]",
+              );
+              const inner = (
+                <>
                   {item.label}
                   <Icon name="arrow-right" size={16} />
-                </Link>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={item.href}>
+                  {isOtherSite(item.href) ? (
+                    <a href={item.href} className={className}>{inner}</a>
+                  ) : (
+                    <Link to={item.href} aria-current={isActive(item.href) ? "page" : undefined} className={className}>
+                      {inner}
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
             <li className="mt-2 px-3">
               <ButtonLink to="/contact" className="w-full">
                 Get in touch
